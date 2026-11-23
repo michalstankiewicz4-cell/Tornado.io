@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<title>Tornado.io — jesteś trąbą powietrzną</title>
+<meta name="description" content="Tornado.io: sterujesz małą trąbą powietrzną. Zjadasz drobne rzeczy i rośniesz, cięższe nosisz w wirze i rzucasz nimi w budynki, które rozpadają się tak, jak są zbudowane.">
+<link rel="icon" type="image/png" href="assets/favicon-32.png">
+<link rel="stylesheet" href="ui/style/sea.css">
+<link rel="stylesheet" href="ui/ui.css">
+<link rel="stylesheet" href="ui/pages/game.css">
+</head>
+<!-- Gra (js/game/game.js): teren, wioska z budynków HouseKit w świecie DestructKit, drzewa PlantKit, przedmioty JunkKit i RockKit, trąba gracza. -->
+<body class="lab viewFits">
+<div class="labLoad"><div class="labLoadCard"><i class="labSpin"></i><b>Wioska się buduje…</b><span class="labLoadStep"></span><span class="labLoadBar"><i></i></span></div></div>
+<script src="ui/shell/log.js"></script>
+<script src="ui/data/versions.js"></script>
+<script src="ui/data/catalog.js"></script>
+<script src="ui/shell/menubar.js"></script>
+<script src="ui/shell/loader.js"></script>
+<div id="view"></div>
+<div class="viewLayer hudLayer" id="hud">
+  <div class="hudBig" id="big"></div>
+  <div class="hudFeed" id="feed"></div>
+  <div class="hudMeterLbl" id="meterLbl"></div>
+  <div class="hudMeter"><i id="meter"></i></div>
+</div>
+<div class="bar">
+  <button type="button" id="newGame" title="Nowa gra (R)">Nowa gra</button>
+  <button type="button" id="pauseBtn" title="Pauza (P)">Pauza</button>
+  <button type="button" id="labLink" title="Laboratorium zniszczeń">Laboratorium</button>
+  <span class="sp"></span>
+  <span class="dimtxt" id="status"></span>
+</div>
+<aside class="panel" data-std="info">
+  <h2 class="stdName">Tornado.io</h2>
+  <p class="stdText">Jesteś małą trąbą powietrzną. Zjadaj drobne rzeczy — puszki, gazety, kartony, opony, gruz — i rośnij. Cięższe rzeczy (beczki, opony traktorowe, głazy, drzewa) nosisz w wirze: kliknij, żeby rzucić najcięższą w cel. Budynki pękają tak, jak są zbudowane: szyby, ramy, dachówki, mury, stropy.</p>
+</aside>
+<aside class="panel" data-window="twister" data-title="Tornado" data-title-pl="Trąba">
+  <h3>Trąba</h3>
+  <div class="stats" id="tStats"></div>
+  <h3>Wioska</h3>
+  <div class="stats" id="vStats"></div>
+</aside>
+<aside class="panel" data-window="controls" data-title="Controls" data-title-pl="Sterowanie">
+  <h3>Sterowanie</h3>
+  <div class="stats" id="keys"></div>
+</aside>
+<aside class="panel" data-std="light">
+  <div class="row"><span>Pogoda</span><select id="weather"></select><output></output></div>
+  <div class="row"><span>Słońce</span><input type="range" id="sunEl" min="-6" max="70" step="1"><output id="sunElV"></output></div>
+</aside>
+<aside class="panel" data-std="perf">
+  <div class="stats" id="stats"></div>
+</aside>
+<div class="foot">
+  <span id="fps"></span>
+  <span class="sp"></span>
+  <span>Tornado.io</span>
+</div>
+<script src="ui/shell/perf.js"></script>
+<script src="ui/shell/labwin.js"></script>
+<script src="ui/shell/windows.js"></script>
+<script type="module" src="js/game/game.js"></script>
+</body>
+</html>

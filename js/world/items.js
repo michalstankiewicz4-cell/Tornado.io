@@ -64,3 +64,46 @@ export function makeItem(id, { variant = 0 } = {}) {
   const obj = P.obj.clone(); obj.name = id;
   return { obj, m: P.m, pts: P.pts, r: P.r, A: P.A, size: P.size, half: P.half, name: ITEMS[id].name };
 }
+
+// Pula instancji: setki przedmiotów, jedno wywołanie rysowania na rodzaj×wariant×część modelu. Przedmiot w puli ma
+// slot; set(matrix) stawia wszystkie części przedmiotu, free() chowa je i oddaje slot.
+// createItemPool(scene) → { spawn(id, variant) → { ...dane przedmiotu, set(Matrix4), free() }, draws() }
+export function createItemPool(scene) {
+  const groups = new Map();
+  const _m = new THREE.Matrix4(), ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
+  function group(key) {
+    let G = groups.get(key); if (G) return G;
+    const P = proto.get(key); if (!P) throw new Error('nie ma przedmiotu ' + key);
+    P.obj.updateMatrixWorld(true);
+    const parts = []; P.obj.traverse((o) => { if (o.isMesh) parts.push({ geo: o.geometry, mat: o.material, local: o.matrixWorld.clone() }); });
+    G = { P, parts, cap: 0, ims: [], free: [], n: 0, top: 0 };
+    grow(G, 32); groups.set(key, G);
+    return G;
+  }
+  function grow(G, cap) {
+    const old = G.ims;
+    G.ims = G.parts.map((pt, i) => {
+      const im = new THREE.InstancedMesh(pt.geo, pt.mat, cap); im.castShadow = G.P.size > 0.35; im.receiveShadow = true;   // drobiazgi bez cienia
+      im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.frustumCulled = false;
+      for (let k = 0; k < cap; k++) im.setMatrixAt(k, ZERO);
+      if (old[i]) { im.instanceMatrix.array.set(old[i].instanceMatrix.array); scene.remove(old[i]); old[i].dispose(); }
+      im.count = G.top || 0; scene.add(im); return im;
+    });
+    for (let k = cap - 1; k >= G.cap; k--) G.free.push(k);
+    G.cap = cap;
+  }
+  return {
+    spawn(id, variant = 0) {
+      const n = ITEMS[id] ? (ITEMS[id].variants || 4) : 1, key = id + ':' + (variant % n);
+      const G = group(proto.has(key) ? key : id + ':0');
+      if (!G.free.length) grow(G, G.cap * 2);
+      G.free.sort((a, b) => b - a);   // najniższe wolne miejsce pierwsze — rysujemy tylko do najwyższego zajętego
+      const slot = G.free.pop(), P = G.P;
+      if (slot + 1 > G.top) { G.top = slot + 1; for (const im of G.ims) im.count = G.top; }
+      const set = (M) => { for (let i = 0; i < G.parts.length; i++) { _m.multiplyMatrices(M, G.parts[i].local); G.ims[i].setMatrixAt(slot, _m); G.ims[i].instanceMatrix.needsUpdate = true; } };
+      const free = () => { for (const im of G.ims) { im.setMatrixAt(slot, ZERO); im.instanceMatrix.needsUpdate = true; } G.free.push(slot); };
+      return { m: P.m, pts: P.pts, r: P.r, A: P.A, size: P.size, half: P.half, name: ITEMS[id].name, vol: P.half.x * P.half.y * P.half.z * 8 * 0.6, set, free };
+    },
+    draws() { let n = 0; for (const G of groups.values()) n += G.ims.length; return n; },
+  };
+}

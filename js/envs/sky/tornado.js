@@ -155,7 +155,7 @@ export function createTornado(scene) {
       funnel.scale.set(1, T.top, 1);
       cloud.position.y = T.top; cloud.scale.setScalar(T.rc * 14); CU.uAlpha.value = 0.85 * T.fade;
       // cząstki: spirala w górę wokół podstawy; woda — biały pył, ląd — kurz i ciemne szczątki
-      dm.color.setRGB(...(w ? [0.85, 0.88, 0.9] : [0.36, 0.31, 0.26])); dm.opacity = (w ? 0.35 : 0.42) * T.fade; dm.size = Math.min(w ? 4 + 4 * s : 2 + 3 * s, 0.6 + T.rc * 0.35);
+      dm.color.setRGB(...(w ? [0.85, 0.88, 0.9] : [0.36, 0.31, 0.26])); dm.opacity = (w ? 0.35 : 0.3) * T.fade; dm.size = Math.min(w ? 4 + 4 * s : 2 + 3 * s, 0.35 + T.rc * 0.2);
       const rise = Math.min((w ? 40 : 60) + 140 * s, T.rc * 3 + 8), R = T.rc;
       for (let i = 0; i < DEBRIS; i++) {
         const a0 = seeds[i * 4], f = (seeds[i * 4 + 1] + time * (0.08 + 0.12 * seeds[i * 4 + 2])) % 1;

@@ -107,12 +107,13 @@ export function createWorld(scene, opts = {}) {
     bodies.delete(b);
     if (b.handle) batches.remove(b.handle);
     if (b.obj && b.obj.parent) b.obj.parent.remove(b.obj);
+    if (b.onRemove) b.onRemove(b);
     if (b.kind === 'frag') fragCount--;
   }
-  function addObject(obj, { m, pts, r, A, size, kind = 'item', sleep = true, name = '' }) {
-    obj.updateMatrixWorld();
+  // obj: Object3D (rysowany sam) albo { position, quaternion } z onSync(b) — np. instancja w InstancedMesh
+  function addObject(obj, { m, pts, r, A, size, vol, kind = 'item', sleep = true, name = '', onSync = null }) {
     const b = makeBody({ p: obj.position, q: obj.quaternion, m, pts, r, A });
-    Object.assign(b, { kind, obj, size: size || r * 2, name, state: sleep ? 'sleep' : 'active', vol: (size || r) ** 3 * 0.3, born: simT });
+    Object.assign(b, { kind, obj: obj.isObject3D ? obj : null, onSync, size: size || r * 2, name, state: sleep ? 'sleep' : 'active', vol: vol ?? (size || r) ** 3 * 0.3, born: simT, moved: true });
     bodies.add(b);
     return b;
   }
@@ -311,7 +312,7 @@ export function createWorld(scene, opts = {}) {
       if (!inside(part.poly, _p.x, _p.y, b.r * 0.35)) continue;
       if (part.state === 'broken' && !part.cells.some((c) => c.on && inside(c.poly, _p.x, _p.y, b.r * 0.35))) continue;
       // gruz to luźne kawałki (kruszy się przy uderzeniu) — uderza słabiej niż lity przedmiot
-      const J = b.v.clone().multiplyScalar(b.m * (b.kind === 'frag' ? 0.2 : b.kind === 'part' ? 0.5 : 0.9));
+      const J = b.v.clone().multiplyScalar(b.m * (b.thrown ? 0.9 : b.kind === 'frag' ? 0.2 : b.kind === 'part' ? 0.5 : 0.9));
       const before = part.state;
       hit(b.p, J, { radius: clamp(b.r * 1.3, 0.45, 1.6) });
       b.cool = simT + 0.12;
@@ -350,6 +351,7 @@ export function createWorld(scene, opts = {}) {
       if (b.state === 'sleep' && !b.moved) continue;
       b.moved = false;
       if (b.handle) { _m.compose(b.p, b.q, b.scale ? _v.setScalar(b.scale) : _s); batches.set(b.handle, _m); }
+      else if (b.onSync) b.onSync(b);
       else if (b.obj) { b.obj.position.copy(b.p); b.obj.quaternion.copy(b.q); if (b.scale) b.obj.scale.setScalar(b.scale * (b.baseScale || 1)); }
     }
   }
