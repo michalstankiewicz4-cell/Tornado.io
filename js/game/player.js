@@ -1,4 +1,4 @@
-// Trąba gracza. Rośnie z tego, co zje: promień rdzenia R = 1,2 m + 1,6 · ∛(zjedzona objętość w m³).
+// Trąba gracza. Rośnie z tego, co zje: promień rdzenia R = 1,2 m + 1,0 · ∛(zjedzona objętość w m³).
 //   zjada     małe i średnie lekkie rzeczy: rozmiar < 0,6 R i masa < 30 R³ kg — spirala w górę, znikają, R rośnie
 //   nosi      średnie ciężkie: rozmiar < 1,8 R i masa < 150 R³ kg — krążą w wirze (najwyżej 3 + 1,5 R naraz)
 //   rzuca     najcięższą niesioną rzecz w cel (prędkość 20 + 2 R m/s) — uderzenie liczy świat zniszczeń
@@ -11,9 +11,9 @@ import * as THREE from '../../vendor/three/three.module.js';
 import { createTornado, tornadoWind } from '../envs/sky/tornado.js';
 
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
-export const radiusOf = (V) => 1.2 + 1.6 * Math.cbrt(Math.max(0, V));
+export const radiusOf = (V) => 1.2 + 1.0 * Math.cbrt(Math.max(0, V));   // wolniejszy wzrost (0.1.1: było 1,6)
 
-export function createPlayer(scene, world, { heightAt, forest, x = 0, z = 0, bound = 300 }) {
+export function createPlayer(scene, world, { heightAt, forest, x = 0, z = 0, bound = [-300, 300, -300, 300] }) {
   const tornado = createTornado(scene);
   const P = { x, z, vx: 0, vz: 0, V: 0, R: radiusOf(0), held: [], eating: [], eaten: 0, eatenMass: 0, time: 0, tornado, thrown: 0 };
   const listeners = { eat: [], grow: [] };
@@ -50,7 +50,7 @@ export function createPlayer(scene, world, { heightAt, forest, x = 0, z = 0, bou
     // ruch: kierunek z klawiszy (świat), prędkość rośnie z rozmiarem
     const sp = 7 + P.R * 0.8, k = 1 - Math.exp(-4 * dt);
     P.vx += (move[0] * sp - P.vx) * k; P.vz += (move[1] * sp - P.vz) * k;
-    P.x = clamp(P.x + P.vx * dt, -bound, bound); P.z = clamp(P.z + P.vz * dt, -bound, bound);
+    P.x = clamp(P.x + P.vx * dt, bound[0], bound[1]); P.z = clamp(P.z + P.vz * dt, bound[2], bound[3]);
     // wygląd i wiatr wiru na miarę
     tornado.set({ strength: clamp(P.R / 12, 0.15, 1), rc: P.R, top: 30 + P.R * 11, vmax: 22 + P.R * 4.5, kind: 'land' });
     tornado.update(dt, camera, { at: [P.x, P.z], groundAt: heightAt, isWater: () => false, light });

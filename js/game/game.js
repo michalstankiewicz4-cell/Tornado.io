@@ -5,7 +5,7 @@ import * as THREE from '../../vendor/three/three.module.js';
 import { createStage, WEATHER } from '../core/stage.js';
 import { createWorld } from '../destruct/world.js';
 import { buildHouse } from '../models/houses/housekit.js';
-import { createTerrain, heightAt, roadZ, onRoad } from './terrain.js';
+import { createTerrain, heightAt, roadZ, onRoad, CITY } from './terrain.js';
 import { createTrees } from './trees.js';
 import { loadItems, createItemPool } from '../world/items.js';
 import { createPlayer } from './player.js';
@@ -20,7 +20,7 @@ function rng(seed) { let s = seed >>> 0 || 1; return () => { s = (Math.imul(s, 1
 const step = (name, f) => (window.LabLoad ? window.LabLoad.step(name, f) : Promise.resolve());
 
 /* ---------------- scena ---------------- */
-const stage = createStage($('view'), { far: 2500 });
+const stage = createStage($('view'), { far: 3000 });
 const { scene, camera, renderer } = stage;
 camera.near = 0.3; camera.updateProjectionMatrix();
 const sky = () => stage.setSky({ weather: S.weather, sunEl: S.sunEl, sunAz: 215 });
@@ -34,6 +34,9 @@ const HOUSES = [
   ['cottage', 52, 1, 13], ['garage', 64, 1, 14], ['barn', 70, -1, 36], ['kostka', 88, 1, 16], ['cottage', 104, -1, 13], ['shed', 116, 1, 22],
   ['block', 146, 1, 24], ['block', 150, -1, 26],
 ];
+// miasto na wschodzie: Pałac Kultury na środku placu, wieżowce dookoła [rodzaj, x, z, obrót]
+const CITY_BLD = [['pkin', 345, 0, 0], ['tower', 252, 76, Math.PI], ['highrise', 300, 82, Math.PI], ['tower', 362, 80, Math.PI], ['highrise', 425, 78, Math.PI],
+  ['highrise', 250, -80, 0], ['tower', 308, -80, 0], ['tower', 372, -82, 0], ['highrise', 432, -78, 0]];
 const START = { x: -175, z: roadZ(-175) };
 
 async function build() {
@@ -48,6 +51,13 @@ async function build() {
     world.addHouse(h, { x, z, rot: side > 0 ? Math.PI : 0 });
     spots.push([x, z, Math.hypot(h.size[0], h.size[2]) / 2 + 1.5, h]);
   });
+  await step('Miasto: Pałac Kultury i wieżowce', 0.22);
+  CITY_BLD.forEach(([type, x, z, rot], i) => {
+    const h = buildHouse(type, { seed: 71 + i * 19 });
+    world.addHouse(h, { x, z, rot });
+    if (type === 'pkin') for (let dx = -75; dx <= 75; dx += 25) spots.push([x + dx, z, 46]);   // długi obrys: kilka kół wzdłuż
+    else spots.push([x, z, Math.hypot(h.size[0], h.size[2]) / 2 + 2, h]);
+  });
   const free = (x, z, r) => !onRoad(x, z) && Math.abs(z - roadZ(x)) > 4 + r && spots.every(([sx, sz, sr]) => Math.hypot(x - sx, z - sz) > sr + r);
 
   await step('Drzewa', 0.3);
@@ -61,7 +71,9 @@ async function build() {
   }
   // las sosnowo-świerkowy na zachodzie i północy, zagajniki brzozowe, dęby przy drodze
   for (let k = 0; k < 70; k++) plant(-250 + r() * 90, 50 + r() * 150, r() < 0.6 ? 'pine' : 'spruce', 0.75 + r() * 0.4);
-  for (let k = 0; k < 40; k++) plant(160 + r() * 110, -200 + r() * 120, r() < 0.5 ? 'spruce' : 'pine', 0.7 + r() * 0.4);
+  for (let k = 0; k < 40; k++) plant(160 + r() * 110, -260 + r() * 120, r() < 0.5 ? 'spruce' : 'pine', 0.7 + r() * 0.4);
+  // aleje drzew na placu miejskim
+  for (let k = 0; k < 16; k++) { const x = CITY.x0 + 10 + k * 15; plant(x, 52, 'oak', 0.55); plant(x, -54, 'oak', 0.55); }
   for (let k = 0; k < 25; k++) { const a = r() * 6.28, d = r() * 22; plant(-140 + Math.cos(a) * d, -70 + Math.sin(a) * d, 'birch', 0.6 + r() * 0.4); }
   for (let k = 0; k < 18; k++) { const x = -150 + r() * 300; plant(x, roadZ(x) + (r() < 0.5 ? 1 : -1) * (7 + r() * 3), 'oak', 0.6 + r() * 0.3); }
   for (let k = 0; k < 14; k++) plant(-200 + r() * 400, (r() < 0.5 ? 1 : -1) * (90 + r() * 80), 'juniper', 0.8 + r() * 0.5);
@@ -98,11 +110,13 @@ async function build() {
   for (const [cx, cz] of [[-30, roadZ(-30) + 58], [70, roadZ(70) - 62], [-150, roadZ(-150) - 16]]) {
     for (let k = 0; k < 26; k++) { const a = r() * 6.28, d = r() * 7, x = cx + Math.cos(a) * d, z = cz + Math.sin(a) * d; if (free(x, z, 0.3)) drop(r() < 0.6 ? pickR(SMALL) : pickR(MED), x, z); }
   }
+  // miasto: gazety, puszki, kartony i beczki na placu
+  for (let k = 0; k < 140; k++) { const x = CITY.x0 + r() * (CITY.x1 - CITY.x0), z = CITY.z0 + r() * (CITY.z1 - CITY.z0); if (free(x, z, 0.4)) drop(r() < 0.85 ? pickR(SMALL) : pickR(MED), x, z); }
   // głazy na polach
-  for (let k = 0; k < 24; k++) { const x = (r() < 0.5 ? -1 : 1) * (150 + r() * 120), z = (r() - 0.5) * 220; if (free(x, z, 1.2)) drop(r() < 0.5 ? 'boulder' : 'rock', x, z); }
+  for (let k = 0; k < 24; k++) { const x = (r() < 0.5 ? -1 : 1) * (150 + r() * 120), z = (r() - 0.5) * 220; if (x < CITY.x0 - 5 && free(x, z, 1.2)) drop(r() < 0.5 ? 'boulder' : 'rock', x, z); }
 
   await step('Trąba', 0.9);
-  const player = createPlayer(scene, world, { heightAt, forest, x: START.x, z: START.z });
+  const player = createPlayer(scene, world, { heightAt, forest, x: START.x, z: START.z, bound: [-300, CITY.x1 - 10, -300, 300] });
   return { terrain, world, forest, pool, player };
 }
 
@@ -206,7 +220,7 @@ function frame(now) {
   camera.position.set(camTarget.x - fx * dist, camTarget.y + hgt, camTarget.z - fz * dist);
   camera.position.y = Math.max(camera.position.y, heightAt(camera.position.x, camera.position.z) + 1.5);
   camera.lookAt(camTarget.x + fx * P.R * 2, camTarget.y, camTarget.z + fz * P.R * 2);
-  updateAim();
+  if ((frame.n = (frame.n || 0) + 1) % 3 === 0) updateAim();   // promień do 27 tys. części — co trzecią klatkę wystarczy
   stage.follow(camTarget, Math.max(45, dist * 1.6));
   stage.render();
   if ((bigT -= rdt) <= 0) $('big').classList.remove('on');
@@ -237,6 +251,7 @@ window.TornadoApi = {
   go(x, z) { G.player.x = x; G.player.z = z; return this.state(); },
   throwAt(p) { const b = G.player.throwAt(new THREE.Vector3(...p)); return b ? { name: b.name, m: b.m } : null; },
   simulate(sec = 1, mv = [0, 0]) { for (let t = 0; t < sec; t += 1 / 30) { G.player.update(1 / 30, mv, camera); G.world.update(1 / 30); } return this.state(); },
+  camera(zoom, yaw) { if (zoom) S.zoom = zoom; if (yaw != null) cam.yaw = yaw; return { zoom: S.zoom, yaw: cam.yaw }; },
   get G() { return G; },
 };
 

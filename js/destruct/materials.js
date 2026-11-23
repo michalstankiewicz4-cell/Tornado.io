@@ -21,6 +21,10 @@ export const MATS = {
   tiles:    { name: 'Dachówka', density: 1900, solidFactor: 0.17, hp: 300, wind: 48, pattern: 'tiles', frac: [0.9, 0.7, 0.6], tex: { ...PRESETS.brick, color: '#8e3b26', color2: '#4f1e12', bricks: 7, tile: 1.4, label: 'Dachówka' } },
   metal:    { name: 'Blacha falista', density: 7850, hp: 120, wind: 40, pattern: 'sheet', pat: { sheetW: 1.1 }, frac: [1.1, 1.1, 1.1], tex: { ...PRESETS.rusty, panels: 1, tile: 2.2 }, solidFactor: 0.25 },
   tin:      { name: 'Blacha', density: 7850, hp: 140, wind: 45, pattern: 'sheet', pat: { sheetW: 1.0 }, frac: [1.1, 1.1, 1.1], tex: { ...PRESETS.hull, color: '#5f6b72', tile: 2 } },
+  ceramic:  { name: 'Okładzina ceramiczna na cegle', density: 1800, hp: 1100, wind: 95, pattern: 'masonry', pat: { course: 0.15, brick: 0.4, rowsFar: 6, bricksFar: 4 }, frac: [0.95, 0.6, 0.48], tex: { ...PRESETS.limestone, color: '#d9cbaa', color2: '#b7a785', tile: 3, cracks: 0.15 } },
+  curtain:  { name: 'Szkło fasadowe', density: 2500, hp: 14, wind: 38, pattern: 'glass', frac: [1, 1, 1], glass: true, tone: 'curtain' },
+  alu:      { name: 'Panel aluminiowy', density: 2700, hp: 90, wind: 42, pattern: 'sheet', pat: { sheetW: 1.4 }, solidFactor: 0.4, frac: [1.1, 1.1, 1.1], tex: { ...PRESETS.aluminium, color: '#9ea6ac', tile: 2 } },
+  steel:    { name: 'Kratownica stalowa', density: 7850, hp: 700, wind: 120, pattern: 'beam', pat: { piece: 4 }, solidFactor: 0.12, frac: [1.1, 1.1, 1.1], tex: { ...PRESETS.hull, color: '#c9c3b0', color2: '#8a8575', tile: 2 } },
   felt:     { name: 'Papa', density: 1200, solidFactor: 0.15, hp: 220, wind: 45, pattern: 'sheet', pat: { sheetW: 1.0 }, frac: [0.8, 0.8, 0.8], tex: { ...PRESETS.concrete, color: '#3b3a3a', color2: '#252424', pores: 0.8, tile: 2 } },
 };
 export const MAT_IDS = Object.keys(MATS);
@@ -31,7 +35,11 @@ export function renderMaterial(id) {
   if (cache.has(id)) return cache.get(id);
   const M = MATS[id];
   let m;
-  if (M.glass) {
+  if (M.glass && M.tone === 'curtain') {
+    // szkło fasadowe wieżowców: przyciemnione, mocno odbija niebo
+    m = new THREE.MeshPhysicalMaterial({ color: 0x4f6a7a, roughness: 0.03, metalness: 0.35, transparent: true, opacity: 0.78, envMapIntensity: 2.2, side: THREE.DoubleSide });
+    m.userData.tile = 1;
+  } else if (M.glass) {
     m = new THREE.MeshPhysicalMaterial({ color: 0x9fb4bc, roughness: 0.04, metalness: 0, transparent: true, opacity: 0.32, envMapIntensity: 1.6, side: THREE.DoubleSide, depthWrite: false });
     m.userData.tile = 1;
   } else {

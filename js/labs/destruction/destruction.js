@@ -24,7 +24,7 @@ const status = (t) => { $('status').textContent = t || ''; };
 /* ---------------- scena ---------------- */
 const stage = createStage($('view'));
 const { scene, camera, renderer } = stage;
-scene.add(groundDisc(160));
+scene.add(groundDisc(420));
 const tornado = createTornado(scene);
 let twist = null;   // trąba: { x, z, vx, vz, until }
 const world = createWorld(scene, { ground: () => 0, wind: (x, y, z, out) => (twist && tornado.state ? tornadoWind(tornado.state, x, y, z, out) : (out[0] = out[1] = out[2] = 0, out)) });

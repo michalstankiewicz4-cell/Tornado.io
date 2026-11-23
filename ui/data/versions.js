@@ -3,9 +3,9 @@
 (function () {
   "use strict";
   const V = {
-    app: "0.1.0",
+    app: "0.2.0",
     labs: {
-      "labs/destruction.html": "0.1.0",
+      "labs/destruction.html": "0.2.0",
     },
   };
   window.GameLabVersions = V;
