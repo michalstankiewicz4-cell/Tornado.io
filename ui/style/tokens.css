@@ -1,0 +1,50 @@
+/* GameLaboratory UI — design tokens: colours, fonts, radii. Every other file in ui/ uses these.
+   The look of the labs from Battle: dark glass, a thin line, gold headings and controls.
+   In a cascade layer, so a page with its own theme (SDF Walkers, the start page) keeps its own values on :root;
+   the menu bar, its dialog and the lab's two bars always get these. */
+@layer gamelab.tokens{
+:root, #labMenu, #lmDialog, body > .bar, body > .foot{
+  --bg:#0c0f13;            /* page behind the scene */
+  --glass:rgba(13,17,23,.9);/* windows, cards, the loader */
+  --card:#141922;          /* drop-downs, dialogs */
+  --field:#18202b;         /* buttons, fields */
+  --line:#26303d;          /* borders, separators */
+  --line2:#3a4658;         /* stronger border, scrollbar */
+  --text:#c8d0da;
+  --head:#eef2f6;          /* titles, values */
+  --dim:#7f8a98;           /* notes, labels */
+  --accent:#f2b84b;        /* gold: headings, active, sliders, ticks */
+  --plum:#c68ae8;          /* the space labs' group (bodies, systems, scale): its glow in the menu */
+  /* categories of labs (ui/data/catalog.js "cats"): the dot in the menu and on the tile */
+  --cat-vehicles:var(--accent);
+  --cat-space:var(--plum);
+  --cat-world:#36d6b5;
+  --cat-life:#8fd45e;
+  --cat-matter:#e8925a;
+  --cat-voxels:#5fb8f0;
+  --terrain:#d08a4e;
+  --sound:#9a8cff;     /* grupa laboratoriów dźwięku (muzyka · efekty · mowa): poświata w menu, podświetlenie kafelków */   /* grupa laboratoriów terenu (ląd · jaskinie): poświata w menu, podświetlenie kafelków */
+  --cat-effects:#ff7a5c;
+  /* odznaki efektów (laboratorium efektów): lot, w miejscu, punktowy, obszarowy */
+  --badge-flight:#ffb35a;
+  --badge-spot:#6fd0ff;
+  --badge-point:#c9d2e0;
+  --badge-area:#c58bff;
+  --cat-ui:#8b9cff;
+  --cat-ai:#e86a9a;
+  --cat-tools:#9aa6b4;
+  /* pogody (zmienna pogoda, laboratorium wyglądu): od pogodnej do burzy */
+  --wx-clear:#7fc8f2; --wx-fair:#a8d6ee; --wx-broken:#a3aebb; --wx-overcast:#76818f; --wx-rain:#5d88bd; --wx-fog:#c3c9d1; --wx-storm:#8d6fd0;
+  --ok:#5fd0a0;
+  --err:#e04b50;
+  --font:"Space Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;   /* numbers */
+  --r:12px;                /* windows, cards */
+  --r2:7px;                /* buttons, fields */
+  --menuH:32px;            /* the menu bar (ui/shell/menubar.js) */
+  --barH:44px;             /* the bar under it (ui/shell/bars.css) */
+  --footH:34px;            /* the bottom bar */
+  --menuBg:#0d1117;        /* the menu bar's background, opaque */
+  --barBg:#0b0e12;         /* the two bars' background, opaque */
+}
+}

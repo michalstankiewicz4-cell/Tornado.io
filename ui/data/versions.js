@@ -1,0 +1,14 @@
+// Wersje Tornado.io — jedno miejsce: wersja gry (strona główna, wspólne warstwy) i osobna wersja każdego laboratorium.
+// Zmiany: CHANGELOG.md. x.y.z — y: nowa funkcja, z: poprawka. Wypełnia każdy znacznik data-lab-version.
+(function () {
+  "use strict";
+  const V = {
+    app: "0.1.0",
+    labs: {
+      "labs/destruction.html": "0.1.0",
+    },
+  };
+  window.GameLabVersions = V;
+  const fill = () => document.querySelectorAll("[data-lab-version]").forEach((e) => { const k = e.dataset.labVersion; e.textContent = "v" + (k === "app" ? V.app : V.labs[k] || "?"); });
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", fill); else fill();
+})();

@@ -1,0 +1,34 @@
+/* The console window (ui/shell/console.js): a floating window like the labs' option windows (ui/shell/windows.css), over them,
+   and its button on the right of the lab's bar (ui/shell/bars.css styles the button itself). Colours from ui/style/tokens.css. */
+body > .bar .lcBtn{margin-left:auto}
+body > .bar .sp + .lcBtn{margin-left:0}
+.labConsole{z-index:30;width:540px;height:320px;min-width:300px;min-height:180px;max-height:calc(100vh - 100px);resize:both;overflow:hidden}
+.labConsole[hidden]{display:none}
+.labConsole .lcBody{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px;padding:10px 12px 8px}
+.labConsole .lcTools{display:flex;gap:6px;align-items:center}
+.labConsole .lcTools input{flex:1;min-width:0}
+.labConsole .lcTools .btn{flex:none}
+.labConsole .lcList{flex:1;min-height:0;overflow:auto;border:1px solid var(--line);border-radius:6px;background:var(--bg);
+  font:11.5px/1.45 var(--mono);color:var(--text)}
+.labConsole .lcRow{display:grid;grid-template-columns:auto auto auto 1fr;gap:8px;padding:3px 8px;border-bottom:1px solid var(--line);align-items:baseline}
+.labConsole .lcTime{color:var(--dim);white-space:nowrap}
+.labConsole .lcKind{min-width:62px;color:var(--dim);text-transform:uppercase;font-size:10px;letter-spacing:.6px}
+.labConsole .lcPage{color:var(--dim);white-space:nowrap}
+.labConsole .lcMsg{white-space:pre-wrap;word-break:break-word}
+.labConsole .lc-error .lcKind, .labConsole .lc-error .lcMsg{color:var(--err)}
+.labConsole .lc-warn .lcKind{color:var(--accent)}
+.labConsole .lc-load .lcKind{color:var(--ok)}
+.labConsole .lcCount{font:11px var(--mono);color:var(--dim);text-align:right}
+/* tabs in the title bar: the log and the page's own (window.LabConsole.addTab) */
+.labConsole .labWinTitle{flex:none}
+.labConsole .lcTabs{display:flex;gap:2px;margin-left:12px;margin-right:auto}
+.labConsole .lcTabs[hidden]{display:none}
+.labConsole .lcTab{padding:2px 9px;border:1px solid transparent;border-radius:6px;background:none;color:var(--dim);font:inherit;font-size:11.5px;cursor:pointer}
+.labConsole .lcTab:hover{color:var(--text);border-color:var(--line)}
+.labConsole .lcTab.on{color:var(--accent);border-color:var(--accent)}
+.labConsole .lcBody[hidden]{display:none}
+/* docked at the bottom between the side panels (Panels: ui/shell/windows.js) */
+.labConsole.lcDocked{left:var(--viewL,0px) !important;right:var(--viewR,0px) !important;top:auto !important;bottom:var(--footH);width:auto;height:30vh;
+  min-height:140px;border-radius:0;border-width:1px 0 0;box-shadow:none;resize:vertical;z-index:18;background:var(--menuBg)}
+body.lmNoFoot .labConsole.lcDocked{bottom:0}
+.labConsole.lcDocked .labWinHead{cursor:default}

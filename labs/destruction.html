@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<title>Laboratorium zniszczeń — budynki, które pękają tak, jak są zbudowane | Tornado.io</title>
+<meta name="description" content="Tornado.io: laboratorium zniszczeń — budynki z prawdziwych części (mur, beton, deski, szyby, dachówki, blacha), pękanie wynikające z budowy, statyka, fizyka odłamków, rzuty i trąba powietrzna.">
+<link rel="icon" type="image/png" href="../assets/favicon-32.png">
+<link rel="stylesheet" href="../ui/style/sea.css">
+<link rel="stylesheet" href="../ui/ui.css">
+<link rel="stylesheet" href="../ui/pages/destruction.css">
+</head>
+<!-- Laboratorium zniszczeń (js/labs/destruction/): budynki HouseKit (js/models/houses/) w świecie DestructKit (js/destruct/). -->
+<body class="lab viewFits">
+<script src="../ui/shell/log.js"></script>
+<script src="../ui/data/versions.js"></script>
+<script src="../ui/data/catalog.js"></script>
+<script src="../ui/shell/menubar.js"></script>
+<script src="../ui/shell/loader.js"></script>
+<div id="view"></div>
+<div class="bar">
+  <select id="type" aria-label="Budynek" title="Rodzaj budynku"></select>
+  <div class="btns" id="tools"></div>
+  <button type="button" id="rebuild" title="Postaw budynek od nowa (B)">Odbuduj</button>
+  <span class="sp"></span>
+  <span class="dimtxt" id="status"></span>
+</div>
+<aside class="panel" data-std="info">
+  <h2 class="stdName" id="bName"></h2>
+  <p class="stdText" id="bNote"></p>
+  <div class="stats" id="bStats"></div>
+</aside>
+<aside class="panel" data-window="building" data-title="Building" data-title-pl="Budynek">
+  <h3>Budynek</h3>
+  <div class="row"><span>Ziarno</span><input type="number" id="seed" min="1" max="99999" step="1"><output></output></div>
+  <div class="btns"><button type="button" id="another">Inny</button><button type="button" id="village">Wioska</button></div>
+  <label class="chk"><input type="checkbox" id="showMats"> Kolory materiałów</label>
+  <h3>Materiały</h3>
+  <div class="matList" id="mats"></div>
+  <p class="note">Każda część pęka według swojego materiału: mur na warstwy i cegły, beton na płaty, deski wzdłuż słojów, szyba promieniście od uderzenia, dachówka rzędami, blacha arkuszami. Część stoi, dopóki stoi to, na czym się opiera.</p>
+</aside>
+<aside class="panel" data-window="tool" data-title="Tool" data-title-pl="Narzędzie">
+  <h3>Uderzenie</h3>
+  <div class="row"><span>Impuls</span><input type="range" id="impulse" min="100" max="30000" step="100"><output id="impulseV"></output></div>
+  <div class="row"><span>Promień</span><input type="range" id="radius" min="0.2" max="3" step="0.05"><output id="radiusV"></output></div>
+  <h3>Rzut</h3>
+  <div class="row"><span>Przedmiot</span><select id="missile"></select><output></output></div>
+  <div class="row"><span>Prędkość</span><input type="range" id="speed" min="5" max="60" step="1"><output id="speedV"></output></div>
+  <h3>Trąba</h3>
+  <div class="row"><span>Wiatr</span><input type="range" id="wind" min="20" max="140" step="1"><output id="windV"></output></div>
+  <div class="row"><span>Rdzeń</span><input type="range" id="core" min="1" max="20" step="0.5"><output id="coreV"></output></div>
+  <div class="btns"><button type="button" id="sweep">Przejdź przez budynek</button><button type="button" id="stop">Zatrzymaj</button></div>
+  <p class="note">Kliknij budynek: uderzenie w punkcie, rzut z kamery albo trąba w tym miejscu. Szyby pękają od wiatru pierwsze, dachówki i blacha odlatują, mury padają ostatnie.</p>
+</aside>
+<aside class="panel" data-window="physics" data-title="Physics" data-title-pl="Fizyka">
+  <h3>Fizyka</h3>
+  <div class="row"><span>Czas</span><input type="range" id="slow" min="0.05" max="1" step="0.05"><output id="slowV"></output></div>
+  <div class="row"><span>Odłamki</span><input type="range" id="maxFrag" min="300" max="6000" step="100"><output id="maxFragV"></output></div>
+  <label class="chk"><input type="checkbox" id="pause"> Wstrzymaj</label>
+</aside>
+<aside class="panel" data-std="camera">
+  <div class="btns" id="cams"></div>
+  <p class="note">Przeciągnij — obrót, kółko — odległość.</p>
+</aside>
+<aside class="panel" data-std="light">
+  <div class="row"><span>Pogoda</span><select id="weather"></select><output></output></div>
+  <div class="row"><span>Słońce</span><input type="range" id="sunEl" min="-6" max="70" step="1"><output id="sunElV"></output></div>
+  <div class="row"><span>Kierunek</span><input type="range" id="sunAz" min="0" max="360" step="2"><output id="sunAzV"></output></div>
+</aside>
+<aside class="panel" data-std="perf">
+  <div class="stats" id="stats"></div>
+</aside>
+<div class="foot">
+  <span id="fps"></span>
+  <span class="sp"></span>
+  <span>Tornado.io</span>
+</div>
+<script src="../ui/shell/perf.js"></script>
+<script src="../ui/shell/labwin.js"></script>
+<script src="../ui/shell/windows.js"></script>
+<script type="module" src="../js/labs/destruction/destruction.js"></script>
+</body>
+</html>
