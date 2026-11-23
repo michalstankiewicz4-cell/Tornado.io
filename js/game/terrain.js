@@ -3,11 +3,12 @@
 // createTerrain({ size, seg }) → { mesh, heightAt(x, z), onRoad(x, z), size }
 import * as THREE from '../../vendor/three/three.module.js';
 import { grassMaterial } from '../world/ground.js';
+import { makeMaterial } from '../render/materials/matkit.js';
 
 const sm = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 export const ROAD_W = 5.5;
 // dzielnica miejska na wschodzie: płaska, wybetonowana (wieżowce i Pałac Kultury)
-export const CITY = { x0: 215, x1: 470, z0: -110, z1: 110 };
+export const CITY = { x0: 190, x1: 850, z0: -335, z1: 325 };
 const cityK = (x, z, m = 30) => sm(-m, 0, Math.min(x - CITY.x0, CITY.x1 - x, z - CITY.z0, CITY.z1 - z));
 export function heightAt(x, z) {
   const base = 3.2 * Math.sin(x * 0.0085 + 0.7) * Math.cos(z * 0.0072 - 0.4) + 1.7 * Math.sin(x * 0.019 + z * 0.013 + 2) + 0.6 * Math.sin(x * 0.05 - z * 0.041);
@@ -19,7 +20,7 @@ export function heightAt(x, z) {
 export const roadZ = (x) => 2.5 * Math.sin(x * 0.012);
 export const onRoad = (x, z) => x < CITY.x0 + 5 && Math.abs(z - roadZ(x)) < ROAD_W / 2;   // droga kończy się na placu miasta
 
-export function createTerrain({ size = 1000, seg = 330, tile = 3, cx = 80 } = {}) {
+export function createTerrain({ size = 1320, seg = 380, tile = 3, cx = 290 } = {}) {
   const geo = new THREE.PlaneGeometry(size, size, seg, seg).rotateX(-Math.PI / 2).translate(cx, 0, 0);
   const p = geo.attributes.position, uv = geo.attributes.uv, col = new Float32Array(p.count * 3);
   const n = (x, z) => 0.5 + 0.5 * Math.sin(x * 0.07 + Math.sin(z * 0.05) * 2) * Math.sin(z * 0.061 + Math.sin(x * 0.04) * 1.7);
@@ -47,4 +48,15 @@ export function createTerrain({ size = 1000, seg = 330, tile = 3, cx = 80 } = {}
   geo.computeVertexNormals();
   const mesh = new THREE.Mesh(geo, grassMaterial({ tile })); mesh.receiveShadow = true; mesh.name = 'teren';
   return { mesh, heightAt, onRoad, size };
+}
+
+// nawierzchnia placu miejskiego: płyty betonowe (MatKit) na płaskim terenie miasta
+export function cityPaving() {
+  const W = CITY.x1 - CITY.x0, D = CITY.z1 - CITY.z0, tile = 4;
+  const geo = new THREE.PlaneGeometry(W, D).rotateX(-Math.PI / 2).translate((CITY.x0 + CITY.x1) / 2, heightAt((CITY.x0 + CITY.x1) / 2, 0) + 0.08, (CITY.z0 + CITY.z1) / 2);
+  const p = geo.attributes.position, uv = geo.attributes.uv;
+  for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) / tile, p.getZ(i) / tile);
+  const { material } = makeMaterial({ kind: 'concrete', color: '#8e8b84', color2: '#6f6d67', tile, roughness: 0.85, metalness: 0, pores: 0.4, wear: 0.15, dirt: 0.3, label: 'Płyty chodnikowe' }, { res: 512 });
+  const m = new THREE.Mesh(geo, material); m.receiveShadow = true; m.name = 'plac';
+  return m;
 }

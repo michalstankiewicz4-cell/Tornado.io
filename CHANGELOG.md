@@ -1,5 +1,17 @@
 # Zmiany
 
+## 0.3.0 — 2026-11-24
+- Miasto z laboratorium miasta GameLaboratory (CityKit, OpenStreetMap): Pałac Kultury (pl. Defilad 1), Złota 44,
+  Emilii Plater 49, Chmielna 69, Al. Jerozolimskie 54, rondo ONZ 1, Twarda 2/4, pl. Europejski 1, Chłodna 51 —
+  w układzie jak w mapie (na zachód od Pałacu), odległości ściśnięte do 70 %. Wygląd: model z laboratorium (wersja
+  z wypalonymi fasadami); te same dane przeliczone na części (`js/models/houses/landmark-house.js`) czekają ukryte
+  i zastępują model przy pierwszym uszkodzeniu. Plac z płyt betonowych, drzewa i śmieci w mieście.
+- Moje budynki miasta (HouseKit `pkin`, `tower`, `highrise`) ukryte w grze (`OWN_CITY = false`), zostają w kodzie
+  i w laboratorium zniszczeń.
+- DestructKit: budynki ukryte do pierwszego uszkodzenia (`hidden`, `onReveal`), materiały rejestrowane z zewnątrz.
+- Laboratorium zniszczeń 0.3.0: budynki Warszawy z mapy na liście.
+- GitHub Pages: `upload-pages-artifact@v4` (z `deploy-pages@v5` v3 nie działał), `checkout@v5`.
+
 ## 0.2.0 — 2026-11-24
 - Miasto na wschodzie mapy: Pałac Kultury i Nauki (człony tarasowe, wieżyczki, iglica do 237 m), trzy szklane
   wieżowce biurowe (betonowy rdzeń, słupy, stropy, ściana osłonowa) i cztery wieżowce mieszkalne; plac, aleje drzew.

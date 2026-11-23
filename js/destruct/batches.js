@@ -42,6 +42,7 @@ export function createBatches(scene) {
     },
     set(h, matrix) { h.b.mesh.setMatrixAt(h.iid, matrix); },
     color(h, c) { h.b.mesh.setColorAt(h.iid, c); },
+    visible(h, on) { if (h && !h.dead) h.b.mesh.setVisibleAt(h.iid, on); },
     remove(h) { if (!h || h.dead) return; h.b.mesh.deleteGeometry(h.gid); h.b.n--; h.b.dead++; h.dead = true; },
     stats() { let geoms = 0, verts = 0; for (const b of B.values()) { geoms += b.n; verts += b.usedV; } return { geoms, verts, draws: B.size }; },
     clear() { for (const b of B.values()) { scene.remove(b.mesh); b.mesh.dispose(); } B.clear(); },

@@ -6,7 +6,11 @@ import * as THREE from '../../../vendor/three/three.module.js';
 import { createStage, WEATHER } from '../../core/stage.js';
 import { createWorld } from '../../destruct/world.js';
 import { MATS } from '../../destruct/materials.js';
-import { HOUSE_TYPES, buildHouse } from '../../models/houses/housekit.js';
+import { HOUSE_TYPES as HK_TYPES, buildHouse as buildHK } from '../../models/houses/housekit.js';
+import { LANDMARKS, landmarkHouse } from '../../models/houses/landmark-house.js';
+// rodzaje: budynki HouseKit i budynki Warszawy z laboratorium miasta (CityKit, OpenStreetMap) przeliczone na części
+const HOUSE_TYPES = { ...HK_TYPES, ...Object.fromEntries(Object.entries(LANDMARKS).map(([id, name]) => ['lm:' + id, { name: 'Warszawa: ' + name, note: 'Budynek z laboratorium miasta (CityKit, dane © współtwórcy OpenStreetMap): obrysy części, wysokości, piętra i styl z mapy przeliczone na części, które pękają według materiału.' }])) };
+const buildHouse = (type, o) => (type.startsWith('lm:') ? landmarkHouse(type.slice(3)) : buildHK(type, o));
 import { createTornado, tornadoWind } from '../../envs/sky/tornado.js';
 import { groundDisc } from '../../world/ground.js';
 import { ITEMS, loadItems, makeItem } from '../../world/items.js';

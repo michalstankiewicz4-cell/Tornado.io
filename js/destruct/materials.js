@@ -28,6 +28,8 @@ export const MATS = {
   felt:     { name: 'Papa', density: 1200, solidFactor: 0.15, hp: 220, wind: 45, pattern: 'sheet', pat: { sheetW: 1.0 }, frac: [0.8, 0.8, 0.8], tex: { ...PRESETS.concrete, color: '#3b3a3a', color2: '#252424', pores: 0.8, tile: 2 } },
 };
 export const MAT_IDS = Object.keys(MATS);
+// materiał spoza listy (np. budynki z laboratorium miasta: barwa i tekstura z ich opisu); ten sam id — bez zmian
+export function registerMat(id, def) { if (!MATS[id]) MATS[id] = def; return id; }
 
 const cache = new Map();
 // materiał do rysowania (jeden na rodzaj, wspólny dla budynków i odłamków; kolory wierzchołków: przełom, barwa instancji)
@@ -37,7 +39,7 @@ export function renderMaterial(id) {
   let m;
   if (M.glass && M.tone === 'curtain') {
     // szkło fasadowe wieżowców: przyciemnione, mocno odbija niebo
-    m = new THREE.MeshPhysicalMaterial({ color: 0x4f6a7a, roughness: 0.03, metalness: 0.35, transparent: true, opacity: 0.78, envMapIntensity: 2.2, side: THREE.DoubleSide });
+    m = new THREE.MeshPhysicalMaterial({ color: M.color || 0x4f6a7a, roughness: 0.03, metalness: 0.35, transparent: true, opacity: 0.78, envMapIntensity: 2.2, side: THREE.DoubleSide });
     m.userData.tile = 1;
   } else if (M.glass) {
     m = new THREE.MeshPhysicalMaterial({ color: 0x9fb4bc, roughness: 0.04, metalness: 0, transparent: true, opacity: 0.32, envMapIntensity: 1.6, side: THREE.DoubleSide, depthWrite: false });

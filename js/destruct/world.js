@@ -27,7 +27,7 @@ export function createWorld(scene, opts = {}) {
   const ground = opts.ground || (() => 0);
   const batches = createBatches(scene);
   const bodies = new Set(), buildings = [], grid = new Map(), queue = new Set();
-  const listeners = { break: [], frag: [] };
+  const listeners = { break: [], frag: [], reveal: [] };
   let maxFrag = opts.maxFragments || 2500, fragCount = 0, simT = 0;
   const env = { ground, wind: opts.wind || null, windGain: 1 };
 
@@ -49,9 +49,11 @@ export function createWorld(scene, opts = {}) {
   }
 
   /* ---------------- budynki ---------------- */
-  function addHouse(house, { x = 0, z = 0, rot = 0 } = {}) {
+  // hidden: części niewidoczne, dopóki budynek nie dostanie pierwszego uszkodzenia (gra pokazuje do tego czasu model
+  // z laboratorium miasta; onReveal mówi, kiedy go schować)
+  function addHouse(house, { x = 0, z = 0, rot = 0, hidden = false } = {}) {
     const bM = new THREE.Matrix4().compose(new THREE.Vector3(x, ground(x, z), z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rot), _s);
-    const bld = { house, x, z, rot, M: bM, parts: [], tint: house.tint ? new THREE.Color(house.tint) : null, vol0: 0, volGone: 0 };
+    const bld = { house, x, z, rot, M: bM, parts: [], tint: house.tint ? new THREE.Color(house.tint) : null, vol0: 0, volGone: 0, hidden };
     for (const sp of house.parts) {
       const M = new THREE.Matrix4().compose(new THREE.Vector3(...sp.pos), new THREE.Quaternion(...sp.quat), _s).premultiply(bM);
       const a = Math.abs(area(sp.poly)), D = MATS[sp.mat];
@@ -61,6 +63,7 @@ export function createWorld(scene, opts = {}) {
       part.hp = part.hpMax;
       part.aabb = aabbOf(part);
       part.handle = addPartMesh(part, part.poly, tintOf(part)).h;
+      if (hidden) batches.visible(part.handle, false);
       if (!part.fixed) bld.vol0 += part.vol;
       bld.parts.push(part);
       gridAdd(part);
@@ -68,6 +71,12 @@ export function createWorld(scene, opts = {}) {
     for (const part of bld.parts) for (const s of part.spec.supports) if (s >= 0) { part.supports.push(bld.parts[s]); bld.parts[s].dependents.push(part); }
     buildings.push(bld);
     return bld;
+  }
+  function reveal(bld) {
+    if (!bld.hidden) return;
+    bld.hidden = false;
+    for (const p of bld.parts) if (p.handle) batches.visible(p.handle, true);
+    for (const f of listeners.reveal) f(bld);
   }
   function tintOf(part) { return part.bld.tint && (part.mat === 'plaster' || part.mat === 'panel') ? part.bld.tint : null; }
   function sizeOf(poly, t) { const g = bounds(poly); return Math.max(g[2] - g[0], g[3] - g[1], t); }
@@ -122,6 +131,7 @@ export function createWorld(scene, opts = {}) {
   // hitL: punkt uderzenia w układzie części [x, y]; power 0…1; J: impuls [Vector3] (kierunek wyrzutu); all: wszystko odpada
   function breakPart(part, hitL, power, J, all = false) {
     if (part.fixed || part.state !== 'intact') return;
+    reveal(part.bld);
     const D = MATS[part.mat], cells = fracture({ poly: part.poly, pattern: D.pattern, pat: { ...(D.pat || {}), ...(part.spec.pat || {}) }, seed: part.spec.seed }, hitL, power, Math.floor(simT * 1000));
     batches.remove(part.handle); part.handle = null;
     part.state = 'broken'; part.cells = [];
@@ -240,6 +250,7 @@ export function createWorld(scene, opts = {}) {
       const dz = Math.max(0, Math.abs(_p.z) - part.t / 2), dp = distTo(part.poly, _p.x, _p.y), d = Math.hypot(dz, dp);
       if (d > radius) continue;
       const fall = 1 - 0.7 * (d / radius), dmg = Jl * fall;
+      reveal(part.bld);
       const hl = [clamp(_p.x, ...xr(part)), clamp(_p.y, ...yr(part))];
       if (part.state === 'intact') {
         part.hp -= dmg;
@@ -280,6 +291,7 @@ export function createWorld(scene, opts = {}) {
       const b = part.aabb, cx = (b[0] + b[3]) / 2, cy = (b[1] + b[4]) / 2, cz = (b[2] + b[5]) / 2;
       const s = speedAt(cx, cy, cz), D = MATS[part.mat];
       if (s <= D.wind) continue;
+      reveal(part.bld);
       const over = s - D.wind, dmg = over * over * (0.6 + part.a * 0.15) * dt * 4;
       const dir = _v.set(cx - x, 0, cz - z); const L = dir.length() || 1;
       const J = new THREE.Vector3(-dir.z / L, 0.6, dir.x / L).multiplyScalar(over * 3);
@@ -371,7 +383,7 @@ export function createWorld(scene, opts = {}) {
     addHouse, addObject, hit, windDamage, update, removeBody, stats, clear, query, breakPart, drop, sync,
     bodies, buildings, env, batches, wake,
     set maxFragments(n) { maxFrag = n; },
-    onBreak(f) { listeners.break.push(f); }, onFragment(f) { listeners.frag.push(f); },
+    onBreak(f) { listeners.break.push(f); }, onReveal(f) { listeners.reveal.push(f); }, reveal, onFragment(f) { listeners.frag.push(f); },
     get time() { return simT; },
   };
 }
