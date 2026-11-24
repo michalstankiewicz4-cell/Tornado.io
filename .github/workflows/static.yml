@@ -38,6 +38,16 @@ jobs:
         with:
           # Upload entire repository
           path: '.'
+      # artefakt bywa widoczny dla wdrożenia z opóźnieniem ("No artifacts named github-pages") — czekamy i próbujemy drugi raz
+      - name: Wait for the artifact
+        run: sleep 20
       - name: Deploy to GitHub Pages
         id: deployment
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+      - name: Wait and retry
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 60
+      - name: Deploy to GitHub Pages (retry)
+        if: steps.deployment.outcome == 'failure'
         uses: actions/deploy-pages@v4
