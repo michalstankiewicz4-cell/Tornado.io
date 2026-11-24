@@ -38,10 +38,16 @@
   <h3>Chodnik</h3>
   <div class="row"><span>Szerokość</span><input type="range" id="walkW" min="0" max="6" step="0.1"><output id="walkWV"></output></div>
   <div class="row"><span>Krawężnik</span><input type="range" id="curbH" min="0" max="0.25" step="0.01"><output id="curbHV"></output></div>
-  <div class="row"><span>Nawierzchnia</span><select id="walk"></select><output></output></div>
+  <div class="row"><span>Nawierzchnia</span><select id="walk" title="Wersja płyt chodnikowych albo inna nawierzchnia"></select><output></output></div>
   <h3>Skrzyżowanie</h3>
   <div class="row"><span>Łuk krawężnika</span><input type="range" id="corner" min="4" max="15" step="0.5"><output id="cornerV"></output></div>
   <p class="note">Przekrój to pasy od osi na zewnątrz: jezdnia, krawężnik, chodnik, zieleń (albo pobocze z kruszywa). Nawierzchnie z MatKit, oznakowanie z farby. Wymiary w metrach, jak na polskich ulicach.</p>
+</aside>
+<aside class="panel" data-window="signals" data-title="Traffic lights" data-title-pl="Sygnalizacja">
+  <h3>Sygnalizacja</h3>
+  <div class="row"><span>Tryb</span><select id="signal" title="Cykl świateł albo stały stan"></select><output></output></div>
+  <div class="row"><span>Teraz</span><b id="sigNow">—</b><output></output></div>
+  <p class="note">Cykl jak w Polsce: zielone 20 s, żółte 3 s, czerwone, czerwone z żółtym 1,5 s; dwie fazy na przemian z 2 s, gdy wszędzie jest czerwone. Sygnalizatory stoją na skrzyżowaniach i w próbce „Sygnalizator”.</p>
 </aside>
 <aside class="panel" data-std="camera">
   <div class="btns" id="cams"></div>

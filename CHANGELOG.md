@@ -1,5 +1,11 @@
 # Zmiany
 
+## 0.6.0 — 2026-11-24
+- Laboratorium ulic 0.2.0: wersje płyt chodnikowych do wyboru (50 × 50, 35 × 35, 30 × 30 grafitowe, stare spękane,
+  szachownica, 100 × 50 granitowe, z wypustkami dla niewidomych, trylinka) — własny generator tekstur w StreetKit.
+- Sygnalizator świetlny (czerwone, żółte, zielone) na słupie i na wysięgniku; cykl jak w Polsce, dwie fazy na
+  skrzyżowaniach, żółte migające; próbka „Sygnalizator” i okno Sygnalizacja.
+
 ## 0.5.0 — 2026-11-24
 - Laboratorium ulic 0.1.0 (`labs/streets.html`) i StreetKit (`js/models/streets/streetkit.js`): trasy z przekroju po
   linii — ulica miejska, aleja z dwiema jezdniami, droga wiejska, ścieżka, droga dla rowerów; łuki, skrzyżowania

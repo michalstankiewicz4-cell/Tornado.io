@@ -18,8 +18,19 @@ krawężnik, chodnik, droga dla rowerów, zieleń, pobocze z kruszywa, obrzeże 
 | `path` | ścieżka z kruszywa z obrzeżem |
 | `cycle` | droga dla rowerów z czerwonej kostki i chodnik |
 
-Nawierzchnie (`SURFACES`, MatKit): asfalt, asfalt stary, płyty chodnikowe, kostka, kostka czerwona, kruszywo, krawężnik
-granitowy, trawnik. Oznakowanie poziome: linie ciągłe, przerywane, przejścia dla pieszych (zebra), linie zatrzymania.
+Nawierzchnie (`SURFACES`): asfalt, asfalt stary, kostka, kostka czerwona, kruszywo, krawężnik granitowy, trawnik (MatKit)
+i **płyty chodnikowe** z własnego generatora tekstur (`SLABS`: prawdziwe kwadraty ze spoinami, odcień każdej płyty,
+wypukłości w mapie wysokości) — wersje do wyboru: 50 × 50 szare, 35 × 35, 30 × 30 grafitowe, 50 × 50 stare (spękane,
+przekrzywione, z mchem w spoinach), 50 × 50 szachownica, 100 × 50 granitowe (na mijankę), płyty z wypustkami dla
+niewidomych (żółte), trylinka (sześciokąty z otworami).
+
+## Sygnalizator
+
+`buildTrafficLight({ arm, height, backplate })` — słup ocynkowany (albo z wysięgnikiem nad jezdnię, w −x: słup po prawej
+stronie jezdni), komora z soczewkami 300 mm (czerwone, żółte, zielone), daszki, tarcza z białą obwódką; przód +z.
+`set(stan)`: `red`, `redYellow`, `green`, `yellow`, `yellowBlink`, `off`. Cykl jak w Polsce (`signalAt(t, SIGNAL_TIMES,
+przesunięcie)`): zielone 20 s → żółte 3 s → czerwone → czerwone z żółtym 1,5 s; dwie fazy na przemian (faza B przesunięta
+o `SIGNAL_TIMES.half`) z 2 s, gdy wszędzie jest czerwone. Oznakowanie poziome: linie ciągłe, przerywane, przejścia dla pieszych (zebra), linie zatrzymania.
 
 ```js
 import { buildStreet, buildCrossing, PROFILES } from '../js/models/streets/streetkit.js';
@@ -29,8 +40,10 @@ scene.add(buildCrossing('city', { arms: 4, arm: 30, corner: 6 }).group);   // 3 
 
 ## Próbki
 
-Prosta ulica, łuk, skrzyżowanie (4 wloty), skrzyżowanie T, aleja, droga wiejska, ścieżka, droga dla rowerów. Okno
+Prosta ulica, łuk, skrzyżowanie (4 wloty, sygnalizatory na wlotach), skrzyżowanie T, aleja, droga wiejska, ścieżka,
+sygnalizator (na słupie i na wysięgniku), droga dla rowerów. Okno Sygnalizacja: cykl albo stały stan. Okno
 Przekrój: pasy, szerokość pasa, nawierzchnia jezdni, oznakowanie, szerokość i nawierzchnia chodnika, wysokość
 krawężnika, promień łuku na skrzyżowaniu. Kamery: orbita, pieszy, z góry, kierowca.
 
-Dla AI: `StreetsApi.scene(id)`, `set({ profile, lanes, laneW, road, marks, walkW, curbH, walk, corner })`, `camera(name)`.
+Dla AI: `StreetsApi.scene(id)`, `set({ profile, lanes, laneW, road, marks, walkW, curbH, walk, corner })`, `camera(name)`,
+`signal(tryb)` (`cycle` albo stan).
