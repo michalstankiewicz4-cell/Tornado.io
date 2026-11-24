@@ -4,7 +4,7 @@
 import * as THREE from '../../../vendor/three/three.module.js';
 import { createStage, WEATHER } from '../../core/stage.js';
 import { groundDisc } from '../../world/ground.js';
-import { PROFILES, SURFACES, buildStreet, buildCrossing, buildTrafficLight, signalAt, SIGNAL_STATES, SIGNAL_TIMES, buildLamp, LAMPS, buildSign, SIGNS, alongStreet, buildViaduct, VIADUCT_PROFILE, BOLLARDS, buildBollards, RAILS, buildRail, NOISE, buildNoiseWall } from '../../models/streets/streetkit.js';
+import { PROFILES, SURFACES, buildStreet, buildCrossing, buildTrafficLight, signalAt, SIGNAL_STATES, SIGNAL_TIMES, buildLamp, LAMPS, buildSign, SIGNS, alongStreet, buildViaduct, VIADUCT_PROFILE, BOLLARDS, buildBollards, RAILS, buildRail, NOISE, buildNoiseWall, buildMilepost, buildMileposts } from '../../models/streets/streetkit.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...kids) => { const e = document.createElement(tag); Object.assign(e, props); kids.forEach((k) => e.append(k)); return e; };
@@ -28,10 +28,10 @@ const SCENES = {
   viaductRamp: { label: 'Łącznica (zjazd po pętli)', profile: 'city', note: 'Skręcająca łącznica: jeden szeroki pas zjeżdża pętlą o promieniu 34 m z wysokości 8 m na ziemię, na filarach, a nisko — po nasypie.',
     viaduct: Array.from({ length: 11 }, (_, k) => { const a = k * Math.PI * 1.6 / 10 - 0.6; return [Math.cos(a) * 34, Math.sin(a) * 34, 8.4 * (1 - k / 10) + 0.3]; }), lanes: 1 },
   furniture: { label: 'Latarnie i znaki', profile: 'city', note: 'Cztery rodzaje latarni (współczesna LED, podwójna, parkowa stylizowana, stara betonowa z sodówką) i polskie znaki drogowe: ostrzegawcze, zakazu, nakazu, informacyjne. Po zmroku latarnie się zapalają.', line: [[-40, 0], [40, 0]], furniture: true },
-  barriers: { label: 'Słupki, barierki, ekrany', profile: 'city', note: 'Słupki: stalowy blokujący z pasami odblaskowymi, żeliwny grafitowy, betonowy walec, prowadzący U-1a. Barierki: ochronna U-12a (czerwono-biała), miejska grafitowa, bariera energochłonna stalowa. Za zieleńcem ekrany dźwiękochłonne: kasety pochłaniające, przezroczysty z pasami przeciw ptakom, kasety z przeszkleniem u góry.', line: [[-45, 0], [45, 0]], barriers: true },
+  barriers: { label: 'Słupki, barierki, ekrany', profile: 'city', note: 'Słupki: stalowy blokujący z pasami odblaskowymi, żeliwny grafitowy, żeliwne połączone łańcuchem, betonowy walec, prowadzący U-1a; pikietaż — słupki hektometrowe 1–9 i kilometrowy z czerwoną głowicą. Barierki: ochronna U-12a (czerwono-biała), miejska grafitowa, bariera energochłonna stalowa. Za zieleńcem ekrany dźwiękochłonne: kasety pochłaniające, przezroczysty z pasami przeciw ptakom, kasety z przeszkleniem u góry.', line: [[-45, 0], [45, 0]], barriers: true },
   cycle: { label: 'Droga dla rowerów', profile: 'cycle', note: 'Czerwona kostka z osią przerywaną, niski krawężnik, chodnik z szarej kostki obok.', line: [[-35, 6], [-5, -4], [35, 2]] },
 };
-const S = { bollards: false, bollardType: 'steel', rails: false, railType: 'u12a', noise: false, noiseType: 'metal', noiseH: 4, lamps: true, lampType: 'modern', lampEvery: 30, signs: true, lampsOn: 'auto', signal: 'cycle', scene: 'straight', profile: 'city', lanes: 2, laneW: 3.25, road: 'asphalt', marks: true, walkW: 2.5, curbH: 0.14, walk: 'slabs', corner: 6, weather: 'fair', sunEl: 32, sunAz: 215, ...(saved || {}) };
+const S = { bollards: false, bollardType: 'steel', rails: false, railType: 'u12a', noise: false, noiseType: 'metal', noiseH: 4, mileposts: false, lamps: true, lampType: 'modern', lampEvery: 30, signs: true, lampsOn: 'auto', signal: 'cycle', scene: 'straight', profile: 'city', lanes: 2, laneW: 3.25, road: 'asphalt', marks: true, walkW: 2.5, curbH: 0.14, walk: 'slabs', corner: 6, weather: 'fair', sunEl: 32, sunAz: 215, ...(saved || {}) };
 if (!SCENES[S.scene]) S.scene = 'straight'; if (!PROFILES[S.profile]) S.profile = 'city';
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* prywatny tryb */ } };
 
@@ -60,7 +60,9 @@ function rebuild() {
     // pomost: przekrój wiaduktu z suwakami szerokości pasa i nawierzchni; jedna łącznica — jeden szeroki pas
     const V = { ...VIADUCT_PROFILE, laneW: sc.lanes === 1 ? Math.max(4.5, S.laneW) : S.laneW, lanes: sc.lanes, road: S.road, marks: S.marks ? (sc.lanes === 1 ? { edge: true } : VIADUCT_PROFILE.marks) : null };
     const underHalf = sc.under ? P.lanes * P.laneW / 2 + P.strips.reduce((a, x) => a + x.w, 0) + 1 : 0;
-    r = buildViaduct(sc.viaduct, V, { avoid: sc.under ? (x) => Math.abs(x) < underHalf : null });
+    r = buildViaduct(sc.viaduct, V, { avoid: sc.under ? (x) => Math.abs(x) < underHalf : null, rail: !S.noise });
+    // ekrany na koronie barier pomostu (bez cokołu; poręcz wtedy zdjęta)
+    if (S.noise) for (const sd of [1, -1]) holder.add(buildNoiseWall(sc.viaduct, S.noiseType, { offset: sd * r.barrierAt, y: r.barrierTop, height: S.noiseH, plinth: 0 }).group);
     if (sc.under) holder.add(buildStreet(sc.under, P).group);
   } else r = sc.crossing ? buildCrossing(P, { arms: sc.crossing, arm: 32, corner: S.corner }) : buildStreet(sc.line, P);
   holder.add(r.group); holder.position.y = 0.02;
@@ -98,16 +100,19 @@ function rebuild() {
   const s0 = P.strips[0], kerb = half + (s0 && (s0.k === 'curb' || s0.k === 'shoulder') ? s0.w : 0), walkY = s0 ? Math.max(0, s0.h) : 0, outer = half + walk + 0.6;
   const seg = (x0, x1) => [[x0, 0], [x1, 0]];
   if (sc.barriers) {
-    [['steel', -45, -31], ['warsaw', -29, -17], ['concrete', -15, -3]].forEach(([t, a, b]) => holder.add(buildBollards(seg(a, b), t, { offset: kerb + 0.45, y: walkY }).group));
+    [['steel', -45, -35], ['warsaw', -33, -23], ['chain', -21, -11], ['concrete', -9, -1]].forEach(([t, a, b]) => holder.add(buildBollards(seg(a, b), t, { offset: kerb + 0.45, y: walkY }).group));
     holder.add(buildBollards(seg(33, 45), 'delineator', { offset: kerb + 0.3, y: walkY, every: 3 }).group);
     [['u12a', 1, 15], ['city', 17, 31]].forEach(([t, a, b]) => holder.add(buildRail(seg(a, b), t, { offset: kerb + 0.3, y: walkY }).group));
     holder.add(buildRail(seg(-45, -5), 'guardrail', { offset: -(kerb + 0.35), y: walkY }).group);
+    // pikietaż: słupki hektometrowe 1–9 i kilometrowy (próbki w rzędzie)
+    for (let i = 0; i < 10; i++) { const m = buildMilepost(12, (i + 1) % 10); m.group.position.set(-2 + i * 4.6, walkY, -(kerb + 0.5)); holder.add(m.group); }
     [['metal', -45, -16], ['glass', -14, 14], ['mixed', 16, 45]].forEach(([t, a, b]) => holder.add(buildNoiseWall(seg(a, b), t, { offset: -outer, height: S.noiseH }).group));
   } else if (sc.line) {
     for (const sd of [1, -1]) {
       if (S.rails) holder.add(buildRail(sc.line, S.railType, { offset: sd * (kerb + 0.3), y: walkY }).group);
       if (S.bollards) holder.add(buildBollards(sc.line, S.bollardType, { offset: sd * (kerb + (S.rails ? 0.75 : 0.45)), y: walkY }).group);
       if (S.noise) holder.add(buildNoiseWall(sc.line, S.noiseType, { offset: sd * outer, height: S.noiseH }).group);
+      if (S.mileposts) holder.add(buildMileposts(sc.line, { offset: sd * (kerb + (S.rails ? 1.1 : 0.6)), y: walkY, start: 12 * 1000 + 950, every: 100 }).group);
     }
   }
   if (S.signs && sc.crossing) {
@@ -166,7 +171,7 @@ $('bollardType').replaceChildren(...Object.entries(BOLLARDS).map(([k, v]) => el(
 $('railType').replaceChildren(...Object.entries(RAILS).map(([k, v]) => el('option', { value: k, textContent: v.label })));
 $('noiseType').replaceChildren(...Object.entries(NOISE).map(([k, v]) => el('option', { value: k, textContent: v.label })));
 for (const k of ['bollardType', 'railType', 'noiseType']) { $(k).value = S[k]; $(k).onchange = () => { S[k] = $(k).value; rebuild(); }; }
-for (const k of ['bollards', 'rails', 'noise']) { $(k).checked = S[k]; $(k).onchange = () => { S[k] = $(k).checked; rebuild(); }; }
+for (const k of ['bollards', 'rails', 'noise', 'mileposts']) { $(k).checked = S[k]; $(k).onchange = () => { S[k] = $(k).checked; rebuild(); }; }
 $('noiseH').value = S.noiseH; $('noiseHV').textContent = S.noiseH.toFixed(1) + ' m';
 $('noiseH').oninput = () => { S.noiseH = +$('noiseH').value; $('noiseHV').textContent = S.noiseH.toFixed(1) + ' m'; }; $('noiseH').onchange = () => rebuild();
 $('signal').replaceChildren(el('option', { value: 'cycle', textContent: 'Cykl (dwie fazy)' }), ...Object.entries(SIGNAL_STATES).map(([k, v]) => el('option', { value: k, textContent: v })));

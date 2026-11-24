@@ -1,5 +1,9 @@
 # Zmiany
 
+## 0.10.0 — 2026-11-24
+- Laboratorium ulic 0.6.0: słupki połączone łańcuchem, ekrany dźwiękochłonne na wiaduktach (na koronie barier),
+  słupki pikietażowe — hektometrowe co 100 m i kilometrowe (próbka i opcja w oknie Wyposażenie).
+
 ## 0.9.0 — 2026-11-24
 - Laboratorium ulic 0.5.0: słupki (stalowe, żeliwne, betonowe, prowadzące U-1a), barierki (U-12a, miejska
   grafitowa, bariera energochłonna) i ekrany dźwiękochłonne (kasety, przezroczyste, mieszane) — próbka i opcje

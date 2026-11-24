@@ -55,13 +55,19 @@ z pierwszeństwem, D-6 przejście dla pieszych, D-18 parking.
 ## Słupki, barierki, ekrany dźwiękochłonne
 
 Wzdłuż linii trasy, przy odsunięciu od osi: `buildBollards(points, type, { offset, every, y })` — `BOLLARDS`: stalowy
-blokujący (Ø 114 mm, 1 m, pasy odblaskowe), żeliwny grafitowy, betonowy walec (Ø 0,6 m), prowadzący U-1a;
+blokujący (Ø 114 mm, 1 m, pasy odblaskowe), żeliwny grafitowy, żeliwne połączone łańcuchem (ogniwa jako `InstancedMesh`), betonowy walec (Ø 0,6 m), prowadzący U-1a;
 `buildRail(points, type, { offset, y })` — `RAILS`: ochronna U-12a (czerwono-biała, 1,1 m), miejska grafitowa
 z prętami, bariera energochłonna (prowadnica falista na słupkach co 2 m, od strony jezdni);
 `buildNoiseWall(points, type, { offset, height, y })` — `NOISE`: kasety pochłaniające, przezroczysty PMMA z pasami
 przeciw ptakom, kasety z przeszkleniem u góry; cokół betonowy 0,5 m, słupy HEB 200 co 4 m. Słupki i słupy to
 `InstancedMesh`. W oknie Wyposażenie: słupki i barierka przy krawężniku, ekrany za ostatnim pasem przekroju (rodzaj,
 wysokość 2–6 m) — na próbkach z jedną linią trasy.
+Ekran na wiadukcie: `buildNoiseWall(…, { offset: barrierAt, y: barrierTop, plinth: 0 })` — na koronie bariery
+pomostu, wtedy `buildViaduct(…, { rail: false })` (bez poręczy).
+
+Pikietaż: `buildMilepost(km, hm)` — słupek hektometrowy (biały, 0,6 m, cyfra hektometra) albo kilometrowy (`hm` 0,
+większy, numer kilometra, czerwona głowica); `buildMileposts(points, { offset, y, start, every: 100 })` — co 100 m
+według pikietażu `start` na początku linii.
 
 ## Wiadukty
 

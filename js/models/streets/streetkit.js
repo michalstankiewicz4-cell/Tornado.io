@@ -538,12 +538,14 @@ export function alongStreet(points, every = 30, offset = 8, start = every / 2) {
 // z oczepem (dwa słupy Ø 1,2 m i belka pod pomostem) co `pierEvery` m tam, gdzie jest wysoko. avoid(x, z) — gdzie nie
 // stawiać filarów (np. jezdnia pod wiaduktem).
 //   VIADUCT_PROFILE   przekrój pomostu: dwa pasy 3,5 m, krawężnik, wąski chodnik
-//   buildViaduct(points3, profile, { pierEvery, deck, fillBelow, avoid }) → { group, length, width }
+//   buildViaduct(points3, profile, { pierEvery, deck, fillBelow, avoid, rail }) → { group, length, width, barrierTop, barrierAt }
+//   rail: false — bez poręczy (np. gdy na barierze stoi ekran); barrierTop — wysokość korony bariery nad trasą,
+//   barrierAt — odsunięcie środka bariery od osi
 export const VIADUCT_PROFILE = { label: 'Pomost wiaduktu', lanes: 2, laneW: 3.5, road: 'asphalt', marks: { center: 'solid', edge: true },
   strips: [{ k: 'curb', w: 0.15, h: 0.18 }, { k: 'sidewalk', w: 1.3, h: 0.18, s: 'slabs' }] };
 const concrete = () => surface('concrete');
 SURFACES.concrete = SURFACES.concrete || { label: 'Beton', kind: 'concrete', color: '#a9a69c', color2: '#8a877e', tile: 3, roughness: 0.9, metalness: 0, pores: 0.5, wear: 0.15, dirt: 0.35 };
-export function buildViaduct(points, profile = VIADUCT_PROFILE, { pierEvery = 24, deck = 1.3, fillBelow = 5, avoid = null } = {}) {
+export function buildViaduct(points, profile = VIADUCT_PROFILE, { pierEvery = 24, deck = 1.3, fillBelow = 5, avoid = null, rail = true } = {}) {
   const pr = typeof profile === 'string' ? PROFILES[profile] : profile;
   const st = buildStreet(points, pr), g = st.group, S = sample(points, 0.5);
   g.name = 'wiadukt';
@@ -555,8 +557,8 @@ export function buildViaduct(points, profile = VIADUCT_PROFILE, { pierEvery = 24
     g.add(mesh(wall(S, o0, top, top + BH, -sd, 1), con));
     g.add(mesh(ribbon(S, o0, o1, top + BH, con.userData.tile || 3), con));
     g.add(mesh(wall(S, o1, -deck, top + BH, sd, 1), con));
-    const rail = mesh(ribbon(S, sd * (half + B * 0.35), sd * (half + B * 0.65), top + BH + 0.25, 1), steel()); g.add(rail);
-    for (let d = 0; d < S.L; d += 2) { const q = S.pts[Math.min(S.pts.length - 1, Math.round(d / 0.5))]; const post = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.25, 0.05), steel()); post.position.set(q.p.x + q.nx * sd * (half + B / 2), q.p.y + top + BH + 0.12, q.p.z + q.nz * sd * (half + B / 2)); g.add(post); }
+    if (rail) g.add(mesh(ribbon(S, sd * (half + B * 0.35), sd * (half + B * 0.65), top + BH + 0.25, 1), steel()));
+    if (rail) for (let d = 0; d < S.L; d += 2) { const q = S.pts[Math.min(S.pts.length - 1, Math.round(d / 0.5))]; const post = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.25, 0.05), steel()); post.position.set(q.p.x + q.nx * sd * (half + B / 2), q.p.y + top + BH + 0.12, q.p.z + q.nz * sd * (half + B / 2)); g.add(post); }
   }
   // spód płyty pomostu
   g.add(mesh(slope(S, half + B, -deck, -(half + B), -deck, 3, true), con));
@@ -593,7 +595,7 @@ export function buildViaduct(points, profile = VIADUCT_PROFILE, { pierEvery = 24
     const cap = new THREE.Mesh(new THREE.BoxGeometry(2 * half, 1.0, 1.6), con); cap.position.set(q.p.x, h - 0.5, q.p.z); cap.rotation.y = rot; cap.castShadow = cap.receiveShadow = true; g.add(cap);
     for (const sd of [-1, 1]) { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.65, h - 1, 20), con); c.position.set(q.p.x + q.nx * sd * off, (h - 1) / 2, q.p.z + q.nz * sd * off); c.castShadow = c.receiveShadow = true; g.add(c); }
   }
-  return { group: g, length: S.L, width: 2 * (half + B) };
+  return { group: g, length: S.L, width: 2 * (half + B), barrierTop: top + BH, barrierAt: half + B / 2 };
 }
 
 /* ---------------- słupki, barierki, ekrany dźwiękochłonne ---------------- */
@@ -601,7 +603,8 @@ export function buildViaduct(points, profile = VIADUCT_PROFILE, { pierEvery = 24
 // w lewo), na wysokości `y` nad trasą (np. wysokość chodnika).
 //   BOLLARDS  steel — stalowy słupek blokujący Ø 114 mm, 1 m, z białymi pasami odblaskowymi; warsaw — żeliwny grafitowy
 //             z pierścieniem i głowicą kulistą; concrete — betonowy walec Ø 0,6 m; delineator — słupek prowadzący U-1a
-//             (biały, czarna opaska z odblaskiem) przy drogach poza miastem
+//             (biały, czarna opaska z odblaskiem) przy drogach poza miastem; chain — żeliwne słupki połączone stalowym
+//             łańcuchem (ogniwa 6 cm, zwis 12 cm)
 //   buildBollards(points, type, { offset, every, y, start }) → { group, count }
 //   RAILS     u12a — barierka ochronna dla pieszych U-12a (rury Ø 60 w czerwono-białe pasy, 1,1 m); city — miejska
 //             grafitowa z prętami pionowymi (1 m); guardrail — bariera energochłonna stalowa (prowadnica falista na
@@ -609,10 +612,10 @@ export function buildViaduct(points, profile = VIADUCT_PROFILE, { pierEvery = 24
 //   buildRail(points, type, { offset, y }) → { group, length }
 //   NOISE     metal — kasety pochłaniające (aluminium, perforowane lico); glass — przezroczyste płyty PMMA z pionowymi
 //             pasami przeciw ptakom; mixed — dół z kaset, góra przezroczysta. Słupy HEB 200 co 4 m, cokół betonowy 0,5 m
-//   buildNoiseWall(points, type, { offset, height, y }) → { group, length }
+//   buildNoiseWall(points, type, { offset, height, y, plinth }) → { group, length }   plinth 0 — bez cokołu (na barierze)
 export const BOLLARDS = {
   steel: { label: 'Stalowy blokujący', every: 1.5 }, warsaw: { label: 'Żeliwny grafitowy', every: 1.5 },
-  concrete: { label: 'Betonowy walec', every: 2 }, delineator: { label: 'Prowadzący U-1a', every: 25 },
+  chain: { label: 'Żeliwne z łańcuchem', every: 2 }, concrete: { label: 'Betonowy walec', every: 2 }, delineator: { label: 'Prowadzący U-1a', every: 25 },
 };
 export const RAILS = { u12a: { label: 'Ochronna U-12a (czerwono-biała)' }, city: { label: 'Miejska grafitowa' }, guardrail: { label: 'Bariera energochłonna (stalowa)' } };
 export const NOISE = { metal: { label: 'Kasety pochłaniające' }, glass: { label: 'Przezroczysty (PMMA)' }, mixed: { label: 'Kasety z przeszkleniem u góry' } };
@@ -659,12 +662,13 @@ export function buildBollards(points, type = 'steel', { offset = 0, every, y = 0
   every = every || T.every;
   const M = stations(S, offset, every, start ?? every / 2, y);
   const white = kitMat('refl', () => new THREE.MeshStandardMaterial({ color: 0xf4f4f0, roughness: 0.35, emissive: 0xffffff, emissiveIntensity: 0.08 }));
-  if (type === 'warsaw') {
+  if (type === 'warsaw' || type === 'chain') {
     const iron = kitMat('iron', () => new THREE.MeshStandardMaterial({ color: 0x2b2f31, roughness: 0.55, metalness: 0.55 }));
     g.add(inst(new THREE.CylinderGeometry(0.1, 0.12, 0.12, 16).translate(0, 0.06, 0), iron, M));
     g.add(inst(new THREE.CylinderGeometry(0.065, 0.08, 0.86, 16).translate(0, 0.55, 0), iron, M));
     g.add(inst(new THREE.TorusGeometry(0.072, 0.014, 6, 16).rotateX(Math.PI / 2).translate(0, 0.84, 0), iron, M));
     g.add(inst(new THREE.SphereGeometry(0.075, 16, 10).translate(0, 1.0, 0), iron, M));
+    if (type === 'chain') g.add(chainBetween(M, 0.74, 0.12));
   } else if (type === 'concrete') {
     const con = surface('concrete');
     g.add(inst(new THREE.CylinderGeometry(0.3, 0.3, 0.54, 24).translate(0, 0.27, 0), con, M));
@@ -685,6 +689,24 @@ export function buildBollards(points, type = 'steel', { offset = 0, every, y = 0
     for (const h of [0.78, 0.9]) g.add(inst(new THREE.CylinderGeometry(0.0585, 0.0585, 0.05, 16).translate(0, h, 0), white, M, false));
   }
   return { group: g, count: M.length };
+}
+
+// łańcuch między kolejnymi słupkami: ogniwa wzdłuż zwisającej krzywej (parabola), co drugie obrócone o 90°
+function chainBetween(M, h, sag) {
+  const L = 0.06, out = [], a = new THREE.Vector3(), b = new THREE.Vector3(), p = new THREE.Vector3(), d = new THREE.Vector3(), X = new THREE.Vector3(1, 0, 0);
+  for (let i = 1; i < M.length; i++) {
+    a.setFromMatrixPosition(M[i - 1]); b.setFromMatrixPosition(M[i]); a.y += h; b.y += h;
+    const span = a.distanceTo(b), n = Math.max(2, Math.round(span / (L * 0.78)));
+    const at = (u, v) => v.lerpVectors(a, b, u).setY(v.y - 4 * sag * u * (1 - u));
+    for (let k = 0; k < n; k++) {
+      at((k + 0.5) / n, p); at((k + 1) / n, d); d.sub(at(k / n, new THREE.Vector3())).normalize();
+      const q = new THREE.Quaternion().setFromUnitVectors(X, d);
+      if (k % 2) q.multiply(new THREE.Quaternion().setFromAxisAngle(X, Math.PI / 2));
+      out.push(new THREE.Matrix4().compose(p.clone(), q, ONE));
+    }
+  }
+  const link = new THREE.TorusGeometry(0.016, 0.0045, 5, 10).scale(1.55, 1, 1);
+  return inst(link, kitMat('chain', () => new THREE.MeshStandardMaterial({ color: 0x8f9598, roughness: 0.35, metalness: 0.9 })), out, false);
 }
 
 /** Barierka albo bariera wzdłuż linii. */
@@ -745,11 +767,11 @@ function glassTex() {
 }
 
 /** Ekran dźwiękochłonny wzdłuż linii. */
-export function buildNoiseWall(points, type = 'metal', { offset = 0, height = 4, y = 0 } = {}) {
+export function buildNoiseWall(points, type = 'metal', { offset = 0, height = 4, y = 0, plinth = 0.5 } = {}) {
   const S = sample(points, 0.5), g = new THREE.Group(); g.name = 'ekran: ' + (NOISE[type] || NOISE.metal).label;
-  const con = surface('concrete'), P0 = 0.5, T = 0.12, H = Math.max(P0 + 0.5, height);
+  const con = surface('concrete'), P0 = plinth, T = 0.12, H = Math.max(P0 + 0.5, height);
   // cokół betonowy 0,3 m
-  g.add(mesh(wall(S, offset - 0.15, y, y + P0, -1, 2), con), mesh(wall(S, offset + 0.15, y, y + P0, 1, 2), con), mesh(ribbon(S, offset - 0.15, offset + 0.15, y + P0, 2), con));
+  if (P0 > 0) g.add(mesh(wall(S, offset - 0.15, y, y + P0, -1, 2), con), mesh(wall(S, offset + 0.15, y, y + P0, 1, 2), con), mesh(ribbon(S, offset - 0.15, offset + 0.15, y + P0, 2), con));
   const cas = kitMat('cassette', () => new THREE.MeshStandardMaterial({ map: cassetteTex(), roughness: 0.55, metalness: 0.35 }));
   const gl = kitMat('pmma', () => new THREE.MeshStandardMaterial({ map: glassTex(), transparent: true, depthWrite: false, roughness: 0.05, metalness: 0.1, side: THREE.DoubleSide }));
   const alu = kitMat('alu', () => new THREE.MeshStandardMaterial({ color: 0x9da3a6, roughness: 0.4, metalness: 0.8 }));
@@ -766,4 +788,42 @@ export function buildNoiseWall(points, type = 'metal', { offset = 0, height = 4,
   const post = kitMat('hebPaint', () => new THREE.MeshStandardMaterial({ color: 0x3f4d3c, roughness: 0.5, metalness: 0.5 }));
   g.add(inst(new THREE.BoxGeometry(0.2, H + 0.05, 0.2).translate(0, (H + 0.05) / 2, 0), post, stations(S, offset, 4, 0, y)));
   return { group: g, length: S.L };
+}
+
+/* ---------------- słupki pikietażowe ---------------- */
+// Pikietaż drogi: słupek hektometrowy co 100 m (biały, 12 × 12 cm, 0,6 m nad ziemią, czarna cyfra hektometra 1–9
+// na ścianach zwróconych wzdłuż drogi) i kilometrowy na pełnym kilometrze (większy, z numerem kilometra).
+//   buildMilepost(km, hm) → { group }                     hm 0 — słupek kilometrowy
+//   buildMileposts(points, { offset, y, start, every }) → { group, count }   start — pikietaż (m) na początku linii
+const postTexCache = new Map();
+function postFace(text, w, h) {
+  const k = text + w + h; if (postTexCache.has(k)) return postTexCache.get(k);
+  const t = canvasTex(w, h, (c) => {
+    c.fillStyle = '#f2f2ee'; c.fillRect(0, 0, w, h);
+    c.fillStyle = '#111'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.font = `bold ${Math.round(Math.min(w / (text.length * 0.62), h * 0.42))}px Arial, sans-serif`; c.fillText(text, w / 2, h * 0.36);
+  }, false);
+  postTexCache.set(k, t); return t;
+}
+export function buildMilepost(km = 0, hm = 1) {
+  const g = new THREE.Group(); g.name = hm ? `słupek hektometrowy ${km}+${hm}00` : `słupek kilometrowy ${km}`;
+  const big = !hm, W = big ? 0.22 : 0.12, H = big ? 0.9 : 0.6, D = big ? 0.14 : 0.12;
+  const white = kitMat('postWhite', () => new THREE.MeshStandardMaterial({ color: 0xf2f2ee, roughness: 0.8 }));
+  const face = new THREE.MeshStandardMaterial({ map: postFace(String(big ? km : hm), big ? 64 : 48, big ? 256 : 240), roughness: 0.8 });
+  // lico z numerem wzdłuż drogi (lokalne ±x); 0,2 m w gruncie
+  const box = new THREE.Mesh(new THREE.BoxGeometry(D, H + 0.2, W).translate(0, (H - 0.2) / 2, 0), [face, face, white, white, white, white]);
+  box.castShadow = box.receiveShadow = true; g.add(box);
+  if (big) { const cap = new THREE.Mesh(new THREE.BoxGeometry(D + 0.01, 0.12, W + 0.01).translate(0, H - 0.06, 0), kitMat('postRed', () => new THREE.MeshStandardMaterial({ color: 0xc8102e, roughness: 0.6 }))); g.add(cap); }
+  return { group: g };
+}
+export function buildMileposts(points, { offset = 0, y = 0, start = 0, every = 100 } = {}) {
+  const S = sample(points, 0.5), g = new THREE.Group(); g.name = 'pikietaż'; const step = S.L / (S.pts.length - 1);
+  let n = 0;
+  for (let c = Math.ceil(start / every) * every; c <= start + S.L; c += every) {
+    const q = S.pts[Math.min(S.pts.length - 1, Math.round((c - start) / step))];
+    const km = Math.floor(c / 1000), hm = Math.round((c % 1000) / 100), p = buildMilepost(km, hm % 10);
+    p.group.position.set(q.p.x + q.nx * offset, q.p.y + y, q.p.z + q.nz * offset); p.group.rotation.y = Math.atan2(-q.t.z, q.t.x);
+    g.add(p.group); n++;
+  }
+  return { group: g, count: n };
 }
