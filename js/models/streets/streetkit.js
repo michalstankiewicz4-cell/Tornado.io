@@ -356,3 +356,166 @@ export function buildTrafficLight({ arm = 0, height = 3.2, backplate = true } = 
   api.set('red');
   return api;
 }
+
+/* ---------------- latarnie ---------------- */
+// Latarnie uliczne (przód oprawy: +z — w stronę jezdni). on(true) zapala: oprawa świeci, światło pada w dół na ulicę.
+//   LAMPS  modern — współczesna LED, słup ocynkowany 8 m z wysięgnikiem; double — dwa wysięgniki (aleja, pas dzielący);
+//          park — stylizowana parkowa, żeliwny słup 4 m z latarnią (ciepłe światło); old — stara betonowa (PRL) 9 m
+//          z oprawą sodową (pomarańczowe światło)
+//   buildLamp(type) → { group, on(true | false), light }
+export const LAMPS = {
+  modern: { label: 'Współczesna LED', h: 8, color: 0xf2f4ff, temp: [0.95, 0.97, 1] },
+  double: { label: 'Podwójna (aleja)', h: 9, color: 0xf2f4ff, temp: [0.95, 0.97, 1] },
+  park: { label: 'Parkowa stylizowana', h: 4, color: 0xffd9a0, temp: [1, 0.82, 0.6] },
+  old: { label: 'Stara betonowa (sodowa)', h: 9, color: 0xffa23a, temp: [1, 0.6, 0.22] },
+};
+export function buildLamp(type = 'modern') {
+  const T = LAMPS[type] || LAMPS.modern, g = new THREE.Group(); g.name = 'latarnia: ' + T.label;
+  const add = (geo, m, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; g.add(o); return o; };
+  const glass = new THREE.MeshStandardMaterial({ color: 0x222222, emissive: T.color, emissiveIntensity: 0, roughness: 0.3 });
+  const heads = [];
+  if (type === 'park') {
+    const iron = new THREE.MeshStandardMaterial({ color: 0x1d2420, roughness: 0.6, metalness: 0.6 });
+    add(new THREE.CylinderGeometry(0.16, 0.2, 0.6, 12), iron, 0, 0.3, 0);
+    add(new THREE.CylinderGeometry(0.05, 0.07, T.h - 0.6, 12), iron, 0, 0.3 + (T.h - 0.6) / 2, 0);
+    for (let i = 0; i < 3; i++) add(new THREE.TorusGeometry(0.075, 0.015, 6, 14).rotateX(Math.PI / 2), iron, 0, 1 + i * 1.1, 0);
+    add(new THREE.CylinderGeometry(0.12, 0.08, 0.12, 6), iron, 0, T.h + 0.06, 0);
+    const lan = add(new THREE.CylinderGeometry(0.2, 0.13, 0.45, 6), glass, 0, T.h + 0.35, 0); heads.push(lan);
+    add(new THREE.ConeGeometry(0.28, 0.25, 6), iron, 0, T.h + 0.7, 0);
+    add(new THREE.SphereGeometry(0.04, 8, 6), iron, 0, T.h + 0.86, 0);
+  } else if (type === 'old') {
+    const conc = new THREE.MeshStandardMaterial({ color: 0x9c9890, roughness: 0.9 });
+    add(new THREE.BoxGeometry(0.22, T.h, 0.18).translate(0, 0, 0), conc, 0, T.h / 2, 0);
+    const arm = add(new THREE.CylinderGeometry(0.03, 0.03, 1.6, 8), steel(), 0, T.h - 0.1, 0.75); arm.rotation.x = Math.PI / 2 - 0.15;
+    const hous = add(new THREE.BoxGeometry(0.3, 0.14, 0.6), new THREE.MeshStandardMaterial({ color: 0x6d7378, roughness: 0.6, metalness: 0.3 }), 0, T.h, 1.5);
+    const gl = add(new THREE.BoxGeometry(0.26, 0.04, 0.5), glass, 0, T.h - 0.08, 1.5); heads.push(gl); hous.rotation.x = 0.15; gl.rotation.x = 0.15;
+  } else {
+    const st = steel();
+    add(new THREE.CylinderGeometry(0.1, 0.13, 0.5, 12), st, 0, 0.25, 0);
+    add(new THREE.CylinderGeometry(0.055, 0.09, T.h, 12), st, 0, T.h / 2, 0);
+    const sides = type === 'double' ? [1, -1] : [1];
+    for (const sd of sides) {
+      const arm = add(new THREE.CylinderGeometry(0.035, 0.04, 1.8, 10), st, 0, T.h + 0.15, sd * 0.85); arm.rotation.x = Math.PI / 2 - sd * 0.12;
+      const hous = add(new THREE.BoxGeometry(0.28, 0.08, 0.62), new THREE.MeshStandardMaterial({ color: 0x5b6166, roughness: 0.4, metalness: 0.6 }), 0, T.h + 0.28, sd * 1.75);
+      const gl = add(new THREE.BoxGeometry(0.24, 0.02, 0.5), glass, 0, T.h + 0.23, sd * 1.75); heads.push(gl);
+      hous.rotation.x = -sd * 0.08; gl.rotation.x = -sd * 0.08;
+    }
+  }
+  // światło w dół spod oprawy (jedno na latarnię; cienie wyłączone — dziesiątki latarni)
+  const p = heads[0].position, light = new THREE.SpotLight(T.color, 0, T.h * 3.2, 1.05, 0.6, 2);
+  light.position.set(type === 'double' ? 0 : p.x, p.y - 0.05, type === 'double' ? 0 : p.z); light.target.position.set(light.position.x, 0, light.position.z + (type === 'park' || type === 'double' ? 0 : 0.6));
+  g.add(light, light.target);
+  return {
+    group: g, light,
+    on(v = true) { glass.emissiveIntensity = v ? (type === 'old' ? 2.4 : 2) : 0; light.intensity = v ? T.h * T.h * (type === 'park' ? 0.9 : type === 'double' ? 2 : 1.3) : 0; },
+  };
+}
+
+/* ---------------- znaki drogowe ---------------- */
+// Polskie znaki drogowe (rozporządzenie o znakach i sygnałach): ostrzegawcze A (trójkąt, żółte tło, czerwona obwódka),
+// zakazu B (koło z czerwoną obwódką), nakazu C (niebieskie koło), informacyjne D (niebieski prostokąt). Tarcza
+// rysowana na płótnie, z białym odblaskowym brzegiem; tył szary; słupek ocynkowany Ø 60 mm. Wymiary jak znaki średnie.
+//   SIGNS   id → { code, label }
+//   buildSign(id, { height }) → { group }   (przód: +z)
+export const SIGNS = {
+  'A-7': { code: 'A-7', label: 'Ustąp pierwszeństwa' }, 'A-16': { code: 'A-16', label: 'Przejście dla pieszych (ostrzegawczy)' },
+  'A-17': { code: 'A-17', label: 'Dzieci' }, 'B-1': { code: 'B-1', label: 'Zakaz ruchu w obu kierunkach' }, 'B-2': { code: 'B-2', label: 'Zakaz wjazdu' },
+  'B-20': { code: 'B-20', label: 'Stop' }, 'B-33': { code: 'B-33', label: 'Ograniczenie prędkości 50' }, 'B-36': { code: 'B-36', label: 'Zakaz zatrzymywania się' },
+  'C-12': { code: 'C-12', label: 'Ruch okrężny' }, 'C-13': { code: 'C-13', label: 'Droga dla rowerów' }, 'D-1': { code: 'D-1', label: 'Droga z pierwszeństwem' },
+  'D-6': { code: 'D-6', label: 'Przejście dla pieszych' }, 'D-18': { code: 'D-18', label: 'Parking' },
+};
+const RED = '#c8102e', YEL = '#f6b800', BLU = '#0050a0';
+function pedestrian(c, x, y, s, col) {   // pieszy (piktogram)
+  c.fillStyle = col; c.strokeStyle = col; c.lineCap = 'round'; c.lineWidth = s * 0.13;
+  c.beginPath(); c.arc(x + s * 0.05, y - s * 0.42, s * 0.1, 0, 7); c.fill();
+  c.beginPath(); c.moveTo(x + s * 0.02, y - s * 0.28); c.lineTo(x - s * 0.04, y + s * 0.05); c.lineTo(x - s * 0.2, y + s * 0.4); c.moveTo(x - s * 0.04, y + s * 0.05); c.lineTo(x + s * 0.16, y + s * 0.4);
+  c.moveTo(x + s * 0.0, y - s * 0.22); c.lineTo(x - s * 0.2, y - s * 0.02); c.moveTo(x + s * 0.0, y - s * 0.22); c.lineTo(x + s * 0.2, y - s * 0.05); c.stroke();
+}
+function bicycle(c, x, y, s, col) {
+  c.strokeStyle = col; c.lineWidth = s * 0.07;
+  for (const dx of [-0.28, 0.28]) { c.beginPath(); c.arc(x + dx * s, y + s * 0.12, s * 0.2, 0, 7); c.stroke(); }
+  c.beginPath(); c.moveTo(x - s * 0.28, y + s * 0.12); c.lineTo(x - s * 0.05, y - s * 0.15); c.lineTo(x + s * 0.2, y - s * 0.15); c.lineTo(x + s * 0.28, y + s * 0.12); c.moveTo(x - s * 0.05, y - s * 0.15); c.lineTo(x + s * 0.02, y + s * 0.12); c.lineTo(x + s * 0.2, y - s * 0.15); c.stroke();
+}
+function signFace(id) {
+  const N = 512, cv = document.createElement('canvas'); cv.width = cv.height = N; const c = cv.getContext('2d'), m = N / 2;
+  const tri = (up) => { c.beginPath(); if (up) { c.moveTo(m, 30); c.lineTo(N - 20, N - 60); c.lineTo(20, N - 60); } else { c.moveTo(20, 60); c.lineTo(N - 20, 60); c.lineTo(m, N - 30); } c.closePath(); };
+  const circ = (r) => { c.beginPath(); c.arc(m, m, r, 0, 7); };
+  let shape = 'circle';
+  if (id.startsWith('A-')) {
+    shape = id === 'A-7' ? 'triDown' : 'tri';
+    c.lineJoin = 'round';
+    tri(id !== 'A-7'); c.fillStyle = '#fff'; c.fill(); c.lineWidth = 28; c.strokeStyle = '#fff'; c.stroke();
+    tri(id !== 'A-7'); c.lineWidth = 44; c.strokeStyle = RED; c.save(); c.clip(); c.stroke(); c.restore();
+    c.save(); tri(id !== 'A-7'); c.clip(); c.beginPath(); c.fillStyle = YEL; c.globalCompositeOperation = 'source-over';
+    // żółte wnętrze (wewnątrz czerwonej obwódki)
+    c.translate(m, id === 'A-7' ? m - 40 : m + 40); c.scale(0.74, 0.74); c.translate(-m, -(id === 'A-7' ? m - 40 : m + 40)); tri(id !== 'A-7'); c.fill(); c.restore();
+    if (id === 'A-16') pedestrian(c, m, m + 70, 200, '#111');
+    if (id === 'A-17') { pedestrian(c, m - 45, m + 85, 150, '#111'); pedestrian(c, m + 50, m + 95, 120, '#111'); }
+  } else if (id.startsWith('B-')) {
+    if (id === 'B-20') {
+      shape = 'oct';
+      c.beginPath(); for (let k = 0; k < 8; k++) { const t = Math.PI / 8 + k * Math.PI / 4; c.lineTo(m + Math.cos(t) * 245, m + Math.sin(t) * 245); } c.closePath(); c.fillStyle = '#fff'; c.fill();
+      c.beginPath(); for (let k = 0; k < 8; k++) { const t = Math.PI / 8 + k * Math.PI / 4; c.lineTo(m + Math.cos(t) * 225, m + Math.sin(t) * 225); } c.closePath(); c.fillStyle = RED; c.fill();
+      c.fillStyle = '#fff'; c.font = 'bold 150px Arial, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('STOP', m, m + 8);
+    } else {
+      circ(250); c.fillStyle = '#fff'; c.fill();
+      circ(232); c.fillStyle = id === 'B-36' ? BLU : id === 'B-2' ? RED : '#fff'; c.fill();
+      circ(232); c.lineWidth = 50; c.strokeStyle = RED; c.save(); c.clip(); c.stroke(); c.restore();
+      if (id === 'B-2') { c.fillStyle = '#fff'; c.fillRect(m - 150, m - 36, 300, 72); }
+      if (id === 'B-33') { c.fillStyle = '#111'; c.font = 'bold 220px Arial, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('50', m, m + 12); }
+      if (id === 'B-36') { c.save(); circ(205); c.clip(); c.strokeStyle = RED; c.lineWidth = 46; c.beginPath(); c.moveTo(m - 170, m - 170); c.lineTo(m + 170, m + 170); c.moveTo(m + 170, m - 170); c.lineTo(m - 170, m + 170); c.stroke(); c.restore(); }
+    }
+  } else if (id.startsWith('C-')) {
+    circ(250); c.fillStyle = '#fff'; c.fill(); circ(236); c.fillStyle = BLU; c.fill();
+    if (id === 'C-13') bicycle(c, m, m, 330, '#fff');
+    if (id === 'C-12') { c.strokeStyle = '#fff'; c.lineWidth = 40; for (let k = 0; k < 3; k++) { c.beginPath(); c.arc(m, m, 120, k * 2.094 + 0.3, k * 2.094 + 1.6); c.stroke(); const t = k * 2.094 + 1.6; c.fillStyle = '#fff'; c.beginPath(); c.moveTo(m + Math.cos(t) * 165, m + Math.sin(t) * 165); c.lineTo(m + Math.cos(t) * 75, m + Math.sin(t) * 75); c.lineTo(m + Math.cos(t + 0.45) * 120, m + Math.sin(t + 0.45) * 120); c.fill(); } }
+  } else if (id === 'D-1') {
+    shape = 'diamond';
+    const d = (r) => { c.beginPath(); c.moveTo(m, m - r); c.lineTo(m + r, m); c.lineTo(m, m + r); c.lineTo(m - r, m); c.closePath(); };
+    d(250); c.fillStyle = '#fff'; c.fill(); d(225); c.fillStyle = '#111'; c.fill(); d(205); c.fillStyle = '#fff'; c.fill(); d(150); c.fillStyle = YEL; c.fill();
+  } else {
+    shape = 'square';
+    c.fillStyle = '#fff'; c.fillRect(0, 0, N, N); c.fillStyle = BLU; c.fillRect(16, 16, N - 32, N - 32);
+    if (id === 'D-6') { c.fillStyle = '#fff'; c.beginPath(); c.moveTo(m, 70); c.lineTo(N - 60, N - 80); c.lineTo(60, N - 80); c.closePath(); c.fill(); pedestrian(c, m, m + 70, 210, '#111'); for (let k = 0; k < 5; k++) { c.fillStyle = '#111'; c.fillRect(120 + k * 58, N - 120, 32, 22); } }
+    if (id === 'D-18') { c.fillStyle = '#fff'; c.font = 'bold 380px Arial, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('P', m, m + 20); }
+  }
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  return { tex: t, shape };
+}
+const signCache = new Map();
+export function buildSign(id = 'B-20', { height = 2.2 } = {}) {
+  const g = new THREE.Group(); g.name = 'znak ' + id;
+  if (!signCache.has(id)) signCache.set(id, signFace(id));
+  const { tex, shape } = signCache.get(id);
+  const size = shape === 'tri' || shape === 'triDown' ? 0.9 : shape === 'diamond' ? 0.85 : 0.6;   // znaki średnie
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, height + size * 0.5, 10), steel());
+  post.position.y = (height + size * 0.5) / 2; post.castShadow = true; g.add(post);
+  // tarcza: kształt znaku wycięty z kwadratu (przezroczystość z obrazu) + szary tył
+  const plate = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshStandardMaterial({ map: tex, transparent: true, alphaTest: 0.5, roughness: 0.45, metalness: 0, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.06 }));
+  plate.position.set(0, height + size * 0.15, 0.04); plate.castShadow = true; g.add(plate);
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshStandardMaterial({ color: 0x8d9296, roughness: 0.5, metalness: 0.6, alphaMap: alphaOf(id, tex), transparent: true, alphaTest: 0.5 }));
+  back.rotation.y = Math.PI; back.position.set(0, height + size * 0.15, 0.035); g.add(back);
+  for (const dy of [-0.18, 0.18]) { const cl = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.04, 0.05), steel()); cl.position.set(0, height + size * 0.15 + dy * size, 0.015); g.add(cl); }
+  return { group: g, size };
+}
+// maska kształtu tarczy (biały — tarcza) z kanału alfa obrazu znaku
+const alphaCache = new Map();
+function alphaOf(id, tex) {
+  if (alphaCache.has(id)) return alphaCache.get(id);
+  const src = tex.image, cv = document.createElement('canvas'); cv.width = cv.height = 128; const c = cv.getContext('2d');
+  c.drawImage(src, 0, 0, 128, 128); const d = c.getImageData(0, 0, 128, 128);
+  for (let i = 0; i < d.data.length; i += 4) { const a = d.data[i + 3]; d.data[i] = d.data[i + 1] = d.data[i + 2] = a; d.data[i + 3] = 255; }
+  c.putImageData(d, 0, 0); const t = new THREE.CanvasTexture(cv); alphaCache.set(id, t); return t;
+}
+
+// punkty co `every` m wzdłuż linii, odsunięte o `offset` m w lewo (ujemne — w prawo), z kątem obrotu do osi trasy
+// (przód obiektu +z patrzy na oś) → [{ x, z, rot }]
+export function alongStreet(points, every = 30, offset = 8, start = every / 2) {
+  const S = sample(points, 0.5), out = [];
+  for (let d = start; d < S.L; d += every) {
+    const q = S.pts.reduce((b, p) => (Math.abs(p.s - d) < Math.abs(b.s - d) ? p : b), S.pts[0]);
+    const x = q.p.x + q.nx * offset, z = q.p.z + q.nz * offset;
+    out.push({ x, z, rot: Math.atan2(-q.nx * Math.sign(offset), -q.nz * Math.sign(offset)) });
+  }
+  return out;
+}

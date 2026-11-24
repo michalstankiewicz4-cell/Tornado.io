@@ -43,6 +43,16 @@
   <div class="row"><span>Łuk krawężnika</span><input type="range" id="corner" min="4" max="15" step="0.5"><output id="cornerV"></output></div>
   <p class="note">Przekrój to pasy od osi na zewnątrz: jezdnia, krawężnik, chodnik, zieleń (albo pobocze z kruszywa). Nawierzchnie z MatKit, oznakowanie z farby. Wymiary w metrach, jak na polskich ulicach.</p>
 </aside>
+<aside class="panel" data-window="furniture" data-title="Street furniture" data-title-pl="Wyposażenie">
+  <h3>Latarnie</h3>
+  <label class="chk"><input type="checkbox" id="lamps"> Latarnie wzdłuż ulic</label>
+  <div class="row"><span>Rodzaj</span><select id="lampType"></select><output></output></div>
+  <div class="row"><span>Co ile</span><input type="range" id="lampEvery" min="15" max="50" step="1"><output id="lampEveryV"></output></div>
+  <div class="row"><span>Świecą</span><select id="lampsOn"><option value="auto">Po zmroku</option><option value="on">Zawsze</option><option value="off">Nigdy</option></select><output></output></div>
+  <h3>Znaki</h3>
+  <label class="chk"><input type="checkbox" id="signs"> Znaki na skrzyżowaniach</label>
+  <p class="note">Próbka „Latarnie i znaki” pokazuje wszystkie rodzaje latarni i znaków. Po zmroku (Słońce poniżej 4°) latarnie świecą i oświetlają ulicę.</p>
+</aside>
 <aside class="panel" data-window="signals" data-title="Traffic lights" data-title-pl="Sygnalizacja">
   <h3>Sygnalizacja</h3>
   <div class="row"><span>Tryb</span><select id="signal" title="Cykl świateł albo stały stan"></select><output></output></div>

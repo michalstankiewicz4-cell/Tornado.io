@@ -1,5 +1,10 @@
 # Zmiany
 
+## 0.7.0 — 2026-11-24
+- Laboratorium ulic 0.3.0: latarnie (współczesna LED, podwójna, parkowa stylizowana, stara betonowa z sodówką) —
+  po zmroku świecą i oświetlają ulicę; polskie znaki drogowe (A-7, A-16, A-17, B-1, B-2, B-20, B-33, B-36, C-12, C-13,
+  D-1, D-6, D-18); próbka „Latarnie i znaki”, okno Wyposażenie (latarnie wzdłuż ulic, znaki na skrzyżowaniach).
+
 ## 0.6.0 — 2026-11-24
 - Laboratorium ulic 0.2.0: wersje płyt chodnikowych do wyboru (50 × 50, 35 × 35, 30 × 30 grafitowe, stare spękane,
   szachownica, 100 × 50 granitowe, z wypustkami dla niewidomych, trylinka) — własny generator tekstur w StreetKit.

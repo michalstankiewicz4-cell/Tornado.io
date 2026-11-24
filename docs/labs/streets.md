@@ -38,12 +38,28 @@ scene.add(buildStreet([[-40, 0], [0, 10], [40, 0]], PROFILES.city).group);
 scene.add(buildCrossing('city', { arms: 4, arm: 30, corner: 6 }).group);   // 3 wloty — skrzyżowanie T
 ```
 
+## Latarnie i znaki
+
+`buildLamp(type)` — latarnie (`LAMPS`): **modern** (współczesna LED, słup ocynkowany 8 m z wysięgnikiem), **double**
+(dwa wysięgniki, 9 m — aleja, pas dzielący), **park** (stylizowana parkowa, żeliwny słup 4 m z latarnią, ciepłe
+światło), **old** (stara betonowa 9 m z oprawą sodową, pomarańczowe światło). `on(true)` zapala: oprawa świeci,
+światło pada w dół na ulicę (bez cieni — latarni bywa dużo). Przód oprawy: +z (do jezdni).
+
+`buildSign(id)` — polskie znaki drogowe (`SIGNS`), tarcze rysowane na płótnie, tył szary, słupek ocynkowany: A-7 ustąp
+pierwszeństwa, A-16 przejście dla pieszych, A-17 dzieci (ostrzegawcze: żółte tło, czerwona obwódka); B-1, B-2 zakaz
+wjazdu, B-20 STOP, B-33 ograniczenie 50, B-36 zakaz zatrzymywania; C-12 ruch okrężny, C-13 droga dla rowerów; D-1 droga
+z pierwszeństwem, D-6 przejście dla pieszych, D-18 parking.
+
+`alongStreet(points, every, offset)` — miejsca co `every` m wzdłuż trasy, odsunięte od osi, z obrotem przodem do osi.
+
 ## Próbki
 
 Prosta ulica, łuk, skrzyżowanie (4 wloty, sygnalizatory na wlotach), skrzyżowanie T, aleja, droga wiejska, ścieżka,
-sygnalizator (na słupie i na wysięgniku), droga dla rowerów. Okno Sygnalizacja: cykl albo stały stan. Okno
+sygnalizator (na słupie i na wysięgniku), latarnie i znaki (wszystkie rodzaje), droga dla rowerów. Okno Sygnalizacja:
+cykl albo stały stan. Okno Wyposażenie: latarnie wzdłuż ulic (rodzaj, co ile, kiedy świecą — po zmroku, zawsze, nigdy),
+znaki na skrzyżowaniach (D-6 przy przejściach, A-7 na bocznym wlocie skrzyżowania T). Okno
 Przekrój: pasy, szerokość pasa, nawierzchnia jezdni, oznakowanie, szerokość i nawierzchnia chodnika, wysokość
 krawężnika, promień łuku na skrzyżowaniu. Kamery: orbita, pieszy, z góry, kierowca.
 
 Dla AI: `StreetsApi.scene(id)`, `set({ profile, lanes, laneW, road, marks, walkW, curbH, walk, corner })`, `camera(name)`,
-`signal(tryb)` (`cycle` albo stan).
+`signal(tryb)` (`cycle` albo stan), `view([x, y, z], odległość, obrót, pochylenie)`.

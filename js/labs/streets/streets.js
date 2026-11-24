@@ -4,7 +4,7 @@
 import * as THREE from '../../../vendor/three/three.module.js';
 import { createStage, WEATHER } from '../../core/stage.js';
 import { groundDisc } from '../../world/ground.js';
-import { PROFILES, SURFACES, buildStreet, buildCrossing, buildTrafficLight, signalAt, SIGNAL_STATES, SIGNAL_TIMES } from '../../models/streets/streetkit.js';
+import { PROFILES, SURFACES, buildStreet, buildCrossing, buildTrafficLight, signalAt, SIGNAL_STATES, SIGNAL_TIMES, buildLamp, LAMPS, buildSign, SIGNS, alongStreet } from '../../models/streets/streetkit.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...kids) => { const e = document.createElement(tag); Object.assign(e, props); kids.forEach((k) => e.append(k)); return e; };
@@ -21,9 +21,10 @@ const SCENES = {
   village: { label: 'Droga wiejska', profile: 'village', note: 'Stary asfalt bez oznakowania i krawężników, pobocza z kruszywa, rów z trawą.', line: [[-45, 10], [-20, 4], [0, 8], [20, -2], [45, -8]] },
   path: { label: 'Ścieżka', profile: 'path', note: 'Ścieżka z kruszywa z obrzeżem, kręta, przez trawnik.', line: [[-30, -10], [-15, 6], [0, -2], [12, 12], [28, 4]] },
   signal: { label: 'Sygnalizator', profile: 'city', note: 'Sygnalizator dla pojazdów: komora z soczewkami 300 mm (czerwone, żółte, zielone), daszki, tarcza z białą obwódką; na słupie przy chodniku i na wysięgniku nad jezdnią. Cykl jak w Polsce, nocą żółte migające.', line: [[-20, 0], [20, 0]], signals: true },
+  furniture: { label: 'Latarnie i znaki', profile: 'city', note: 'Cztery rodzaje latarni (współczesna LED, podwójna, parkowa stylizowana, stara betonowa z sodówką) i polskie znaki drogowe: ostrzegawcze, zakazu, nakazu, informacyjne. Po zmroku latarnie się zapalają.', line: [[-40, 0], [40, 0]], furniture: true },
   cycle: { label: 'Droga dla rowerów', profile: 'cycle', note: 'Czerwona kostka z osią przerywaną, niski krawężnik, chodnik z szarej kostki obok.', line: [[-35, 6], [-5, -4], [35, 2]] },
 };
-const S = { signal: 'cycle', scene: 'straight', profile: 'city', lanes: 2, laneW: 3.25, road: 'asphalt', marks: true, walkW: 2.5, curbH: 0.14, walk: 'slabs', corner: 6, weather: 'fair', sunEl: 32, sunAz: 215, ...(saved || {}) };
+const S = { lamps: true, lampType: 'modern', lampEvery: 30, signs: true, lampsOn: 'auto', signal: 'cycle', scene: 'straight', profile: 'city', lanes: 2, laneW: 3.25, road: 'asphalt', marks: true, walkW: 2.5, curbH: 0.14, walk: 'slabs', corner: 6, weather: 'fair', sunEl: 32, sunAz: 215, ...(saved || {}) };
 if (!SCENES[S.scene]) S.scene = 'straight'; if (!PROFILES[S.profile]) S.profile = 'city';
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* prywatny tryb */ } };
 
@@ -43,7 +44,7 @@ function profile() {
   P.strips = P.strips.filter((st) => st.w > 0.01);
   return P;
 }
-let built = { tris: 0, ms: 0 }, lights = [];
+let built = { tris: 0, ms: 0 }, lights = [], lamps = [];
 function rebuild() {
   holder.traverse((o) => { if (o.isMesh) o.geometry.dispose(); }); holder.clear();
   const t0 = performance.now(), sc = SCENES[S.scene], P = profile();
@@ -61,7 +62,32 @@ function rebuild() {
       tl.group.rotation.y = Math.atan2(dx, dz);
       holder.add(tl.group); lights.push({ tl, phase: i % 2 ? SIGNAL_TIMES.half : 0 });
     }
-  } else if (sc.signals) {
+  }
+  // latarnie i znaki
+  lamps = [];
+  const edge = half + (P.strips[0] && P.strips[0].k === 'curb' ? P.strips[0].w : 0) + 0.6;
+  const putLamp = (type, x, z, rot) => { const L = buildLamp(type); L.group.position.set(x, P.strips[0] ? Math.max(0, P.strips[0].h) : 0, z); L.group.rotation.y = rot; holder.add(L.group); lamps.push(L); };
+  const putSign = (id, x, z, rot) => { const sg = buildSign(id); sg.group.position.set(x, P.strips[0] ? Math.max(0, P.strips[0].h) : 0, z); sg.group.rotation.y = rot; holder.add(sg.group); };
+  if (sc.furniture) {
+    const types = Object.keys(LAMPS);
+    types.forEach((t, i) => { const x = -30 + i * 20; putLamp(t, x, edge, Math.PI); putLamp(t, x + 10, -edge, 0); });
+    Object.keys(SIGNS).forEach((id, i) => putSign(id, -33 + i * 5.2, edge + 1.8, 0));
+  } else if (S.lamps) {
+    if (sc.line) for (const sd of [1, -1]) for (const q of alongStreet(sc.line, S.lampEvery, sd * edge, sd > 0 ? S.lampEvery / 2 : S.lampEvery)) putLamp(S.lampType, q.x, q.z, q.rot);
+    if (sc.crossing) {
+      const R0 = half + S.corner, ALL = [[1, 0], [0, 1], [-1, 0], [0, -1]];
+      for (let i = 0; i < sc.crossing; i++) { const [dx, dz] = ALL[i]; for (const q of alongStreet([[dx * R0, dz * R0], [dx * (R0 + 32), dz * (R0 + 32)]], S.lampEvery, edge, 8)) putLamp(S.lampType, q.x, q.z, q.rot); }
+    }
+  }
+  if (S.signs && sc.crossing) {
+    // przy przejściach D-6 (po prawej stronie wjeżdżających), na skrzyżowaniu T wlot boczny: A-7 ustąp pierwszeństwa
+    const R0 = half + S.corner, ALL = [[1, 0], [0, 1], [-1, 0], [0, -1]];
+    for (let i = 0; i < sc.crossing; i++) {
+      const [dx, dz] = ALL[i], d = R0 + 6.5, o = half + 1.4;
+      putSign(sc.crossing === 3 && i === 1 ? 'A-7' : 'D-6', dx * d + dz * o, dz * d - dx * o, Math.atan2(dx, dz));
+    }
+  }
+  if (sc.signals) {
     // ruch prawostronny: jadący na −x mają prawą stronę po −z, jadący na +x — po +z; sygnał przodem do nadjeżdżających
     const a = buildTrafficLight(); a.group.position.set(-4, 0.14, -(half + 0.9)); a.group.rotation.y = Math.PI / 2; holder.add(a.group); lights.push({ tl: a, phase: 0 });
     const b = buildTrafficLight({ arm: half + 0.6 }); b.group.position.set(4, 0.14, half + 0.9); b.group.rotation.y = -Math.PI / 2; holder.add(b.group); lights.push({ tl: b, phase: 0 });
@@ -99,6 +125,12 @@ $('road').onchange = () => { S.road = $('road').value; rebuild(); };
 $('walk').onchange = () => { S.walk = $('walk').value; rebuild(); };
 $('marks').onchange = () => { S.marks = $('marks').checked; rebuild(); };
 for (const [k, f] of Object.entries(fmt)) { $(k).oninput = () => { S[k] = +$(k).value; $(k + 'V').textContent = f(S[k]); }; $(k).onchange = () => rebuild(); }
+$('lampType').replaceChildren(...Object.entries(LAMPS).map(([k, v]) => el('option', { value: k, textContent: v.label })));
+$('lampType').value = S.lampType; $('lampType').onchange = () => { S.lampType = $('lampType').value; rebuild(); };
+$('lampsOn').value = S.lampsOn; $('lampsOn').onchange = () => { S.lampsOn = $('lampsOn').value; save(); };
+for (const k of ['lamps', 'signs']) { $(k).checked = S[k]; $(k).onchange = () => { S[k] = $(k).checked; rebuild(); }; }
+$('lampEvery').value = S.lampEvery; $('lampEveryV').textContent = S.lampEvery + ' m';
+$('lampEvery').oninput = () => { S.lampEvery = +$('lampEvery').value; $('lampEveryV').textContent = S.lampEvery + ' m'; }; $('lampEvery').onchange = () => rebuild();
 $('signal').replaceChildren(el('option', { value: 'cycle', textContent: 'Cykl (dwie fazy)' }), ...Object.entries(SIGNAL_STATES).map(([k, v]) => el('option', { value: k, textContent: v })));
 $('signal').value = S.signal; $('signal').onchange = () => { S.signal = $('signal').value; save(); };
 $('weather').replaceChildren(...Object.entries(WEATHER).map(([k, w]) => el('option', { value: k, textContent: w.label || k })));
@@ -112,6 +144,7 @@ const orbit = { target: new THREE.Vector3(0, 0, 0), dist: 45, yaw: 0.7, pitch: 0
 const CAMS = { Orbita: { yaw: 0.7, pitch: 0.45, dist: 45 }, Pieszy: { yaw: 0.25, pitch: 0.03, dist: 9 }, 'Z góry': { yaw: 0, pitch: 1.45, dist: 70 }, Kierowca: { yaw: Math.PI / 2, pitch: 0.06, dist: 16 } };
 $('cams').replaceChildren(...Object.entries(CAMS).map(([k, v]) => { const b = el('button', { type: 'button', textContent: k }); b.onclick = () => Object.assign(orbit, v); return b; }));
 function frame0() {
+  if (SCENES[S.scene].furniture) { Object.assign(orbit, { dist: 26, yaw: 0.25, pitch: 0.12 }); orbit.target.set(-12, 2.5, 3); return; }
   if (SCENES[S.scene].signals) { Object.assign(orbit, { dist: 13, yaw: -1.25, pitch: 0.12 }); orbit.target.set(0, 2.2, 0); return; }
   orbit.dist = SCENES[S.scene].crossing ? 60 : 50; orbit.target.set(0, 0, 0);
 }
@@ -124,6 +157,8 @@ cv.addEventListener('wheel', (e) => { e.preventDefault(); orbit.dist = Math.min(
 function loop() {
   const t = performance.now() / 1000;
   for (const { tl, phase } of lights) tl.set(S.signal === 'cycle' ? signalAt(t, SIGNAL_TIMES, phase) : S.signal, t);
+  const night = S.lampsOn === 'on' || (S.lampsOn === 'auto' && S.sunEl < 4);
+  for (const L of lamps) if (L.lit !== night) { L.on(night); L.lit = night; }
   if (lights.length && $('sigNow')) $('sigNow').textContent = lights.map((x) => SIGNAL_STATES[x.tl.state]).filter((v, i, a) => a.indexOf(v) === i).join(' · ');
   const c = Math.cos(orbit.pitch);
   camera.position.set(orbit.target.x + Math.sin(orbit.yaw) * c * orbit.dist, orbit.target.y + 1.6 + Math.sin(orbit.pitch) * orbit.dist, orbit.target.z + Math.cos(orbit.yaw) * c * orbit.dist);
@@ -139,6 +174,7 @@ window.StreetsApi = {
   scene(id) { $('scene').value = id; $('scene').onchange(); return { ...S }; },
   set(o = {}) { if (o.profile) { S.profile = o.profile; fromProfile(); } for (const k of Object.keys(o)) if (k in S && k !== 'profile') S[k] = o[k]; show(); rebuild(); return { ...S }; },
   camera(name) { if (CAMS[name]) Object.assign(orbit, CAMS[name]); },
+  view(target = [0, 0, 0], dist = 20, yaw = 0.5, pitch = 0.2) { orbit.target.set(...target); Object.assign(orbit, { dist, yaw, pitch }); },
   signal(mode) { S.signal = mode; $('signal').value = mode; return lights.map((x) => x.tl.state); },
 };
 
