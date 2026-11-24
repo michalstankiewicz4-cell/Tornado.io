@@ -1,5 +1,15 @@
 # Zmiany
 
+## 0.4.0 — 2026-11-24
+- Pożary. Wygląd: FireKit z laboratorium efektów GameLaboratory (`js/render/effects/fire/firekit.js`, kopia) — płomienie
+  w barwach temperatury, dym i iskry według paliwa, światło ognia. Rozprzestrzenianie: DestructKit
+  (`js/destruct/burn.js`) — palą się tylko materiały palne: deski, stropy drewniane, belki, ramy okien, drzwi, papa,
+  gazety, kartony, opony, drewniane odłamki, drzewa, trawa i zboże (wierzchołki terenu); ciepło przechodzi na palne
+  rzeczy obok (z wiatrem szybciej), spalone części czernieją, tracą wytrzymałość i rozpadają się, papier znika,
+  drzewa zostają czarne, wypalona ziemia ciemnieje.
+- Prawy przycisk myszy (kliknięcie): podpalenie w celu; przeciągnięcie prawym nadal obraca kamerę.
+- Strzałki przesuwają kamerę (trąba tylko na W A S D).
+
 ## 0.3.1 — 2026-11-24
 - Okna i panele domyślnie zamknięte (OPCJE → Okna), konsola też; własne klucze zapisu (`tornado.windows:*`,
   `tornado.console`, `tornado.viewfit`) — wcześniej wspólne z GameLaboratory na tej samej domenie.

@@ -15,7 +15,7 @@ zbudowane (szyby, mury, dachówki, stropy). Mechanizm rozpadu (DestructKit) ma p
 - Kopiowany z GameLaboratory (kopie, nie linki): UI (`ui/`, `fonts/`), Three.js r186 (`vendor/three/`), niebo SkyKit
   (`js/envs/sky/skykit.js`), trąba (`js/envs/sky/tornado.js` — dopisane `rc`, `top`, `vmax` w `set()` i okrągły pył),
   potok kamery (`js/render/sea/look.js`), MatKit (`js/render/materials/`), PlantKit (`js/models/plants/plantkit.js`),
-  RockKit (`js/models/rocks/`), przedmioty JunkKit (`js/models/junkyard/items/`), CityKit z budynkami Warszawy
+  RockKit (`js/models/rocks/`), ogień FireKit (`js/render/effects/fire/`), przedmioty JunkKit (`js/models/junkyard/items/`), CityKit z budynkami Warszawy
   z OpenStreetMap (`js/models/city/`, w tym `landmarks/` — Pałac Kultury i wieżowce).
 - Nowe: DestructKit (`js/destruct/`), HouseKit (`js/models/houses/`), scena (`js/core/stage.js`), grunt i przedmioty
   (`js/world/`), gra (`js/game/`), laboratorium zniszczeń (`labs/destruction.html`, `js/labs/destruction/`).
@@ -31,6 +31,9 @@ zbudowane (szyby, mury, dachówki, stropy). Mechanizm rozpadu (DestructKit) ma p
 - Budynki miasta w grze: wygląd z CityKit (laboratorium miasta), części do zniszczenia z tych samych danych
   (`js/models/houses/landmark-house.js`) ukryte do pierwszego uszkodzenia (`world.addHouse(…, { hidden: true })`).
   Własne budynki miasta HouseKit (`pkin`, `tower`, `highrise`) są w grze wyłączone (`OWN_CITY`), nie kasować.
+- Pożary: wygląd FireKit (z GameLaboratory: `labs/effects-land.html` — zmiany ognia najpierw tam, potem kopia),
+  rozprzestrzenianie `js/destruct/burn.js`. Palą się tylko materiały z polem `burn` (materials.js), palne przedmioty
+  (`ITEM_BURN`), drzewa i trawa; niepalne nie przenoszą ognia.
 - Nie poprawiamy wyglądu pojedynczych budynków ręcznie — poprawka idzie do wzoru albo do HouseKit, ogólnie.
 
 ## Wygląd

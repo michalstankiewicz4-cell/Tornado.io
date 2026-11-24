@@ -78,7 +78,18 @@ export function createWorld(scene, opts = {}) {
     for (const p of bld.parts) if (p.handle) batches.visible(p.handle, true);
     for (const f of listeners.reveal) f(bld);
   }
-  function tintOf(part) { return part.bld.tint && (part.mat === 'plaster' || part.mat === 'panel') ? part.bld.tint : null; }
+  // barwa części: odcień budynku (tynk, płyta) i zwęglenie od ognia (char 0…1 — ciemnieje)
+  function tintOf(part) {
+    const base = part.bld.tint && (part.mat === 'plaster' || part.mat === 'panel') ? part.bld.tint : null;
+    if (!part.char) return base;
+    return (base ? base.clone() : new THREE.Color(1, 1, 1)).multiplyScalar(1 - 0.88 * part.char);
+  }
+  function setChar(part, k) {
+    part.char = Math.max(part.char || 0, Math.min(1, k));
+    const c = tintOf(part);
+    if (part.handle) batches.color(part.handle, c);
+    if (part.cells) for (const cl of part.cells) if (cl.on) batches.color(cl.h, c);
+  }
   function sizeOf(poly, t) { const g = bounds(poly); return Math.max(g[2] - g[0], g[3] - g[1], t); }
   function geoOf(part, poly) { return extrude(poly, { t: part.t, orig: part.poly, tile: tileOf(part.mat), frac: MATS[part.mat].frac }); }
   // macierz kawałka: układ części przesunięty do środka wielokąta (extrude centruje siatkę na środku ciężkości)
@@ -105,7 +116,7 @@ export function createWorld(scene, opts = {}) {
     const [x0, y0, x1, y1] = bounds(poly), size = Math.max(x1 - x0, y1 - y0, part.t);
     const b = makeBody({ p: _p, q: _q, v: vel, m, pts: g.userData.pts, r: g.userData.r, A: Math.max(a * 0.6, part.t * size) });
     b.w.set((Math.random() - 0.5) * 4, (Math.random() - 0.5) * 4, (Math.random() - 0.5) * 4).multiplyScalar(opts2.spin ?? 1);
-    Object.assign(b, { kind: 'frag', mat: part.mat, size, vol: a * part.t, handle: batches.add(g, part.mat, M, tintOf(part)), from: part, born: simT });
+    Object.assign(b, { kind: 'frag', mat: part.mat, size, vol: a * part.t, handle: batches.add(g, part.mat, M, tintOf(part)), from: part, born: simT, char: part.char || 0 });
     bodies.add(b); fragCount++;
     part.bld.volGone += a * part.t;
     for (const f of listeners.frag) f(b);
@@ -383,7 +394,7 @@ export function createWorld(scene, opts = {}) {
     addHouse, addObject, hit, windDamage, update, removeBody, stats, clear, query, breakPart, drop, sync,
     bodies, buildings, env, batches, wake,
     set maxFragments(n) { maxFrag = n; },
-    onBreak(f) { listeners.break.push(f); }, onReveal(f) { listeners.reveal.push(f); }, reveal, onFragment(f) { listeners.frag.push(f); },
+    onBreak(f) { listeners.break.push(f); }, onReveal(f) { listeners.reveal.push(f); }, reveal, setChar, onFragment(f) { listeners.frag.push(f); },
     get time() { return simT; },
   };
 }

@@ -12,6 +12,8 @@ import { createTerrain, cityPaving, heightAt, roadZ, onRoad, CITY } from './terr
 import { createTrees } from './trees.js';
 import { loadItems, createItemPool } from '../world/items.js';
 import { createPlayer } from './player.js';
+import { createFire } from '../render/effects/fire/firekit.js';
+import { createBurning } from '../destruct/burn.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...kids) => { const e = document.createElement(tag); Object.assign(e, props); kids.forEach((k) => e.append(k)); return e; };
@@ -47,6 +49,7 @@ const OWN_CITY = false;
 const CITY_BLD = [['pkin', 345, 0, 0], ['tower', 252, 76, Math.PI], ['highrise', 300, 82, Math.PI], ['tower', 362, 80, Math.PI], ['highrise', 425, 78, Math.PI],
   ['highrise', 250, -80, 0], ['tower', 308, -80, 0], ['tower', 372, -82, 0], ['highrise', 432, -78, 0]];
 const START = { x: -175, z: roadZ(-175) };
+const WIND = [2.6, 1.2];   // lekki wiatr z zachodu [x, z] m/s: kładzie płomienie, niesie dym i ogień
 
 async function build() {
   await step('Teren', 0.05);
@@ -113,7 +116,7 @@ async function build() {
     const hy = new THREE.Vector3(it.half.x, it.half.y, it.half.z).applyQuaternion(q);
     const stand = { position: new THREE.Vector3(x, gy + Math.abs(hy.y) - 0.01, z), quaternion: q };
     const b = world.addObject(stand, { ...it, kind: 'item', sleep: true, onSync: (bb) => it.set(_m.compose(bb.p, bb.q, _s.setScalar(bb.scale || 1))) });
-    b.onRemove = () => it.free();
+    b.onRemove = () => it.free(); b.itemId = id;   // id — palność przedmiotu (js/destruct/burn.js)
     return b;
   }
   const SMALL = ['can', 'can', 'can-crushed', 'can-crushed', 'newspapers', 'box', 'box', 'tire-bike', 'pot', 'pebble', 'pebble'];
@@ -138,14 +141,18 @@ async function build() {
   // głazy na polach
   for (let k = 0; k < 24; k++) { const x = (r() < 0.5 ? -1 : 1) * (150 + r() * 120), z = (r() - 0.5) * 220; if (x < CITY.x0 - 5 && free(x, z, 1.2)) drop(r() < 0.5 ? 'boulder' : 'rock', x, z); }
 
+  await step('Ogień', 0.88);
+  // pożary: FireKit (wygląd, z laboratorium efektów GameLaboratory) i rozprzestrzenianie po palnych materiałach (DestructKit)
+  const fire = createFire(scene);
+  const burning = createBurning({ world, fire, terrain, forest, wind: WIND });
   await step('Trąba', 0.9);
   const player = createPlayer(scene, world, { heightAt, forest, x: START.x, z: START.z, bound: [-300, CITY.x1 - 10, -300, 300] });
-  return { terrain, world, forest, pool, player, visuals };
+  return { terrain, world, forest, pool, player, visuals, fire, burning };
 }
 
 /* ---------------- HUD i panele ---------------- */
-const KEYS = [['W A S D', 'ruch trąby'], ['Mysz', 'celowanie'], ['Lewy przycisk', 'rzut najcięższą rzeczą'], ['Prawy przycisk', 'obrót kamery (przeciągnij)'],
-  ['Q / E', 'obrót kamery'], ['Kółko', 'odległość kamery'], ['P', 'pauza'], ['R', 'nowa gra'], ['H', 'chowa okna']];
+const KEYS = [['W A S D', 'ruch trąby'], ['Strzałki', 'przesuwanie kamery'], ['Mysz', 'celowanie'], ['Lewy przycisk', 'rzut najcięższą rzeczą'], ['Prawy przycisk', 'podpalenie w celu'],
+  ['Prawy (przeciągnij), Q / E', 'obrót kamery'], ['Kółko', 'odległość kamery'], ['P', 'pauza'], ['R', 'nowa gra'], ['H', 'chowa okna']];
 $('keys').replaceChildren(...KEYS.flatMap(([a, b]) => [el('span', { textContent: a }), el('b', { textContent: b })]));
 $('weather').replaceChildren(...Object.entries(WEATHER).map(([k, w]) => el('option', { value: k, textContent: w.label || k })));
 $('weather').value = S.weather; $('weather').onchange = () => { S.weather = $('weather').value; sky(); save(); };
@@ -164,6 +171,7 @@ let paused = false, G = null;
 addEventListener('keydown', (e) => {
   if (e.target.closest('input,select,textarea')) return;
   keys.add(e.code);
+  if (e.code.startsWith('Arrow')) e.preventDefault();   // strzałki przesuwają kamerę, nie stronę
   if (e.code === 'KeyP') togglePause();
   if (e.code === 'KeyR') location.reload();
   if (e.code === 'KeyH') document.querySelectorAll('[data-window]').forEach((p) => p.classList.toggle('hidden-panel'));
@@ -181,16 +189,21 @@ cv.addEventListener('contextmenu', (e) => e.preventDefault());
 cv.addEventListener('pointermove', (e) => {
   const v = stage.size(), rc = cv.getBoundingClientRect();
   ndc.set(((e.clientX - rc.left) / v.w) * 2 - 1, -((e.clientY - rc.top) / v.h) * 2 + 1);
-  if (rdrag) { cam.yaw -= (e.clientX - rdrag) * 0.006; rdrag = e.clientX; }
+  if (rdrag) { if (Math.abs(e.clientX - rdrag.x0) > 5) rdrag.moved = true; cam.yaw -= (e.clientX - rdrag.x) * 0.006; rdrag.x = e.clientX; }
 });
 cv.addEventListener('pointerdown', (e) => {
-  if (e.button === 2) { rdrag = e.clientX; cv.setPointerCapture(e.pointerId); }
+  // prawy przycisk: kliknięcie — podpalenie w celu, przeciągnięcie — obrót kamery
+  if (e.button === 2) { rdrag = { x: e.clientX, x0: e.clientX, moved: false }; cv.setPointerCapture(e.pointerId); }
   if (e.button === 0 && G && !paused) {
     const b = G.player.throwAt(aim.clone());
     if (b) addFeed(`Rzut: ${b.name || 'gruz'} (${fmtKg(b.m)})`); else status('Nic nie niesiesz — podleć do beczki, opony albo głazu');
   }
 });
-cv.addEventListener('pointerup', (e) => { if (e.button === 2) rdrag = null; });
+cv.addEventListener('pointerup', (e) => {
+  if (e.button !== 2) return;
+  if (rdrag && !rdrag.moved && G && !paused) { updateAim(); const n = G.burning.ignite(aim.clone()); addFeed(n ? 'Podpalone' : 'Tu nic się nie pali (tylko drewno, papa, trawa, papier, opony, drzewa)'); }
+  rdrag = null;
+});
 cv.addEventListener('wheel', (e) => { e.preventDefault(); S.zoom = Math.min(3, Math.max(0.4, S.zoom * Math.exp(e.deltaY * 0.001))); save(); }, { passive: false });
 
 // cel: promień z kamery do budynków (BatchedMesh) albo do terenu (marsz po wysokości)
@@ -216,7 +229,7 @@ function updateAim() {
 
 /* ---------------- pętla ---------------- */
 let last = performance.now(), statT = 0, playT = 0;
-const camTarget = new THREE.Vector3(), move = [0, 0];
+const camTarget = new THREE.Vector3(), move = [0, 0], pan = new THREE.Vector3();
 function frame(now) {
   const rdt = Math.min(0.05, (now - last) / 1000); last = now;
   const P = G.player, dt = paused ? 0 : rdt;
@@ -224,21 +237,30 @@ function frame(now) {
   // ruch względem kamery
   const fx = Math.sin(cam.yaw), fz = Math.cos(cam.yaw);   // naprzód (od kamery)
   let mx = 0, mz = 0;
-  if (keys.has('KeyW') || keys.has('ArrowUp')) { mx += fx; mz += fz; }
-  if (keys.has('KeyS') || keys.has('ArrowDown')) { mx -= fx; mz -= fz; }
-  if (keys.has('KeyA') || keys.has('ArrowLeft')) { mx += fz; mz -= fx; }
-  if (keys.has('KeyD') || keys.has('ArrowRight')) { mx -= fz; mz += fx; }
+  if (keys.has('KeyW')) { mx += fx; mz += fz; }
+  if (keys.has('KeyS')) { mx -= fx; mz -= fz; }
+  if (keys.has('KeyA')) { mx += fz; mz -= fx; }
+  if (keys.has('KeyD')) { mx -= fz; mz += fx; }
+  // strzałki: przesuwanie kamery względem trąby (szybciej z daleka)
+  const ps = (20 + P.R * 6) * S.zoom * rdt;
+  if (keys.has('ArrowUp')) { pan.x += fx * ps; pan.z += fz * ps; }
+  if (keys.has('ArrowDown')) { pan.x -= fx * ps; pan.z -= fz * ps; }
+  if (keys.has('ArrowLeft')) { pan.x += fz * ps; pan.z -= fx * ps; }
+  if (keys.has('ArrowRight')) { pan.x -= fz * ps; pan.z += fx * ps; }
+  if (pan.length() > 400) pan.setLength(400);
   const L = Math.hypot(mx, mz) || 1; move[0] = mx / L; move[1] = mz / L;
   if (dt > 0) {
     playT += dt;
     P.update(dt, move, camera, stage.light ? Math.min(1, stage.light.day + 0.25) : 1);
     G.world.update(dt);
     G.forest.tick(dt);
+    G.burning.update(dt);
   }
+  G.fire.update(dt, camera, { wind: [WIND[0], 0, WIND[1]], light: stage.light ? 0.15 + 0.85 * stage.light.day : 1, sky: stage.light ? stage.light.sky : null });
   G.forest.wind(0.35 + Math.min(1, P.R / 12) * 0.5, 30);
   // kamera za trąbą, wyżej i dalej, gdy rośnie
-  const gy = heightAt(P.x, P.z), dist = (11 + P.R * 4.2) * S.zoom, hgt = (5 + P.R * 2.4) * S.zoom;
-  camTarget.lerp(new THREE.Vector3(P.x, gy + 1.5 + P.R * 0.9, P.z), 1 - Math.exp(-6 * rdt));
+  const cx0 = P.x + pan.x, cz0 = P.z + pan.z, gy = heightAt(cx0, cz0), dist = (11 + P.R * 4.2) * S.zoom, hgt = (5 + P.R * 2.4) * S.zoom;
+  camTarget.lerp(new THREE.Vector3(cx0, gy + 1.5 + P.R * 0.9, cz0), 1 - Math.exp(-6 * rdt));
   if (!frame.init) { camTarget.set(P.x, gy + 2, P.z); frame.init = true; }
   camera.position.set(camTarget.x - fx * dist, camTarget.y + hgt, camTarget.z - fz * dist);
   camera.position.y = Math.max(camera.position.y, heightAt(camera.position.x, camera.position.z) + 1.5);
@@ -261,7 +283,8 @@ function hud(dt, t) {
   const rows = [['Rdzeń', `${P.R.toFixed(2)} m`], ['Wiatr', `${Math.round(22 + P.R * 4.5)} m/s`], ['Zjedzone', P.eaten.toLocaleString('pl')], ['Masa zjedzona', fmtKg(P.eatenMass)],
     ['Objętość', `${P.V.toFixed(2)} m³`], ['Niesione', `${P.held.length} / ${P.cap}`], ['Rzuty', P.thrown], ['Czas', `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`]];
   $('tStats').replaceChildren(...rows.flatMap(([a, b]) => [el('span', { textContent: a }), el('b', { textContent: String(b) })]));
-  const vrows = [['Zniszczenia', `${(s.destroyed * 100).toFixed(1)} %`], ['Części całe', `${s.intact} / ${s.parts}`], ['Odłamki', s.fragments], ['Drzewa wyrwane', G.forest.trees.filter((x) => !x.alive).length]];
+  const bs = G.burning.stats();
+  const vrows = [['Zniszczenia', `${(s.destroyed * 100).toFixed(1)} %`], ['Pożar', bs.parts + bs.bodies + bs.trees + bs.grass ? `${bs.parts} części, ${bs.trees} drzew, ${bs.bodies} rzeczy, ${bs.grass} m² trawy` : '—'], ['Wypalone', `${Math.round(bs.burnt * 12)} m²`], ['Części całe', `${s.intact} / ${s.parts}`], ['Odłamki', s.fragments], ['Drzewa wyrwane', G.forest.trees.filter((x) => !x.alive).length]];
   $('vStats').replaceChildren(...vrows.flatMap(([a, b]) => [el('span', { textContent: a }), el('b', { textContent: String(b) })]));
   window.LabPerf.modelRows([['Bryły', G.world.bodies.size], ['W ruchu', s.active], ['Batche budynków', s.draws], ['Instancje przedmiotów', G.pool.draws()]]);
   if (!paused) status(P.held.length ? `Niesiesz ${P.held.length} — kliknij, żeby rzucić w budynek` : P.R < 2 ? 'Zjadaj puszki, gazety i kartony przy drodze — rośniesz' : '');
@@ -271,10 +294,12 @@ function hud(dt, t) {
 // TornadoApi.state(), go(x, z), throwAt([x, y, z]), simulate(sekundy, [mx, mz])
 window.TornadoApi = {
   state: () => { const P = G.player; return { x: +P.x.toFixed(1), z: +P.z.toFixed(1), R: +P.R.toFixed(2), V: +P.V.toFixed(3), eaten: P.eaten, held: P.held.length, ...G.world.stats() }; },
+  ignite(p) { return G.burning.ignite(new THREE.Vector3(...p)); },
+  burnStats: () => G.burning.stats(),
   go(x, z) { G.player.x = x; G.player.z = z; return this.state(); },
   hit(p, j, radius = 1) { return G.world.hit(new THREE.Vector3(...p), new THREE.Vector3(...j), { radius }); },
   throwAt(p) { const b = G.player.throwAt(new THREE.Vector3(...p)); return b ? { name: b.name, m: b.m } : null; },
-  simulate(sec = 1, mv = [0, 0]) { for (let t = 0; t < sec; t += 1 / 30) { G.player.update(1 / 30, mv, camera); G.world.update(1 / 30); } return this.state(); },
+  simulate(sec = 1, mv = [0, 0]) { for (let t = 0; t < sec; t += 1 / 30) { G.player.update(1 / 30, mv, camera); G.world.update(1 / 30); G.burning.update(1 / 30); } return this.state(); },
   camera(zoom, yaw) { if (zoom) S.zoom = zoom; if (yaw != null) cam.yaw = yaw; return { zoom: S.zoom, yaw: cam.yaw }; },
   get G() { return G; },
 };
