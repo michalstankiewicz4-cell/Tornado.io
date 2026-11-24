@@ -4,7 +4,7 @@
 import * as THREE from '../../../vendor/three/three.module.js';
 import { createStage, WEATHER } from '../../core/stage.js';
 import { groundDisc } from '../../world/ground.js';
-import { PROFILES, SURFACES, surface, buildStreet, buildCrossing, buildTrafficLight, signalAt, SIGNAL_STATES, SIGNAL_TIMES, buildLamp, LAMPS, buildSign, SIGNS, alongStreet, buildViaduct, VIADUCT_PROFILE, BOLLARDS, buildBollards, RAILS, buildRail, NOISE, buildNoiseWall, buildMilepost, buildMileposts, PARKING, buildParking, buildTunnel, TUNNEL_PROFILE, TUNNEL_BOX_PROFILE, buildFootbridge } from '../../models/streets/streetkit.js';
+import { PROFILES, SURFACES, surface, buildStreet, buildCrossing, buildTrafficLight, signalAt, SIGNAL_STATES, SIGNAL_TIMES, buildLamp, LAMPS, buildSign, SIGNS, alongStreet, buildViaduct, VIADUCT_PROFILE, BOLLARDS, buildBollards, RAILS, buildRail, NOISE, buildNoiseWall, buildMilepost, buildMileposts, PARKING, buildParking, buildTunnel, TUNNEL_PROFILE, TUNNEL_BOX_PROFILE, buildFootbridge, buildTrough, buildSubway } from '../../models/streets/streetkit.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...kids) => { const e = document.createElement(tag); Object.assign(e, props); kids.forEach((k) => e.append(k)); return e; };
@@ -28,8 +28,11 @@ const SCENES = {
   viaductRamp: { label: 'Łącznica (zjazd po pętli)', profile: 'city', note: 'Skręcająca łącznica: jeden szeroki pas zjeżdża pętlą o promieniu 34 m z wysokości 8 m na ziemię, na filarach, a nisko — po nasypie.',
     viaduct: Array.from({ length: 11 }, (_, k) => { const a = k * Math.PI * 1.6 / 10 - 0.6; return [Math.cos(a) * 34, Math.sin(a) * 34, 8.4 * (1 - k / 10) + 0.3]; }), lanes: 1 },
   tunnel: { label: 'Tunel przez górę', profile: 'city', note: 'Tunel drogowy przez wzgórze: dojazdy w przekopie ze skarpami, portale — betonowe ściany czołowe z otworem, obudowa łukowa (ściany i sklepienie półkoliste), jasne okładziny ścian do 3 m, oprawy pod sklepieniem co 8 m, chodniki służbowe.', tunnel: 'arch' },
+  underpass: { label: 'Tunel pod równym terenem', profile: 'city', note: 'Tunel płytki pod płaskim terenem (2 × 2 pasy): ulica zjeżdża rampą między murami oporowymi z attyką (spadek do ok. 9 %), przechodzi pod ziemią w tunelu prostokątnym ze słupami pośrodku (ok. 1,4 m gruntu nad stropem) i wyjeżdża drugą rampą.', underpass: true },
   tunnelBox: { label: 'Tunel z podporami (2 × 2 pasy)', profile: 'city', note: 'Tunel dwukierunkowy o przekroju prostokątnym: dwie jezdnie po dwa pasy, pośrodku wysepka z rzędem słupów co 6 m, strop płaski 5,2 m; w portalu dwa otwory rozdzielone filarem.', tunnel: 'box' },
   footbridge: { label: 'Kładka ze schodami', profile: 'city', note: 'Kładka dla pieszych nad ulicą: pomost stalowy na wysokości 5 m (skrajnia 4,6 m), balustrady szklane z pochwytem, na końcach spoczniki na słupach i schody betonowe w dwóch biegach ze spocznikiem pośrednim (stopnie 15 × 30 cm).', line: [[-40, 0], [40, 0]], footbridge: 'stairs' },
+  footbridgeBack: { label: 'Kładka ze schodami naprzemiennymi', profile: 'city', note: 'Kładka ze schodami dwubiegowymi z zawrotem: pierwszy bieg od spocznika, spocznik pośredni na całą szerokość, drugi bieg wraca obok pierwszego — schody zajmują mniej miejsca wzdłuż ulicy.', line: [[-40, 0], [40, 0]], footbridge: 'switchback' },
+  subway: { label: 'Przejście podziemne', profile: 'city', note: 'Przejście dla pieszych pod ulicą na płaskim terenie: korytarz 4 m szerokości i 2,6 m wysokości pod jezdnią, ściany w jasnych płytkach, oprawy w stropie; po obu stronach za chodnikiem odkryte klatki schodowe (dwa biegi, spocznik) z murami i attyką 1,1 m.', line: [[-40, 0], [40, 0]], subway: true },
   footbridgeLift: { label: 'Kładka ze schodami i windą', profile: 'city', note: 'Ta sama kładka, a przy każdym spoczniku winda w przeszklonym szybie ze stalową ramą — wejście z chodnika na dole i ze spocznika na górze.', line: [[-40, 0], [40, 0]], footbridge: 'lift' },
   furniture: { label: 'Latarnie i znaki', profile: 'city', note: 'Cztery rodzaje latarni (współczesna LED, podwójna, parkowa stylizowana, stara betonowa z sodówką) i polskie znaki drogowe: ostrzegawcze, zakazu, nakazu, informacyjne. Po zmroku latarnie się zapalają.', line: [[-40, 0], [40, 0]], furniture: true },
   barriers: { label: 'Słupki, barierki, ekrany', profile: 'city', note: 'Słupki: stalowy blokujący z pasami odblaskowymi, żeliwny grafitowy, żeliwne połączone łańcuchem, betonowy walec, prowadzący U-1a; pikietaż — słupki hektometrowe 1–9 i kilometrowy z czerwoną głowicą. Barierki: ochronna U-12a (czerwono-biała), miejska grafitowa, bariera energochłonna stalowa. Za zieleńcem ekrany dźwiękochłonne: kasety pochłaniające, przezroczysty z pasami przeciw ptakom, kasety z przeszkleniem u góry.', line: [[-45, 0], [45, 0]], barriers: true },
@@ -42,7 +45,20 @@ const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch
 
 const stage = createStage($('view'));
 const { scene, camera, renderer } = stage;
-scene.add(groundDisc(200));
+const disc = groundDisc(200); scene.add(disc);
+// teren z otworami nad rampami (próbka tunelu pod równym terenem); null — zwykła tarcza
+let holed = null;
+function setGround(rects) {
+  if (holed) { scene.remove(holed); holed.geometry.dispose(); holed = null; }
+  disc.visible = !rects; if (!rects) return;
+  const sh = new THREE.Shape(); sh.absarc(0, 0, 200, 0, Math.PI * 2, false);
+  // prostokąty [x0, x1, z0, z1]; kształt leży w (x, −z) przed obrotem
+  for (const [x0, x1, z0, z1] of rects) sh.holes.push(new THREE.Path([new THREE.Vector2(x0, -z1), new THREE.Vector2(x1, -z1), new THREE.Vector2(x1, -z0), new THREE.Vector2(x0, -z0)]));
+  const geo = new THREE.ShapeGeometry(sh, 64).rotateX(-Math.PI / 2), p = geo.attributes.position, uv = geo.attributes.uv;
+  for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) / 3, p.getZ(i) / 3);
+  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(p.count * 3).fill(1), 3));
+  holed = new THREE.Mesh(geo, disc.material); holed.receiveShadow = true; scene.add(holed);
+}
 const holder = new THREE.Group(); scene.add(holder);
 
 // przekrój z suwaków (na bazie wybranego profilu): jezdnia, krawężnik, chodnik o zadanej szerokości i nawierzchni
@@ -82,7 +98,18 @@ function rebuild() {
     const tn = buildTunnel([[-Px, 0], [Px, 0]], TP, { type: sc.tunnel, ground: hill }); holder.add(tn.group);
     holder.add(terrain(Px, th + 1.2));
     r.length = 280; r.width = 2 * th;
+  } else if (sc.underpass) {
+    // profil podłużny: teren y = 0, rampy (wygładzone) do głębokości D, pod ziemią |x| < XC; w terenie otwory nad rampami
+    const TP = { ...TUNNEL_BOX_PROFILE, road: S.road, marks: S.marks ? TUNNEL_BOX_PROFILE.marks : null }, D = 6.6, XC = 35, XR = 115;
+    const yAt = (x) => { const a = Math.abs(x); if (a <= XC) return -D; if (a >= XR) return 0; const t = (a - XC) / (XR - XC); return -D * (1 - t * t * (3 - 2 * t)); };
+    const line = []; for (let x = -150; x <= 150; x += 5) line.push([x, 0, yAt(x)]);
+    r = buildStreet(line, TP);
+    holder.add(buildTunnel([[-XC, 0, -D], [XC, 0, -D]], TP, { type: 'box', ground: () => 0 }).group);
+    for (const sd of [-1, 1]) { const ramp = []; for (let x = XC; x <= XR + 0.01; x += 5) ramp.push([sd * x, 0, yAt(x)]); if (sd < 0) ramp.reverse(); const tr = buildTrough(ramp, TP); holder.add(tr.group); r.half = tr.half; }
+    setGround([[XC - 0.9, XR, -r.half, r.half], [-XR, -(XC - 0.9), -r.half, r.half]]);
+    r.length = 300;
   } else r = sc.crossing ? buildCrossing(P, { arms: sc.crossing, arm: 32, corner: S.corner }) : buildStreet(sc.line, P);
+  if (!sc.underpass && !sc.subway) setGround(null);
   holder.add(r.group); holder.position.y = 0.02;
   // sygnalizatory: skrzyżowanie — na każdym wlocie po prawej stronie wjeżdżających (fazy A/B na przemian),
   // próbka „Sygnalizator” — na słupie przy chodniku i na wysięgniku nad jezdnią
@@ -135,8 +162,10 @@ function rebuild() {
       if (S.mileposts) holder.add(buildMileposts(sc.line, { offset: sd * (kerb + (S.rails ? 1.1 : 0.6)), y: walkY, start: 12 * 1000 + 950, every: 100 }).group);
     }
   }
+  // przejście podziemne pod ulicą (klatki schodowe za chodnikiem, otwory w terenie)
+  if (sc.subway) { const sw = buildSubway({ span: 2 * (half + walk) + 1 }); holder.add(sw.group); setGround(sw.holes); }
   // kładka nad ulicą (środek nad osią, schody poza chodnikiem)
-  if (sc.footbridge) { const fb = buildFootbridge({ span: 2 * (half + walk) + 1, lift: sc.footbridge === 'lift' }); holder.add(fb.group); }
+  if (sc.footbridge) { const fb = buildFootbridge({ span: 2 * (half + walk) + 1, lift: sc.footbridge === 'lift', stairs: sc.footbridge === 'switchback' ? 'switchback' : 'straight' }); holder.add(fb.group); }
   // miejsca parkingowe: oznakowanie pasa postojowego, przy miejscach dla niepełnosprawnych znak D-18 z T-29
   if (park && sc.line) {
     for (const sd of [1, -1]) {
@@ -243,6 +272,8 @@ $('cams').replaceChildren(...Object.entries(CAMS).map(([k, v]) => { const b = el
 function frame0() {
   if (SCENES[S.scene].viaduct) { Object.assign(orbit, { dist: 120, yaw: 0.65, pitch: 0.3 }); orbit.target.set(0, 3, 5); return; }
   if (SCENES[S.scene].footbridge) { Object.assign(orbit, { dist: 34, yaw: 0.75, pitch: 0.22 }); orbit.target.set(2, 3, 0); return; }
+  if (SCENES[S.scene].subway) { Object.assign(orbit, { dist: 30, yaw: 0.7, pitch: 0.5 }); orbit.target.set(0, -1, 0); return; }
+  if (SCENES[S.scene].underpass) { Object.assign(orbit, { dist: 75, yaw: 0.9, pitch: 0.35 }); orbit.target.set(45, -2, 0); return; }
   if (SCENES[S.scene].tunnel) { Object.assign(orbit, { dist: 70, yaw: 1.05, pitch: 0.28 }); orbit.target.set(30, 6, 0); return; }
   if (SCENES[S.scene].parking) { Object.assign(orbit, { dist: 30, yaw: 0.45, pitch: 0.42 }); orbit.target.set(-24, 0.5, 0); return; }
   if (SCENES[S.scene].barriers) { Object.assign(orbit, { dist: 34, yaw: 0.35, pitch: 0.16 }); orbit.target.set(0, 1.5, 0); return; }

@@ -976,7 +976,7 @@ export function buildTunnel(points, profile = TUNNEL_PROFILE, { type = 'arch', g
     const outer = [];
     for (let u = -W; u <= W + 1e-6; u += 1) {
       const x = q.p.x + q.nx * u, z = q.p.z + q.nz * u, gy = ground ? ground(x, z) : 0;
-      outer.push(new THREE.Vector2(u, Math.max(Math.abs(u) <= half + 1 ? top + 1.5 : 0.3, gy + 0.4)));
+      const near = Math.abs(u) <= half + 1; outer.push(new THREE.Vector2(u, Math.max(near ? top + 1.5 : 0.3, gy - q.p.y + (near ? 0.4 : -0.02))));   // gy — wysokość bezwzględna
     }
     const sh = new THREE.Shape([new THREE.Vector2(-W, -0.5), new THREE.Vector2(W, -0.5), ...outer.reverse()]);
     // otwór: przekrój tunelu; w tunelu z podporami dwa otwory i filar 1,2 m pośrodku
@@ -997,8 +997,10 @@ export function buildTunnel(points, profile = TUNNEL_PROFILE, { type = 'arch', g
 // spoczniki na słupach, z nich schody betonowe (stopnie 15 × 30 cm, spocznik w połowie wysokości) w stronę +x,
 // balustrady szklane 1,1 m z pochwytem, przy schodach pochwyty stalowe. lift: true — przy każdym spoczniku (od −x)
 // winda w przeszklonym szybie ze stalową ramą, kabina na dole, drzwi od strony spocznika i od ulicy.
-//   buildFootbridge({ span, height, width, lift }) → { group, length }
-export function buildFootbridge({ span = 18, height = 5, width = 3, lift = false } = {}) {
+// stairs: 'straight' — biegi jednokierunkowe (jeden za drugim), 'switchback' — naprzemienne (dwubiegowe z zawrotem:
+// pierwszy bieg od ulicy, spocznik na całą szerokość, drugi bieg wraca obok pierwszego).
+//   buildFootbridge({ span, height, width, lift, stairs }) → { group, length }
+export function buildFootbridge({ span = 18, height = 5, width = 3, lift = false, stairs = 'straight' } = {}) {
   const g = new THREE.Group(); g.name = lift ? 'kładka ze schodami i windą' : 'kładka ze schodami';
   const con = surface('concrete');
   const paintM = kitMat('bridgeSteel', () => new THREE.MeshStandardMaterial({ color: 0x5d6f80, roughness: 0.45, metalness: 0.6 }));
@@ -1030,24 +1032,29 @@ export function buildFootbridge({ span = 18, height = 5, width = 3, lift = false
     glassRail(new THREE.Vector3(-P / 2, 0, zo), new THREE.Vector3(P / 2, 0, zo), H);
     if (!lift) glassRail(new THREE.Vector3(-P / 2, 0, zc - P / 2), new THREE.Vector3(-P / 2, 0, zc + P / 2), H);
     // schody w stronę +x: dwa biegi i spocznik pośredni; stopnie zębate na płycie biegowej
-    const steps = Math.round(H / rise), n1 = Math.ceil(steps / 2), n2 = steps - n1, zs = zc + sz * (P / 2 - SW / 2);
+    const steps = Math.round(H / rise), n1 = Math.ceil(steps / 2), n2 = steps - n1, back = stairs === 'switchback';
+    const zA = back ? zc + sz * (SW / 2 + 0.1) : zc + sz * (P / 2 - SW / 2), zB = back ? zc - sz * (SW / 2 + 0.1) : zA;   // tory biegów
     const M = [];
-    const flight = (x0, y0, n) => {
-      for (let k = 0; k < n; k++) M.push(new THREE.Matrix4().makeTranslation(x0 + run * (k + 0.5), y0 - (k + 1) * rise - 0.15 + rise / 2 + 0.075, zs));
+    // bieg n stopni od (x0, y0) w kierunku dir (±1 po x), na torze zs
+    const flight = (x0, y0, n, dir, zs) => {
+      for (let k = 0; k < n; k++) M.push(new THREE.Matrix4().makeTranslation(x0 + dir * run * (k + 0.5), y0 - (k + 1) * rise - 0.15 + rise / 2 + 0.075, zs));
       // płyta biegowa (spód skośny)
       const L = Math.hypot(n * run, n * rise), slab = new THREE.Mesh(new THREE.BoxGeometry(L, 0.2, SW), con);
-      slab.position.set(x0 + n * run / 2, y0 - n * rise / 2 - 0.3, zs); slab.rotation.z = -Math.atan2(rise, run); slab.castShadow = slab.receiveShadow = true; g.add(slab);
+      slab.position.set(x0 + dir * n * run / 2, y0 - n * rise / 2 - 0.3, zs); slab.rotation.z = -dir * Math.atan2(rise, run); slab.castShadow = slab.receiveShadow = true; g.add(slab);
       // pochwyty po obu stronach
       for (const e of [-1, 1]) {
         const zz = zs + e * (SW / 2 - 0.05);
-        rod(new THREE.Vector3(x0, y0 + 0.9, zz), new THREE.Vector3(x0 + n * run, y0 - n * rise + 0.9, zz), 0.025, st);
-        for (let k = 0; k <= n; k += 4) rod(new THREE.Vector3(x0 + k * run, y0 - k * rise, zz), new THREE.Vector3(x0 + k * run, y0 - k * rise + 0.9, zz), 0.02, st);
+        rod(new THREE.Vector3(x0, y0 + 0.9, zz), new THREE.Vector3(x0 + dir * n * run, y0 - n * rise + 0.9, zz), 0.025, st);
+        for (let k = 0; k <= n; k += 4) rod(new THREE.Vector3(x0 + dir * k * run, y0 - k * rise, zz), new THREE.Vector3(x0 + dir * k * run, y0 - k * rise + 0.9, zz), 0.02, st);
       }
-      return [x0 + n * run, y0 - n * rise];
+      return [x0 + dir * n * run, y0 - n * rise];
     };
-    const [x1, y1] = flight(P / 2, H, n1);
-    const LL = 1.5; box(LL, 0.3, SW, con, x1 + LL / 2, y1 - 0.15, zs); box(0.4, y1 - 0.3, 0.4, con, x1 + LL / 2, (y1 - 0.3) / 2, zs);
-    flight(x1 + LL, y1, n2);
+    const [x1, y1] = flight(P / 2, H, n1, 1, zA);
+    const LL = 1.5, LW = back ? 2 * SW + 0.2 : SW;
+    box(LL, 0.3, LW, con, x1 + LL / 2, y1 - 0.15, zc + (back ? 0 : zA - zc));
+    for (const zz of back ? [zA, zB] : [zA]) box(0.4, y1 - 0.3, 0.4, con, x1 + LL / 2, (y1 - 0.3) / 2, zz);
+    if (back) { flight(x1, y1, n2, -1, zB); glassRail(new THREE.Vector3(x1 + LL, 0, zA + sz * SW / 2), new THREE.Vector3(x1 + LL, 0, zB - sz * SW / 2), y1); }
+    else flight(x1 + LL, y1, n2, 1, zA);
     g.add(inst(new THREE.BoxGeometry(run, 0.3, SW), con, M));
     // winda: szyb przeszklony od −x spocznika, kabina na dole
     if (lift) {
@@ -1068,4 +1075,83 @@ export function buildFootbridge({ span = 18, height = 5, width = 3, lift = false
     }
   }
   return { group: g, length: span };
+}
+
+/* ---------------- zjazd pod ziemię (rampa w korycie) ---------------- */
+// Otwarta rampa: trasa z wysokością ([x, z, y], y < 0 — pod terenem) między murami oporowymi od jezdni do terenu
+// (`ground`, bezwzględnie) z attyką `parapet` m ponad teren; tam, gdzie jezdnia jest na poziomie terenu, zostaje sama
+// attyka. Mur 0,3 m, lico wewnętrzne od strony jezdni. Odcinek pod ziemią — buildTunnel z tymi samymi punktami.
+//   buildTrough(points3, profile, { ground, parapet }) → { group, length, half }
+export function buildTrough(points, profile = TUNNEL_BOX_PROFILE, { ground = 0, parapet = 1.0 } = {}) {
+  const pr = typeof profile === 'string' ? PROFILES[profile] : profile, S = sample(points, 0.5), g = new THREE.Group(); g.name = 'rampa';
+  const half = pr.lanes * pr.laneW / 2 + (pr.median || 0) / 2 + pr.strips.reduce((a, x) => a + x.w, 0), T = 0.3, con = surface('concrete');
+  for (const sd of [-1, 1]) {
+    for (const [o, dir, bottom] of [[sd * half, -sd, null], [sd * (half + T), sd, ground]]) {
+      const P = [], N = [], U = [], I = [];
+      S.pts.forEach((q, i) => {
+        const y0 = bottom == null ? q.p.y - 0.05 : Math.min(bottom, q.p.y), y1 = ground + parapet;
+        for (const y of [y0, y1]) { P.push(q.p.x + q.nx * o, y, q.p.z + q.nz * o); N.push(q.nx * dir, 0, q.nz * dir); U.push(q.s / 3, y / 3); }
+        if (i) { const k = i * 2; if (dir > 0) I.push(k - 2, k, k - 1, k - 1, k, k + 1); else I.push(k - 2, k - 1, k, k - 1, k + 1, k); }
+      });
+      g.add(mesh(geo(P, N, U, I), con));
+    }
+    // korona muru
+    const P = [], N = [], U = [], I = [];
+    S.pts.forEach((q, i) => { for (const o of [sd * half, sd * (half + T)]) { P.push(q.p.x + q.nx * o, ground + parapet, q.p.z + q.nz * o); N.push(0, 1, 0); U.push(o, q.s / 3); } if (i) { const k = i * 2; if (sd > 0) I.push(k - 2, k - 1, k, k - 1, k + 1, k); else I.push(k - 2, k, k - 1, k - 1, k, k + 1); } });
+    g.add(mesh(geo(P, N, U, I), con));
+  }
+  return { group: g, length: S.L, half: half + T };
+}
+
+/* ---------------- przejście podziemne dla pieszych ---------------- */
+// Przejście pod ulicą (lokalnie: korytarz wzdłuż z, środek pod osią ulicy wzdłuż x, teren y = 0): korytarz
+// szerokości `width` (domyślnie 4 m) i wysokości 2,6 m w świetle, posadzka na głębokości `depth`, strop pod jezdnią,
+// ściany wyłożone jasnymi płytkami, oprawy w stropie co 3 m; na obu końcach odkryta klatka schodowa (dwa biegi
+// po 15 × 30 cm i spocznik), mury z attyką 1,1 m nad terenem, pochwyty. holes — prostokąty [x0, x1, z0, z1]
+// otworów w terenie nad klatkami.
+//   buildSubway({ span, depth, width }) → { group, holes, length }
+export function buildSubway({ span = 18, depth = 3.4, width = 4 } = {}) {
+  const g = new THREE.Group(); g.name = 'przejście podziemne';
+  const con = surface('concrete'), W = width, D = depth, CH = 2.6, T = 0.3, hs = span / 2, st = steel();
+  const box = (w, h, d, m, x, y, z, shadow = true) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); o.castShadow = shadow; o.receiveShadow = true; g.add(o); return o; };
+  const rod = (a, b, r) => { const d = new THREE.Vector3().subVectors(b, a), o = new THREE.Mesh(new THREE.CylinderGeometry(r, r, d.length(), 8), st); o.position.copy(a).addScaledVector(d, 0.5); o.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()); g.add(o); };
+  const tiles = kitMat('subwayTiles', () => new THREE.MeshStandardMaterial({ map: canvasTex(128, 128, (c, w, h) => { c.fillStyle = '#e4e2da'; c.fillRect(0, 0, w, h); c.fillStyle = '#a8a59c'; for (let k = 0; k < 4; k++) { c.fillRect(0, k * 32, w, 2); c.fillRect(k * 32, 0, 2, h); } }), roughness: 0.3, metalness: 0.05 }));
+  const floorM = surface('slabsBig');
+  // płaszczyzna z UV w metrach (kafelek 1,2 m)
+  const plane = (w, h, m, x, y, z, ry) => { const pg = new THREE.PlaneGeometry(w, h), uv = pg.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * w / 1.2, uv.getY(i) * h / 1.2); const o = new THREE.Mesh(pg, m); o.position.set(x, y, z); o.rotation.y = ry; o.receiveShadow = true; g.add(o); return o; };
+  const rise = 0.15, run = 0.3, steps = Math.round(D / rise), n1 = Math.ceil(steps / 2), n2 = steps - n1, LL = 1.5, Ls = steps * run + LL, Ltot = 2 * (hs + Ls);
+  // posadzka, strop, ściany korytarza
+  box(W, 0.3, Ltot, con, 0, -D - 0.15, 0); box(W - 0.02, 0.02, 2 * hs, floorM, 0, -D + 0.01, 0, false);
+  box(W + 2 * T, 0.4, 2 * hs, con, 0, -D + CH + 0.2, 0);
+  for (const sx of [-1, 1]) {
+    box(T, CH + 0.4, 2 * hs, con, sx * (W / 2 + T / 2), -D + (CH + 0.4) / 2, 0);                               // ściany korytarza (pod ulicą)
+    for (const sz of [-1, 1]) box(T, D + 1.1, Ls, con, sx * (W / 2 + T / 2), (1.1 - D) / 2, sz * (hs + Ls / 2));     // mury klatek z attyką
+    plane(2 * hs + 2 * Ls - 0.02, CH, tiles, sx * (W / 2 - 0.005), -D + CH / 2, 0, -sx * Math.PI / 2);          // płytki
+  }
+  // oprawy w stropie
+  const lamp = kitMat('tunnelLamp', () => new THREE.MeshStandardMaterial({ color: 0x333333, emissive: 0xfff1d6, emissiveIntensity: 2.2, roughness: 0.4 }));
+  const L = []; for (let z = -hs + 1.5; z <= hs - 1.4; z += 3) L.push(new THREE.Matrix4().makeTranslation(0, -D + CH - 0.03, z));
+  g.add(inst(new THREE.BoxGeometry(0.4, 0.05, 1.2), lamp, L, false));
+  // klatki schodowe: schody wyciągnięte z profilu (stopnie, spocznik), ścianka nad wylotem korytarza, pochwyty
+  const holes = [];
+  for (const sz of [-1, 1]) {
+    const pts = [new THREE.Vector2(0, -D - 0.3), new THREE.Vector2(0, -D)];
+    let d = 0, y = -D;
+    for (let k = 0; k < steps; k++) {
+      if (k === n1) { d += LL; pts.push(new THREE.Vector2(d, y)); }
+      y += rise; pts.push(new THREE.Vector2(d, y)); d += run; pts.push(new THREE.Vector2(d, y));
+    }
+    pts.push(new THREE.Vector2(d, -D - 0.3));
+    const eg = new THREE.ExtrudeGeometry(new THREE.Shape(pts), { depth: W, bevelEnabled: false });
+    const m = new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 0, sz), new THREE.Vector3(0, 1, 0), new THREE.Vector3(-sz, 0, 0)); m.setPosition(sz * W / 2, 0, sz * hs); eg.applyMatrix4(m);
+    const stair = new THREE.Mesh(eg, con); stair.castShadow = stair.receiveShadow = true; g.add(stair);
+    box(W, 1.1 + D - CH - 0.4 + 0.4, T, con, 0, (1.1 + (-D + CH)) / 2, sz * (hs + T / 2));                     // ścianka nad wylotem
+    for (const sx of [-1, 1]) {
+      const x = sx * (W / 2 - 0.08), z0 = sz * hs, z1 = sz * (hs + n1 * run), z2 = sz * (hs + n1 * run + LL), z3 = sz * (hs + Ls);
+      rod(new THREE.Vector3(x, -D + 0.9, z0), new THREE.Vector3(x, -D + n1 * rise + 0.9, z1), 0.025);
+      rod(new THREE.Vector3(x, -D + n1 * rise + 0.9, z2), new THREE.Vector3(x, 0.9, z3), 0.025);
+    }
+    holes.push([-W / 2 - T, W / 2 + T, Math.min(sz * hs, sz * (hs + Ls)), Math.max(sz * hs, sz * (hs + Ls))]);
+  }
+  return { group: g, holes, length: Ltot };
 }

@@ -95,7 +95,16 @@ gdzie nad stropem są ≥ 2 m gruntu, dojazdy w przekopie ze skarpami.
 (skrajnia 4,6 m), szerokość 3 m, balustrady szklane 1,1 m z pochwytem; na końcach spoczniki na czterech słupach, z nich
 schody betonowe w stronę +x (dwa biegi, spocznik pośredni, stopnie 15 × 30 cm, pochwyty). `lift: true` — przy każdym
 spoczniku winda w przeszklonym szybie ze stalową ramą, kabina, drzwi na dole i przy spoczniku. Lokalnie pomost biegnie
-wzdłuż z (w poprzek ulicy wzdłuż x).
+wzdłuż z (w poprzek ulicy wzdłuż x). `stairs: 'switchback'` — schody naprzemienne (dwubiegowe z zawrotem): drugi bieg
+wraca obok pierwszego, spocznik pośredni na całą szerokość.
+
+## Przejście podziemne i tunel pod równym terenem
+
+`buildSubway({ span, depth, width })` — korytarz 4 × 2,6 m pod ulicą (posadzka na −3,4 m), płytki na ścianach, oprawy
+w stropie, po obu stronach odkryte klatki schodowe z attyką 1,1 m; zwraca `holes` — otwory w terenie nad klatkami.
+`buildTrough(points3, profile, { ground, parapet })` — otwarta rampa między murami oporowymi (od jezdni do terenu
++ attyka); odcinek pod ziemią to `buildTunnel` po punktach z ujemną wysokością (korona portalu liczona od terenu
+bezwzględnie). W próbce teren to płaszczyzna z otworami nad rampami i klatkami.
 
 ## Wiadukty
 
@@ -108,7 +117,7 @@ wyżej; `avoid(x, z)` — gdzie nie stawiać filarów (jezdnia pod wiaduktem).
 ## Próbki
 
 Prosta ulica, łuk, skrzyżowanie (4 wloty, sygnalizatory na wlotach), skrzyżowanie T, aleja, droga wiejska, ścieżka,
-słupki, barierki i ekrany, miejsca parkingowe, tunel przez górę (łukowy i z podporami), kładka ze schodami i ze schodami i windą, wiadukt prosty (nad ulicą), wiadukt na łuku (estakada), łącznica (zjazd po pętli), sygnalizator (na słupie i na
+słupki, barierki i ekrany, miejsca parkingowe, tunel przez górę (łukowy i z podporami), kładka ze schodami, ze schodami naprzemiennymi i ze schodami i windą, przejście podziemne, tunel pod równym terenem, wiadukt prosty (nad ulicą), wiadukt na łuku (estakada), łącznica (zjazd po pętli), sygnalizator (na słupie i na
 wysięgniku), latarnie i znaki (wszystkie rodzaje), droga dla rowerów. Okno Sygnalizacja:
 cykl albo stały stan. Okno Wyposażenie: latarnie wzdłuż ulic (rodzaj, co ile, kiedy świecą — po zmroku, zawsze, nigdy),
 znaki na skrzyżowaniach (D-6 przy przejściach, A-7 na bocznym wlocie skrzyżowania T). Okno

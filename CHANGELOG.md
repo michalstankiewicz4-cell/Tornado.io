@@ -1,5 +1,9 @@
 # Zmiany
 
+## 0.14.0 — 2026-11-24
+- Laboratorium ulic 0.10.0: kładka ze schodami naprzemiennymi, przejście podziemne pod ulicą (klatki schodowe
+  z attyką), tunel pod równym terenem (zjazd rampą między murami oporowymi, odcinek pod ziemią, wyjazd).
+
 ## 0.13.0 — 2026-11-24
 - Laboratorium ulic 0.9.0: kładka dla pieszych nad ulicą — ze schodami oraz ze schodami i windą (przeszklone szyby).
 
