@@ -79,6 +79,16 @@ z niepełnosprawnością (3,6 m): niebieska powierzchnia z białym obrysem i sym
 `stalls` — środki i kąty stanowisk (pod auta). Przy pierwszym takim miejscu znak D-18 z tabliczką T-29
 (`buildSign('D-18', { tab: 'T-29' })`).
 
+## Tunele
+
+`buildTunnel(points, profile, { type, ground, wall, lights })` — od portalu do portalu po linii trasy. `arch`
+(`TUNNEL_PROFILE`, dwa pasy): obudowa łukowa — ściany 2,6 m i sklepienie półkoliste, oprawy w dwóch rzędach pod
+sklepieniem co 8 m. `box` (`TUNNEL_BOX_PROFILE`, 2 × 2 pasy): przekrój prostokątny, strop 5,2 m, wysepka z rzędem
+słupów co 6 m, oprawy nad każdą jezdnią. Oba: jasne okładziny ścian do 3 m, chodniki służbowe, portale — betonowa
+ściana czołowa z otworem przekroju (w `box` dwa otwory i filar), korona idzie za terenem `ground(x, z)`. Zwraca
+`half`, `top` i `arch` (przekrój) do wycięcia terenu. W próbce wzgórze z grzbietem w poprzek drogi: portale tam,
+gdzie nad stropem są ≥ 2 m gruntu, dojazdy w przekopie ze skarpami.
+
 ## Wiadukty
 
 Trasa może mieć wysokość: punkty `[x, z, y]`. `buildViaduct(points3, profile, { pierEvery, deck, fillBelow, avoid })` —
@@ -90,7 +100,7 @@ wyżej; `avoid(x, z)` — gdzie nie stawiać filarów (jezdnia pod wiaduktem).
 ## Próbki
 
 Prosta ulica, łuk, skrzyżowanie (4 wloty, sygnalizatory na wlotach), skrzyżowanie T, aleja, droga wiejska, ścieżka,
-słupki, barierki i ekrany, miejsca parkingowe, wiadukt prosty (nad ulicą), wiadukt na łuku (estakada), łącznica (zjazd po pętli), sygnalizator (na słupie i na
+słupki, barierki i ekrany, miejsca parkingowe, tunel przez górę (łukowy i z podporami), wiadukt prosty (nad ulicą), wiadukt na łuku (estakada), łącznica (zjazd po pętli), sygnalizator (na słupie i na
 wysięgniku), latarnie i znaki (wszystkie rodzaje), droga dla rowerów. Okno Sygnalizacja:
 cykl albo stały stan. Okno Wyposażenie: latarnie wzdłuż ulic (rodzaj, co ile, kiedy świecą — po zmroku, zawsze, nigdy),
 znaki na skrzyżowaniach (D-6 przy przejściach, A-7 na bocznym wlocie skrzyżowania T). Okno

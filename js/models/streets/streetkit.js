@@ -150,11 +150,12 @@ function ribbon(S, a, b, y, tile, side = 0) {
   if (a > b) for (let i = 0; i < I.length; i += 3) [I[i + 1], I[i + 2]] = [I[i + 2], I[i + 1]];
   return geo(P, N, U, I);
 }
-// pionowa ściana wzdłuż linii (lico krawężnika) od y0 do y1 przy odsunięciu o, zwrócona na stronę dir (+1 w lewo)
+// pionowa ściana wzdłuż linii (lico krawężnika) od y0 do y1 przy odsunięciu o, zwrócona na stronę dir (+1 w lewo);
+// lico widać tylko z tej strony (normalna i kolejność wierzchołków zgodne)
 function wall(S, o, y0, y1, dir, tile) {
   const P = [], N = [], U = [], I = [];
   S.pts.forEach((q, i) => {
-    for (const y of [y0, y1]) { P.push(q.p.x + q.nx * o, q.p.y + y, q.p.z + q.nz * o); N.push(-q.nx * dir, 0, -q.nz * dir); U.push(q.s / tile, y / tile); }
+    for (const y of [y0, y1]) { P.push(q.p.x + q.nx * o, q.p.y + y, q.p.z + q.nz * o); N.push(q.nx * dir, 0, q.nz * dir); U.push(q.s / tile, y / tile); }
     if (i) { const k = i * 2; if (dir > 0) I.push(k - 2, k, k - 1, k - 1, k, k + 1); else I.push(k - 2, k - 1, k, k - 1, k + 1, k); }
   });
   return geo(P, N, U, I);
@@ -196,7 +197,7 @@ export function buildStreet(points, profile = PROFILES.city, { closed = false, m
   if (pr.noRoad) { /* sam chodnik (bok skrzyżowania T) */ } else if (med) {
     // dwie jezdnie i pas dzielący (trawnik z krawężnikami)
     for (const sd of [-1, 1]) g.add(mesh(ribbon(S, sd * med / 2, sd * half, 0, road.userData.tile), road, false));
-    g.add(mesh(ribbon(S, -med / 2 + 0.15, med / 2 - 0.15, 0.14, 2), surface('grass'), false));
+    g.add(mesh(ribbon(S, -med / 2 + 0.15, med / 2 - 0.15, 0.14, 2), surface(pr.medianS || 'grass'), false));
     for (const sd of [-1, 1]) { const o = sd * (med / 2 - 0.075); g.add(mesh(ribbon(S, o - 0.075, o + 0.075, 0.14, 1), surface('curb'))); g.add(mesh(wall(S, sd * med / 2, 0, 0.14, sd, 1), surface('curb'))); g.add(mesh(wall(S, sd * (med / 2 - 0.15), 0.1, 0.14, -sd, 1), surface('curb'))); }
   } else g.add(mesh(ribbon(S, -half, half, 0, road.userData.tile), road, false));
   if (marks && pr.marks) {
@@ -213,11 +214,11 @@ export function buildStreet(points, profile = PROFILES.city, { closed = false, m
     for (const st of pr.strips) {
       const a = sd * o, b = sd * (o + st.w), m = st.k === 'curb' ? surface('curb') : surface(st.s);
       g.add(mesh(ribbon(S, a, b, st.h, m.userData.tile || 1), m, st.k === 'curb' || st.k === 'edge'));
-      if (Math.abs(st.h - yPrev) > 0.005) g.add(mesh(wall(S, a, Math.min(st.h, yPrev), Math.max(st.h, yPrev), st.h > yPrev ? sd : -sd, 1), m.userData.tile ? m : surface('curb')));
+      if (Math.abs(st.h - yPrev) > 0.005) g.add(mesh(wall(S, a, Math.min(st.h, yPrev) - 0.03, Math.max(st.h, yPrev), st.h > yPrev ? -sd : sd, 1), m.userData.tile ? m : surface('curb')));
       yPrev = st.h; o += st.w;
     }
     // zewnętrzny brzeg ostatniego pasa w dół do gruntu
-    if (yPrev > 0.005) g.add(mesh(wall(S, sd * o, 0, yPrev, -sd, 1), surface('curb')));
+    if (yPrev > 0.005) g.add(mesh(wall(S, sd * o, 0, yPrev, sd, 1), surface('curb')));
   }
   return { group: g, length: S.L, width: 2 * (half + pr.strips.reduce((s, x) => s + x.w, 0)) };
 }
@@ -651,10 +652,12 @@ function tubeAlong(S, offset, y, r, m) {
   return mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), Math.max(2, pts.length * 2), r, 8), m);
 }
 // przekrój [[dn, dy], …] przeciągnięty po linii; dn liczone w stronę `side` (±1 w odsunięciach)
-function sweep(S, prof, offset, y, side) {
-  const P = [], N = [], U = [], I = [], m = prof.length;
+// tile — metry na kafelek tekstury (wtedy v liczone po długości przekroju), bez — v od 0 do 1
+function sweep(S, prof, offset, y, side, tile = 0) {
+  const P = [], N = [], U = [], I = [], m = prof.length, len = [0];
+  for (let j = 1; j < m; j++) len.push(len[j - 1] + Math.hypot(prof[j][0] - prof[j - 1][0], prof[j][1] - prof[j - 1][1]));
   S.pts.forEach((q, i) => {
-    prof.forEach(([dn, dy], j) => { const o = offset + side * dn; P.push(q.p.x + q.nx * o, q.p.y + y + dy, q.p.z + q.nz * o); N.push(0, 1, 0); U.push(q.s, j / (m - 1)); });
+    prof.forEach(([dn, dy], j) => { const o = offset + side * dn; P.push(q.p.x + q.nx * o, q.p.y + y + dy, q.p.z + q.nz * o); N.push(0, 1, 0); U.push(tile ? q.s / tile : q.s, tile ? len[j] / tile : j / (m - 1)); });
     if (i) for (let j = 0; j < m - 1; j++) { const a = (i - 1) * m + j, b = i * m + j; I.push(a, b, a + 1, a + 1, b, b + 1); }
   });
   const g = geo(P, N, U, I); g.computeVertexNormals(); return g;
@@ -923,4 +926,67 @@ export function buildParking(points, type = 'perpendicular', { inner = 3.25, sid
     g.add(mesh(geo(Q.P, Q.N, Q.U, Q.I), m, false));
   }
   return { group: g, stalls, count: n };
+}
+
+/* ---------------- tunele ---------------- */
+// Tunel drogowy po linii trasy (od portalu do portalu): obudowa łukowa (ściany pionowe i sklepienie półkoliste,
+// beton), jasne okładziny ścian do 3 m, oprawy oświetleniowe w dwóch rzędach pod sklepieniem, a na obu końcach
+// portal — betonowa ściana czołowa z otworem w kształcie przekroju, jej korona idzie za terenem `ground(x, z)`.
+// Rodzaj `box` — tunel prostokątny dwukierunkowy (jak płytkie tunele miejskie): strop płaski 5,2 m, dwie nawy,
+// pośrodku na wysepce rząd słupów 0,8 × 0,8 m co 6 m; w portalu dwa otwory rozdzielone filarem.
+//   TUNNEL_PROFILE      przekrój drogi w tunelu łukowym: dwa pasy 3,5 m, opaski 0,5 m, chodniki służbowe 1 m
+//   TUNNEL_BOX_PROFILE  przekrój w tunelu z podporami: 2 × 2 pasy 3,5 m, wysepka 1,2 m pośrodku
+//   buildTunnel(points, profile, { type, ground, wall, lights }) → { group, length, half, top, arch }
+//     half — połowa szerokości w świetle, top — wysokość sklepienia, arch — przekrój [[dn, dy], …] (do wycięcia terenu)
+export const TUNNEL_PROFILE = { label: 'Droga w tunelu', lanes: 2, laneW: 3.5, road: 'asphalt', marks: { center: 'solid', edge: true },
+  strips: [{ k: 'shoulder', w: 0.5, h: 0, s: 'asphalt' }, { k: 'curb', w: 0.15, h: 0.2 }, { k: 'sidewalk', w: 1.0, h: 0.2, s: 'concrete' }] };
+export const TUNNEL_BOX_PROFILE = { label: 'Droga w tunelu z podporami', lanes: 4, laneW: 3.5, road: 'asphalt', median: 1.2, medianS: 'concrete', marks: { center: 'dashed', edge: true },
+  strips: [{ k: 'shoulder', w: 0.5, h: 0, s: 'asphalt' }, { k: 'curb', w: 0.15, h: 0.2 }, { k: 'sidewalk', w: 1.0, h: 0.2, s: 'concrete' }] };
+export function tunnelArch(half, wall = 2.6, seg = 24) {
+  const A = [[half, 0], [half, wall]];
+  for (let k = 1; k < seg; k++) { const a = k / seg * Math.PI; A.push([half * Math.cos(a), wall + half * Math.sin(a)]); }
+  A.push([-half, wall], [-half, 0]);
+  return A;
+}
+export function buildTunnel(points, profile = TUNNEL_PROFILE, { type = 'arch', ground = null, wall = 2.6, lights = true } = {}) {
+  const pr = typeof profile === 'string' ? PROFILES[profile] : profile, S = sample(points, 0.5), g = new THREE.Group(); g.name = 'tunel';
+  const box = type === 'box', med = pr.median || 0, BH = 5.2;
+  const half = pr.lanes * pr.laneW / 2 + med / 2 + pr.strips.reduce((a, x) => a + x.w, 0);
+  const arch = box ? [[half, 0], [half, BH], [-half, BH], [-half, 0]] : tunnelArch(half, wall), top = box ? BH : wall + half;
+  // obudowa (od środka) i okładziny ścian
+  const lin = kitMat('lining', () => { const m = surface('concrete').clone(); m.side = THREE.DoubleSide; return m; });
+  g.add(mesh(sweep(S, arch, 0, 0, 1, 3), lin));
+  const clad = kitMat('cladding', () => new THREE.MeshStandardMaterial({ map: canvasTex(128, 128, (c, w, h) => { c.fillStyle = '#d9dcd8'; c.fillRect(0, 0, w, h); c.fillStyle = '#9aa09c'; c.fillRect(0, 0, w, 2); c.fillRect(0, 0, 2, h); }), roughness: 0.35, metalness: 0.05, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+  for (const sd of [-1, 1]) g.add(mesh(sweep(S, [[half - 0.01, 0.2], [half - 0.01, 3.0]], 0, 0, sd, 1.2), clad, false));
+  // oprawy: dwa rzędy co 8 m pod sklepieniem (świecą zawsze)
+  // podpory pośrodku (na wysepce, co 6 m)
+  if (box) g.add(inst(new THREE.BoxGeometry(0.8, BH - 0.14, 0.8).translate(0, (BH - 0.14) / 2 + 0.14, 0), lin, stations(S, 0, 6, 3)));
+  if (lights && box) {
+    const lamp = kitMat('tunnelLamp', () => new THREE.MeshStandardMaterial({ color: 0x333333, emissive: 0xfff1d6, emissiveIntensity: 2.2, roughness: 0.4 }));
+    for (const sd of [-1, 1]) g.add(inst(new THREE.BoxGeometry(1.4, 0.1, 0.3), lamp, stations(S, sd * (med / 2 + pr.laneW), 8, 4, BH - 0.06), false));
+  } else if (lights) {
+    const lamp = kitMat('tunnelLamp', () => new THREE.MeshStandardMaterial({ color: 0x333333, emissive: 0xfff1d6, emissiveIntensity: 2.2, roughness: 0.4 }));
+    const a = 0.62 * Math.PI / 2;   // kąt na sklepieniu
+    for (const sd of [-1, 1]) g.add(inst(new THREE.BoxGeometry(1.4, 0.1, 0.3), lamp, stations(S, sd * half * Math.cos(a) * 0.98, 8, 4, wall + half * Math.sin(a) * 0.98), false));
+  }
+  // portale: ściana czołowa z otworem przekroju, korona nad terenem (co najmniej 1,5 m nad sklepieniem)
+  const con = surface('concrete'), D = 1.2, W = half + 14;
+  for (const end of [0, 1]) {
+    const q = S.pts[end ? S.pts.length - 1 : 0], dir = end ? 1 : -1;   // na zewnątrz tunelu
+    const outer = [];
+    for (let u = -W; u <= W + 1e-6; u += 1) {
+      const x = q.p.x + q.nx * u, z = q.p.z + q.nz * u, gy = ground ? ground(x, z) : 0;
+      outer.push(new THREE.Vector2(u, Math.max(Math.abs(u) <= half + 1 ? top + 1.5 : 0.3, gy + 0.4)));
+    }
+    const sh = new THREE.Shape([new THREE.Vector2(-W, -0.5), new THREE.Vector2(W, -0.5), ...outer.reverse()]);
+    // otwór: przekrój tunelu; w tunelu z podporami dwa otwory i filar 1,2 m pośrodku
+    const rect = (a, b) => new THREE.Path([new THREE.Vector2(a, 0), new THREE.Vector2(a, BH), new THREE.Vector2(b, BH), new THREE.Vector2(b, 0)]);
+    if (box) sh.holes.push(rect(-half, -0.6), rect(0.6, half)); else sh.holes.push(new THREE.Path(arch.map(([dn, dy]) => new THREE.Vector2(dn, dy))));
+    const eg = new THREE.ExtrudeGeometry(sh, { depth: D, bevelEnabled: false });
+    // lokalnie: x — w lewo od osi (normalna), y — w górę, z — wzdłuż trasy na zewnątrz
+    const m = new THREE.Matrix4().makeBasis(new THREE.Vector3(q.nx, 0, q.nz), new THREE.Vector3(0, 1, 0), new THREE.Vector3(q.t.x * dir, 0, q.t.z * dir).normalize());
+    m.setPosition(q.p.x - q.t.x * dir * (D - 0.3), q.p.y, q.p.z - q.t.z * dir * (D - 0.3)); eg.applyMatrix4(m);
+    const pw = mesh(eg, con); g.add(pw);
+  }
+  return { group: g, length: S.L, half, top, arch };
 }

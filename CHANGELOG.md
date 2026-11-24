@@ -1,5 +1,11 @@
 # Zmiany
 
+## 0.12.0 — 2026-11-24
+- Laboratorium ulic 0.8.0: tunele przez górę — łukowy (dwa pasy) i prostokątny dwukierunkowy 2 × 2 pasy ze słupami
+  pośrodku; portale z ścianą czołową, okładziny, oświetlenie, dojazdy w przekopie.
+- StreetKit: lica krawężników zwrócone do jezdni (wcześniej odwrócone — z drogi prześwitywał grunt), normalne ścian
+  zgodne z kierunkiem lica (bariery wiaduktu, ekrany, cokoły — poprawne cieniowanie).
+
 ## 0.11.0 — 2026-11-24
 - Laboratorium ulic 0.7.0: miejsca parkingowe — równoległe, skośne 60° i prostopadłe na pasie postojowym, miejsca
   dla osób z niepełnosprawnością (P-24, znak D-18 z tabliczką T-29); próbka i wybór w oknie Wyposażenie.

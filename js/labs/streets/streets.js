@@ -4,7 +4,7 @@
 import * as THREE from '../../../vendor/three/three.module.js';
 import { createStage, WEATHER } from '../../core/stage.js';
 import { groundDisc } from '../../world/ground.js';
-import { PROFILES, SURFACES, buildStreet, buildCrossing, buildTrafficLight, signalAt, SIGNAL_STATES, SIGNAL_TIMES, buildLamp, LAMPS, buildSign, SIGNS, alongStreet, buildViaduct, VIADUCT_PROFILE, BOLLARDS, buildBollards, RAILS, buildRail, NOISE, buildNoiseWall, buildMilepost, buildMileposts, PARKING, buildParking } from '../../models/streets/streetkit.js';
+import { PROFILES, SURFACES, surface, buildStreet, buildCrossing, buildTrafficLight, signalAt, SIGNAL_STATES, SIGNAL_TIMES, buildLamp, LAMPS, buildSign, SIGNS, alongStreet, buildViaduct, VIADUCT_PROFILE, BOLLARDS, buildBollards, RAILS, buildRail, NOISE, buildNoiseWall, buildMilepost, buildMileposts, PARKING, buildParking, buildTunnel, TUNNEL_PROFILE, TUNNEL_BOX_PROFILE } from '../../models/streets/streetkit.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...kids) => { const e = document.createElement(tag); Object.assign(e, props); kids.forEach((k) => e.append(k)); return e; };
@@ -27,6 +27,8 @@ const SCENES = {
     viaduct: [[-95, -35, 0.3], [-62, -32, 4.2], [-32, -20, 8.4], [-8, 2, 9.2], [10, 28, 9.4], [34, 46, 8.8], [64, 52, 4.4], [96, 50, 0.3]], lanes: 2 },
   viaductRamp: { label: 'Łącznica (zjazd po pętli)', profile: 'city', note: 'Skręcająca łącznica: jeden szeroki pas zjeżdża pętlą o promieniu 34 m z wysokości 8 m na ziemię, na filarach, a nisko — po nasypie.',
     viaduct: Array.from({ length: 11 }, (_, k) => { const a = k * Math.PI * 1.6 / 10 - 0.6; return [Math.cos(a) * 34, Math.sin(a) * 34, 8.4 * (1 - k / 10) + 0.3]; }), lanes: 1 },
+  tunnel: { label: 'Tunel przez górę', profile: 'city', note: 'Tunel drogowy przez wzgórze: dojazdy w przekopie ze skarpami, portale — betonowe ściany czołowe z otworem, obudowa łukowa (ściany i sklepienie półkoliste), jasne okładziny ścian do 3 m, oprawy pod sklepieniem co 8 m, chodniki służbowe.', tunnel: 'arch' },
+  tunnelBox: { label: 'Tunel z podporami (2 × 2 pasy)', profile: 'city', note: 'Tunel dwukierunkowy o przekroju prostokątnym: dwie jezdnie po dwa pasy, pośrodku wysepka z rzędem słupów co 6 m, strop płaski 5,2 m; w portalu dwa otwory rozdzielone filarem.', tunnel: 'box' },
   furniture: { label: 'Latarnie i znaki', profile: 'city', note: 'Cztery rodzaje latarni (współczesna LED, podwójna, parkowa stylizowana, stara betonowa z sodówką) i polskie znaki drogowe: ostrzegawcze, zakazu, nakazu, informacyjne. Po zmroku latarnie się zapalają.', line: [[-40, 0], [40, 0]], furniture: true },
   barriers: { label: 'Słupki, barierki, ekrany', profile: 'city', note: 'Słupki: stalowy blokujący z pasami odblaskowymi, żeliwny grafitowy, żeliwne połączone łańcuchem, betonowy walec, prowadzący U-1a; pikietaż — słupki hektometrowe 1–9 i kilometrowy z czerwoną głowicą. Barierki: ochronna U-12a (czerwono-biała), miejska grafitowa, bariera energochłonna stalowa. Za zieleńcem ekrany dźwiękochłonne: kasety pochłaniające, przezroczysty z pasami przeciw ptakom, kasety z przeszkleniem u góry.', line: [[-45, 0], [45, 0]], barriers: true },
   parking: { label: 'Miejsca parkingowe', profile: 'city', note: 'Pas postojowy przy jezdni: miejsca równoległe (2,5 × 6 m), skośne 60° i prostopadłe (2,5 × 5 m), wyznaczone liniami P-18. Na początku każdego pasa miejsca dla osób z niepełnosprawnością (3,6 m): niebieska powierzchnia z symbolem P-24, znak D-18 z tabliczką T-29. Rodzaj miejsc — w oknie Wyposażenie.', line: [[-40, 0], [40, 0]], parking: true },
@@ -69,6 +71,15 @@ function rebuild() {
     // ekrany na koronie barier pomostu (bez cokołu; poręcz wtedy zdjęta)
     if (S.noise) for (const sd of [1, -1]) holder.add(buildNoiseWall(sc.viaduct, S.noiseType, { offset: sd * r.barrierAt, y: r.barrierTop, height: S.noiseH, plinth: 0 }).group);
     if (sc.under) holder.add(buildStreet(sc.under, P).group);
+  } else if (sc.tunnel) {
+    // wzgórze: grzbiet w poprzek drogi; portale tam, gdzie nad sklepieniem jest ≥ 2 m gruntu; dojazdy w przekopie
+    const box = sc.tunnel === 'box', TP = { ...(box ? TUNNEL_BOX_PROFILE : TUNNEL_PROFILE), road: S.road, marks: S.marks ? (box ? TUNNEL_BOX_PROFILE : TUNNEL_PROFILE).marks : null };
+    const probe = buildTunnel([[-1, 0], [1, 0]], TP, { type: sc.tunnel, lights: false }); const top = probe.top, th = probe.half;
+    let Px = 0; while (hill(Px, 0) > top + 2) Px += 0.5;
+    r = buildStreet([[-140, 0], [140, 0]], TP);
+    const tn = buildTunnel([[-Px, 0], [Px, 0]], TP, { type: sc.tunnel, ground: hill }); holder.add(tn.group);
+    holder.add(terrain(Px, th + 1.2));
+    r.length = 280; r.width = 2 * th;
   } else r = sc.crossing ? buildCrossing(P, { arms: sc.crossing, arm: 32, corner: S.corner }) : buildStreet(sc.line, P);
   holder.add(r.group); holder.position.y = 0.02;
   // sygnalizatory: skrzyżowanie — na każdym wlocie po prawej stronie wjeżdżających (fazy A/B na przemian),
@@ -153,6 +164,27 @@ function rebuild() {
   window.LabPerf.modelRows([['Siatki', holder.children[0] ? countMeshes() : 0], ['Trójkąty', Math.round(tris).toLocaleString('pl')], ['Zbudowane w', Math.round(built.ms) + ' ms']]);
   save();
 }
+// wzgórze do próbki tunelu (wysokość w m) i teren: środek nad tunelem bez zmian, dojazdy w przekopie (skarpy 1 : 0,8)
+function hill(x, z) {
+  const r = Math.exp(-((x / 46) ** 2)) * Math.exp(-((z / 80) ** 4)), n = 1 + 0.05 * Math.sin(x * 0.11 + z * 0.07) + 0.03 * Math.sin(z * 0.17 - x * 0.05);
+  return 34 * r * n - 0.4;
+}
+function terrain(Px, c) {
+  const g = new THREE.Group(), mat = surface('sod');
+  const part = (x0, x1, cut) => {
+    const nx = Math.max(2, Math.round((x1 - x0) / 1)), nz = 200, P = [], U = [], I = [];
+    for (let i = 0; i <= nx; i++) for (let j = 0; j <= nz; j++) {
+      const x = x0 + (x1 - x0) * i / nx, z = -100 + 200 * j / nz;
+      let y = hill(x, z); if (cut) y = Math.min(y, Math.abs(z) < c ? -0.08 : (Math.abs(z) - c) * 1.25 - 0.08);
+      P.push(x, Math.max(-0.08, y), z); U.push(x / 3, z / 3);
+      if (i && j) { const a = (i - 1) * (nz + 1) + j - 1, b = i * (nz + 1) + j - 1; I.push(a, a + 1, b, a + 1, b + 1, b); }
+    }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); geo.setIndex(I); geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, mat); m.receiveShadow = m.castShadow = true; g.add(m);
+  };
+  part(-Px, Px, false); part(-110, -Px, true); part(Px, 110, true);
+  return g;
+}
 const countMeshes = () => { let n = 0; holder.traverse((o) => { if (o.isMesh) n++; }); return n; };
 
 /* ---------------- panele ---------------- */
@@ -206,6 +238,7 @@ const CAMS = { Orbita: { yaw: 0.7, pitch: 0.45, dist: 45 }, Pieszy: { yaw: 0.25,
 $('cams').replaceChildren(...Object.entries(CAMS).map(([k, v]) => { const b = el('button', { type: 'button', textContent: k }); b.onclick = () => Object.assign(orbit, v); return b; }));
 function frame0() {
   if (SCENES[S.scene].viaduct) { Object.assign(orbit, { dist: 120, yaw: 0.65, pitch: 0.3 }); orbit.target.set(0, 3, 5); return; }
+  if (SCENES[S.scene].tunnel) { Object.assign(orbit, { dist: 70, yaw: 1.05, pitch: 0.28 }); orbit.target.set(30, 6, 0); return; }
   if (SCENES[S.scene].parking) { Object.assign(orbit, { dist: 30, yaw: 0.45, pitch: 0.42 }); orbit.target.set(-24, 0.5, 0); return; }
   if (SCENES[S.scene].barriers) { Object.assign(orbit, { dist: 34, yaw: 0.35, pitch: 0.16 }); orbit.target.set(0, 1.5, 0); return; }
   if (SCENES[S.scene].furniture) { Object.assign(orbit, { dist: 26, yaw: 0.25, pitch: 0.12 }); orbit.target.set(-12, 2.5, 3); return; }
