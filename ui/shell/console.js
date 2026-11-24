@@ -3,7 +3,7 @@
    for the tab until it is closed), filtered by kind and by text.
    A button on the right of the lab's bar (body > .bar) opens and closes it; the window floats over the lab, is
    dragged by its title and closed with ×. Where it stands and whether it is open are kept in this browser
-   (gamelab.console). Loaded by ui/shell/menubar.js on every lab and tool page; its look: ui/shell/console.css.
+   (tornado.console). Loaded by ui/shell/menubar.js on every lab and tool page; its look: ui/shell/console.css.
    Tabs: the log is the first; a page adds its own with window.LabConsole.addTab({ id, title, titlePl, el, onShow })
    (e.g. the scene editor's API tab), callable before the console is built — or, before this script has loaded, pushed to window.LabConsoleTabs;
    LabConsole.open(id) opens one. */
@@ -20,7 +20,7 @@ window.LabConsole = {
 };
 const PL = window.LabMenu && window.LabMenu.LANG === "pl";
 const t = (en, pl) => (PL ? pl : en);
-const KEY = "gamelab.console";
+const KEY = "tornado.console";   // własny klucz: GameLaboratory na tej samej domenie ma swój
 let st = { open: false, x: null, y: null, kind: "all", q: "", tab: "log" };
 try { st = Object.assign(st, JSON.parse(localStorage.getItem(KEY) || "{}")); } catch (e) { /* storage blocked */ }
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) { /* storage blocked */ } };

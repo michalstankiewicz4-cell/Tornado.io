@@ -9,7 +9,7 @@
    heading, read as the lab fills it; dragged to move it), ✕ to close,
    the element itself as the body. A click brings a window to the front.
    Which windows are open and where they stand is kept in this browser
-   (gamelab.windows:<page>); the first visit opens them where the panels
+   (tornado.windows:<page>); the first visit opens them where the panels
    stood (data-side="left" | "right"). Styles: ui/shell/windows.css and
    ui/style/controls.css (sliders fill gold up to their value: --fill, set here). No inline style attributes — only the CSSOM,
    so pages with a strict CSP work.
@@ -20,13 +20,13 @@
    --viewR, --viewB on <html> and through window.LabView (a page with body.viewFits puts its #view there and sizes its
    renderer from it — the scene editor; other pages keep the view full size, under the panels). Such a page also gets
    a second toolbar switch, Middle | Full: the view in the free middle, or the whole space between the toolbar and the
-   info bar, under the panels (body.vfFull; gamelab.viewfit, the same on every page). LabView.size() gives the view's
+   info bar, under the panels (body.vfFull; tornado.viewfit, the same on every page). LabView.size() gives the view's
    box ({ w, h, x, y }); when #view changes size the page gets a "resize" event, so a lab sizes its renderer from
    LabView.size() in its usual resize handler and turns pointer coordinates into the view's (x, y).
    ======================================================================= */
 (function () {
 "use strict";
-const MENU_H = 32, TOP = MENU_H + 52, KEY = "gamelab.windows:" + location.pathname.replace(/^.*\/(labs|tools)\//, "$1/");
+const MENU_H = 32, TOP = MENU_H + 52, KEY = "tornado.windows:" + location.pathname.replace(/^.*\/(labs|tools)\//, "$1/");
 const lang = () => (window.LabMenu && window.LabMenu.LANG) || "en";
 const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) { return {}; } };
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* storage blocked: lasts this visit */ } };
@@ -89,7 +89,7 @@ function make(body) {
   const s = state[id] || {};
   if (s.x != null) place(w, s.x, s.y);
   else { w.fresh = side; el.style.top = TOP + "px"; if (side === "right") { el.style.right = "12px"; el.style.left = "auto"; } else el.style.left = "12px"; }
-  w.open = s.open !== false; el.hidden = !w.open;
+  w.open = s.open === true; el.hidden = !w.open;   // Tornado.io: okna domyślnie zamknięte (OPCJE → Okna)
   w.home = { parent: el.parentNode, next: el.nextSibling };      // where it goes back when it floats again
   wins.push(w);
   if (s.docked !== false) setDocked(w, true, true);   // domyślnie panele: okno pływa, tylko gdy je odpięto (docked: false)
@@ -182,7 +182,7 @@ function toolbarSwitch() {
   if (document.body.classList.contains("viewFits")) fitSwitch(bar, sw);
 }
 // the view: in the free middle between the panels, or the whole space between the bars (pages with body.viewFits)
-const FIT_KEY = "gamelab.viewfit";
+const FIT_KEY = "tornado.viewfit";
 function fitSwitch(bar, before) {
   let full = false; try { full = localStorage.getItem(FIT_KEY) === "full"; } catch (e) { /* storage blocked */ }
   const seg = document.createElement("div"); seg.className = "seg fitSeg"; seg.setAttribute("role", "group");

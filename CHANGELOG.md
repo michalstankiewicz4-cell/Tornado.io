@@ -1,5 +1,9 @@
 # Zmiany
 
+## 0.3.1 — 2026-11-24
+- Okna i panele domyślnie zamknięte (OPCJE → Okna), konsola też; własne klucze zapisu (`tornado.windows:*`,
+  `tornado.console`, `tornado.viewfit`) — wcześniej wspólne z GameLaboratory na tej samej domenie.
+
 ## 0.3.0 — 2026-11-24
 - Miasto z laboratorium miasta GameLaboratory (CityKit, OpenStreetMap): Pałac Kultury (pl. Defilad 1), Złota 44,
   Emilii Plater 49, Chmielna 69, Al. Jerozolimskie 54, rondo ONZ 1, Twarda 2/4, pl. Europejski 1, Chłodna 51 —
