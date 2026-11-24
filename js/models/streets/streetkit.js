@@ -218,7 +218,7 @@ export function buildStreet(points, profile = PROFILES.city, { closed = false, m
       yPrev = st.h; o += st.w;
     }
     // zewnętrzny brzeg ostatniego pasa w dół do gruntu
-    if (yPrev > 0.005) g.add(mesh(wall(S, sd * o, 0, yPrev, sd, 1), surface('curb')));
+    if (yPrev > 0.005) g.add(mesh(wall(S, sd * o, -0.03, yPrev, sd, 1), surface('curb')));
   }
   return { group: g, length: S.L, width: 2 * (half + pr.strips.reduce((s, x) => s + x.w, 0)) };
 }
@@ -277,11 +277,20 @@ export function buildCrossing(profile = PROFILES.city, { arms = 4, arm = 30, cor
       for (const st of pr.strips) {
         const m = st.k === 'curb' ? surface('curb') : surface(st.s), ri = Math.max(0, r - st.w);
         g.add(mesh(ringXZ(cx, cz, ri, r, A0, A1, st.h, m.userData.tile || 1), m, st.k === 'curb'));
-        if (Math.abs(st.h - yPrev) > 0.005) g.add(mesh(arcWall(cx, cz, r, A0, A1, Math.min(st.h, yPrev), Math.max(st.h, yPrev), st.h > yPrev ? 1 : -1), surface('curb')));
+        if (Math.abs(st.h - yPrev) > 0.005) g.add(mesh(arcWall(cx, cz, r, A0, A1, Math.min(st.h, yPrev) - 0.03, Math.max(st.h, yPrev), st.h > yPrev ? 1 : -1), surface('curb')));
         yPrev = st.h; r = ri; if (r <= 0) break;
       }
       const last = pr.strips[pr.strips.length - 1];
       if (r > 0) g.add(mesh(ringXZ(cx, cz, 0, r, A0, A1, last.h, 2), surface(last.s || 'grass'), false));
+      // brzegi naroża od strony kwartału (proste od środka łuku): ściany do gruntu — pod chodnikiem nie ma pustki na wylot
+      const yTop = Math.max(...pr.strips.map((x) => x.h));
+      if (yTop > 0.005) for (const [ang, sgn] of [[A0, 1], [A1, -1]]) {
+        const ex = Math.cos(ang) * corner, ez = Math.sin(ang) * corner, nx = Math.sin(ang) * sgn, nz = -Math.cos(ang) * sgn;   // na zewnątrz naroża
+        const P = [cx, -0.03, cz, cx + ex, -0.03, cz + ez, cx + ex, yTop, cz + ez, cx, yTop, cz], N = [nx, 0, nz, nx, 0, nz, nx, 0, nz, nx, 0, nz];
+        const a3 = new THREE.Vector3(P[3] - P[0], 0, P[5] - P[2]), b3 = new THREE.Vector3(P[9] - P[0], P[10] - P[1], P[11] - P[2]), cr = a3.cross(b3);
+        const I = cr.x * nx + cr.z * nz > 0 ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2];
+        g.add(mesh(geo(P, N, [0, 0, corner / 2, 0, corner / 2, yTop / 2, 0, yTop / 2], I), surface(last.s || 'grass')));   // brzeg ostatniego pasa (np. trawnika)
+      }
     } else if (has(i) !== has(i + 1)) {
       // bok bez wlotu (skrzyżowanie T): prosty chodnik wzdłuż brzegu skrzyżowania
       const e = has(i) ? b : a, n = [-e[0], -e[1]], t = [e[1], -e[0]];
@@ -321,7 +330,7 @@ export function buildTrafficLight({ arm = 0, height = 3.2, backplate = true } = 
   const st = steel(), hm = housingMat();
   const add = (geo, m, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; g.add(o); return o; };
   const L = 0.3, gap = 0.04, Hh = 3 * L + 4 * gap, W = L + 2 * gap, D = 0.24;   // komora: 3 soczewki 300 mm
-  const top = height + Hh + 0.15;
+  const top = height + Hh + 0.2;   // słup kończy się nad tarczą
   // słup z podstawą (stopa) i ewentualnie wysięgnik
   add(new THREE.CylinderGeometry(0.11, 0.13, 0.35, 16), st, 0, 0.175, 0);
   add(new THREE.CylinderGeometry(0.07, 0.085, top + (arm ? 1.2 : 0), 16), st, 0, (top + (arm ? 1.2 : 0)) / 2, 0);
@@ -342,14 +351,14 @@ export function buildTrafficLight({ arm = 0, height = 3.2, backplate = true } = 
   if (backplate) {
     // tarcza tła: czarna z białą obwódką (lepiej widać sygnał pod słońce)
     const bp = new THREE.Mesh(new THREE.BoxGeometry(W + 0.26, Hh + 0.26, 0.015), new THREE.MeshStandardMaterial({ color: 0x111112, roughness: 0.7 })); bp.position.set(0, Hh / 2, -D / 2 - 0.01); head.add(bp);
-    const rim = new THREE.Mesh(new THREE.BoxGeometry(W + 0.3, Hh + 0.3, 0.01), new THREE.MeshStandardMaterial({ color: 0xf2f2ee, roughness: 0.5 })); rim.position.set(0, Hh / 2, -D / 2 - 0.02); head.add(rim);
+    const rim = new THREE.Mesh(new THREE.BoxGeometry(W + 0.3, Hh + 0.3, 0.03), new THREE.MeshStandardMaterial({ color: 0xf2f2ee, roughness: 0.5 })); rim.position.set(0, Hh / 2, -D / 2 - 0.03); head.add(rim);   // tył tarczy czarnej schowany w obwódce
   }
   const lenses = {};
   ['red', 'yellow', 'green'].forEach((c, i) => {
     const y = Hh - gap - L / 2 - i * (L + gap);
     const m = new THREE.MeshStandardMaterial({ color: new THREE.Color(LENS[c]).multiplyScalar(0.12), roughness: 0.15, metalness: 0, emissive: LENS[c], emissiveIntensity: 0 });
-    const lens = new THREE.Mesh(new THREE.CircleGeometry(L * 0.46, 28), m); lens.position.set(0, y, D / 2 + 0.002); head.add(lens);
-    const ring = new THREE.Mesh(new THREE.RingGeometry(L * 0.46, L * 0.5, 28), hm); ring.position.set(0, y, D / 2 + 0.003); head.add(ring);
+    const lens = new THREE.Mesh(new THREE.CircleGeometry(L * 0.46, 28), m); lens.position.set(0, y, D / 2 + 0.012); head.add(lens);   // soczewka wypukła przed licem komory
+    const ring = new THREE.Mesh(new THREE.RingGeometry(L * 0.46, L * 0.5, 28), hm); ring.position.set(0, y, D / 2 + 0.012); head.add(ring);
     // daszek nad soczewką (pół rury)
     const visor = new THREE.Mesh(new THREE.CylinderGeometry(L * 0.52, L * 0.52, 0.2, 20, 1, true, -Math.PI / 2, Math.PI), hm);
     visor.rotation.x = Math.PI / 2; visor.position.set(0, y, D / 2 + 0.1); visor.material = hm.clone(); visor.material.side = THREE.DoubleSide; visor.castShadow = true; head.add(visor);
@@ -390,7 +399,7 @@ export function buildLamp(type = 'modern') {
   if (type === 'park') {
     const iron = new THREE.MeshStandardMaterial({ color: 0x1d2420, roughness: 0.6, metalness: 0.6 });
     add(new THREE.CylinderGeometry(0.16, 0.2, 0.6, 12), iron, 0, 0.3, 0);
-    add(new THREE.CylinderGeometry(0.05, 0.07, T.h - 0.6, 12), iron, 0, 0.3 + (T.h - 0.6) / 2, 0);
+    add(new THREE.CylinderGeometry(0.05, 0.07, T.h - 0.3, 12), iron, 0, 0.3 + (T.h - 0.3) / 2, 0);   // słup do kołnierza latarni
     for (let i = 0; i < 3; i++) add(new THREE.TorusGeometry(0.075, 0.015, 6, 14).rotateX(Math.PI / 2), iron, 0, 1 + i * 1.1, 0);
     add(new THREE.CylinderGeometry(0.12, 0.08, 0.12, 6), iron, 0, T.h + 0.06, 0);
     const lan = add(new THREE.CylinderGeometry(0.2, 0.13, 0.45, 6), glass, 0, T.h + 0.35, 0); heads.push(lan);
@@ -513,8 +522,8 @@ export function buildSign(id = 'B-20', { height = 2.2, tab = null } = {}) {
   const plate = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshStandardMaterial({ map: tex, transparent: true, alphaTest: 0.5, roughness: 0.45, metalness: 0, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.06 }));
   plate.position.set(0, height + size * 0.15, 0.04); plate.castShadow = true; g.add(plate);
   const back = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshStandardMaterial({ color: 0x8d9296, roughness: 0.5, metalness: 0.6, alphaMap: alphaOf(id, tex), transparent: true, alphaTest: 0.5 }));
-  back.rotation.y = Math.PI; back.position.set(0, height + size * 0.15, 0.035); g.add(back);
-  for (const dy of [-0.18, 0.18]) { const cl = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.04, 0.05), steel()); cl.position.set(0, height + size * 0.15 + dy * size, 0.015); g.add(cl); }
+  back.rotation.y = Math.PI; back.position.set(0, height + size * 0.15, 0.0395); g.add(back);   // tył tuż za tarczą (bez szczeliny na brzegu)
+  for (const dy of [-0.18, 0.18]) { const cl = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.04, 0.05), steel()); cl.position.set(0, height + size * 0.15 + dy * size, 0.0); g.add(cl); }   // obejmy za tarczą
   if (tab === 'T-29') {
     const pl = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.25), new THREE.MeshStandardMaterial({ map: plateT29(), roughness: 0.45, emissive: 0xffffff, emissiveMap: plateT29(), emissiveIntensity: 0.06 }));
     pl.position.set(0, height + size * 0.15 - size / 2 - 0.17, 0.04); g.add(pl);
@@ -570,10 +579,10 @@ export function buildViaduct(points, profile = VIADUCT_PROFILE, { pierEvery = 24
     g.add(mesh(ribbon(S, o0, o1, top + BH, con.userData.tile || 3), con));
     g.add(mesh(wall(S, o1, -deck, top + BH, sd, 1), con));
     if (rail) g.add(mesh(ribbon(S, sd * (half + B * 0.35), sd * (half + B * 0.65), top + BH + 0.25, 1), steel()));
-    if (rail) for (let d = 0; d < S.L; d += 2) { const q = S.pts[Math.min(S.pts.length - 1, Math.round(d / 0.5))]; const post = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.25, 0.05), steel()); post.position.set(q.p.x + q.nx * sd * (half + B / 2), q.p.y + top + BH + 0.12, q.p.z + q.nz * sd * (half + B / 2)); g.add(post); }
+    if (rail) for (let d = 0; d < S.L; d += 2) { const q = S.pts[Math.min(S.pts.length - 1, Math.round(d / 0.5))]; const post = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.235, 0.05), steel()); post.position.set(q.p.x + q.nx * sd * (half + B / 2), q.p.y + top + BH + 0.1175, q.p.z + q.nz * sd * (half + B / 2)); g.add(post); }
   }
   // spód płyty pomostu
-  g.add(mesh(slope(S, half + B, -deck, -(half + B), -deck, 3, true), con));
+  g.add(mesh(slope(S, half + B, -deck, -(half + B), -deck, 3), con));   // lico w dół (widać spod wiaduktu)
   // pod spodem: nasyp (nisko) albo filary (wysoko); przejście — ściana przyczółka
   const fill = S.pts.map((q) => q.p.y < fillBelow);
   let run = [];
@@ -668,6 +677,16 @@ const canvasTex = (w, h, draw, repeat = true) => {
   if (repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
 };
 const kitMats = new Map();
+// zaślepka końca bryły wyciągniętej wzdłuż linii: prostokąt w przekroju (odsunięcia o0…o1, wysokości y0…y1) na początku
+// (end 0) albo końcu (end 1) linii, lico na zewnątrz
+function capEnd(S, end, o0, o1, y0, y1, m) {
+  const q = S.pts[end ? S.pts.length - 1 : 0], d = end ? 1 : -1, P = [], N = [], U = [];
+  for (const [o, y] of [[o0, y0], [o1, y0], [o1, y1], [o0, y1]]) { P.push(q.p.x + q.nx * o, q.p.y + y, q.p.z + q.nz * o); N.push(q.t.x * d, 0, q.t.z * d); U.push(o, y); }
+  // kolejność wierzchołków dobrana do kierunku lica
+  const a = new THREE.Vector3(P[3] - P[0], P[4] - P[1], P[5] - P[2]), b = new THREE.Vector3(P[6] - P[0], P[7] - P[1], P[8] - P[2]), n = a.cross(b);
+  const I = n.x * q.t.x * d + n.z * q.t.z * d > 0 ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2];
+  return mesh(geo(P, N, U, I), m);
+}
 function kitMat(id, make) { if (!kitMats.has(id)) kitMats.set(id, make()); return kitMats.get(id); }
 
 /** Słupki wzdłuż linii. */
@@ -794,6 +813,11 @@ export function buildNoiseWall(points, type = 'metal', { offset = 0, height = 4,
     g.add(mesh(wall(S, offset - T / 2, y + P0, y + split, -1, 4), cas), mesh(wall(S, offset + T / 2, y + P0, y + split, 1, 4), cas));
     g.add(mesh(ribbon(S, offset - T / 2, offset + T / 2, y + split, 1), alu));
   }
+  // końce: cokół i kasety zaślepione
+  for (const end of [0, 1]) {
+    if (P0 > 0) g.add(capEnd(S, end, offset - 0.15, offset + 0.15, y, y + P0, con));
+    if (split > P0) g.add(capEnd(S, end, offset - T / 2, offset + T / 2, y + P0, y + split, alu));
+  }
   if (split < H) {
     const pane = mesh(wall(S, offset, y + split, y + H, 1, 4), gl, false); pane.renderOrder = 2; g.add(pane);
     g.add(mesh(ribbon(S, offset - 0.03, offset + 0.03, y + H, 1), alu));
@@ -827,7 +851,7 @@ export function buildMilepost(km = 0, hm = 1) {
   // lico z numerem wzdłuż drogi (lokalne ±x); 0,2 m w gruncie
   const box = new THREE.Mesh(new THREE.BoxGeometry(D, H + 0.2, W).translate(0, (H - 0.2) / 2, 0), [face, face, white, white, white, white]);
   box.castShadow = box.receiveShadow = true; g.add(box);
-  if (big) { const cap = new THREE.Mesh(new THREE.BoxGeometry(D + 0.01, 0.12, W + 0.01).translate(0, H - 0.06, 0), kitMat('postRed', () => new THREE.MeshStandardMaterial({ color: 0xc8102e, roughness: 0.6 }))); g.add(cap); }
+  if (big) { const cap = new THREE.Mesh(new THREE.BoxGeometry(D + 0.01, 0.12, W + 0.01).translate(0, H - 0.05, 0), kitMat('postRed', () => new THREE.MeshStandardMaterial({ color: 0xc8102e, roughness: 0.6 }))); g.add(cap); }
   return { group: g };
 }
 export function buildMileposts(points, { offset = 0, y = 0, start = 0, every = 100 } = {}) {
@@ -973,18 +997,20 @@ export function buildTunnel(points, profile = TUNNEL_PROFILE, { type = 'arch', g
   const con = surface('concrete'), D = 1.2, W = half + 14;
   for (const end of [0, 1]) {
     const q = S.pts[end ? S.pts.length - 1 : 0], dir = end ? 1 : -1;   // na zewnątrz tunelu
+    const xs = -dir;   // oś x kształtu: ±normalna tak, żeby układ (x, y, na zewnątrz) był prawoskrętny (bryła nie na lewą stronę)
     const outer = [];
     for (let u = -W; u <= W + 1e-6; u += 1) {
-      const x = q.p.x + q.nx * u, z = q.p.z + q.nz * u, gy = ground ? ground(x, z) : 0;
+      const x = q.p.x + q.nx * u * xs, z = q.p.z + q.nz * u * xs, gy = ground ? ground(x, z) : 0;
       const near = Math.abs(u) <= half + 1; outer.push(new THREE.Vector2(u, Math.max(near ? top + 1.5 : 0.3, gy - q.p.y + (near ? 0.4 : -0.02))));   // gy — wysokość bezwzględna
     }
     const sh = new THREE.Shape([new THREE.Vector2(-W, -0.5), new THREE.Vector2(W, -0.5), ...outer.reverse()]);
     // otwór: przekrój tunelu; w tunelu z podporami dwa otwory i filar 1,2 m pośrodku
-    const rect = (a, b) => new THREE.Path([new THREE.Vector2(a, 0), new THREE.Vector2(a, BH), new THREE.Vector2(b, BH), new THREE.Vector2(b, 0)]);
-    if (box) sh.holes.push(rect(-half, -0.6), rect(0.6, half)); else sh.holes.push(new THREE.Path(arch.map(([dn, dy]) => new THREE.Vector2(dn, dy))));
+    // otwór o 3 cm większy od przekroju — lico obudowy nie leży w płaszczyźnie ościeży portalu
+    const e = 0.03, rect = (a, b) => new THREE.Path([new THREE.Vector2(a, -0.5), new THREE.Vector2(a, BH + e), new THREE.Vector2(b, BH + e), new THREE.Vector2(b, -0.5)]);
+    if (box) sh.holes.push(rect(-half - e, -0.6 + e), rect(0.6 - e, half + e)); else sh.holes.push(new THREE.Path(tunnelArch(half + e, wall).map(([dn, dy]) => new THREE.Vector2(dn, dy === 0 ? -0.5 : dy))));
     const eg = new THREE.ExtrudeGeometry(sh, { depth: D, bevelEnabled: false });
     // lokalnie: x — w lewo od osi (normalna), y — w górę, z — wzdłuż trasy na zewnątrz
-    const m = new THREE.Matrix4().makeBasis(new THREE.Vector3(q.nx, 0, q.nz), new THREE.Vector3(0, 1, 0), new THREE.Vector3(q.t.x * dir, 0, q.t.z * dir).normalize());
+    const m = new THREE.Matrix4().makeBasis(new THREE.Vector3(q.nx * xs, 0, q.nz * xs), new THREE.Vector3(0, 1, 0), new THREE.Vector3(q.t.x * dir, 0, q.t.z * dir).normalize());
     m.setPosition(q.p.x - q.t.x * dir * (D - 0.3), q.p.y, q.p.z - q.t.z * dir * (D - 0.3)); eg.applyMatrix4(m);
     const pw = mesh(eg, con); g.add(pw);
   }
@@ -1059,8 +1085,8 @@ export function buildFootbridge({ span = 18, height = 5, width = 3, lift = false
     // winda: szyb przeszklony od −x spocznika, kabina na dole
     if (lift) {
       const S = 2.4, xs = -P / 2 - S / 2, top = H + 3.0;
-      for (const cx of [-1, 1]) for (const cz of [-1, 1]) box(0.14, top, 0.14, paintM, xs + cx * (S / 2 - 0.07), top / 2, zc + cz * (S / 2 - 0.07));
-      for (let y = 0.1; y <= top; y += 2.5) for (const [w, d, ox, oz] of [[S, 0.1, 0, S / 2 - 0.05], [S, 0.1, 0, -(S / 2 - 0.05)], [0.1, S, S / 2 - 0.05, 0], [0.1, S, -(S / 2 - 0.05), 0]]) box(w, 0.1, d, paintM, xs + ox, y, zc + oz, false);
+      for (const cx of [-1, 1]) for (const cz of [-1, 1]) box(0.14, top - 0.2, 0.14, paintM, xs + cx * (S / 2 - 0.07), 0.2 + (top - 0.2) / 2, zc + cz * (S / 2 - 0.07));   // na cokole
+      for (let y = 2.6; y <= top; y += 2.5) for (const [w, d, ox, oz] of [[S, 0.1, 0, S / 2 - 0.05], [S, 0.1, 0, -(S / 2 - 0.05)], [0.1, S, S / 2 - 0.05, 0], [0.1, S, -(S / 2 - 0.05), 0]]) box(w, 0.1, d, paintM, xs + ox, y, zc + oz, false);
       box(S + 0.2, 0.3, S + 0.2, paintM, xs, top + 0.15, zc);
       for (const [w, ox, oz, ry] of [[S, 0, S / 2 - 0.05, 0], [S, 0, -(S / 2 - 0.05), 0], [S, -(S / 2 - 0.05), 0, Math.PI / 2], [S, S / 2 - 0.05, 0, Math.PI / 2]]) {
         const pane = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.14, top - 0.2), glass); pane.position.set(xs + ox, top / 2, zc + oz); pane.rotation.y = ry; pane.renderOrder = 2; g.add(pane);
@@ -1071,7 +1097,7 @@ export function buildFootbridge({ span = 18, height = 5, width = 3, lift = false
       const doorM = kitMat('liftDoor', () => new THREE.MeshStandardMaterial({ color: 0x8c949a, roughness: 0.25, metalness: 0.9 }));
       box(0.06, 2.1, 1.0, doorM, xs + S / 2 - 0.02, H + 1.05, zc); box(0.06, 2.1, 1.0, doorM, xs - S / 2 + 0.02, 0.2 + 1.05, zc);
       // przejście z szybu na spocznik
-      box(0.6, 0.3, 1.4, con, -P / 2 - 0.3 + 0.3, H - 0.2, zc);
+      box(0.6, 0.3, 1.4, con, -P / 2 - 0.3 + 0.3, H - 0.19, zc);
     }
   }
   return { group: g, length: span };
@@ -1089,17 +1115,27 @@ export function buildTrough(points, profile = TUNNEL_BOX_PROFILE, { ground = 0, 
     for (const [o, dir, bottom] of [[sd * half, -sd, null], [sd * (half + T), sd, ground]]) {
       const P = [], N = [], U = [], I = [];
       S.pts.forEach((q, i) => {
-        const y0 = bottom == null ? q.p.y - 0.05 : Math.min(bottom, q.p.y), y1 = ground + parapet;
+        const y0 = bottom == null ? q.p.y - 0.05 : Math.min(bottom, q.p.y - 0.05), y1 = ground + parapet;
         for (const y of [y0, y1]) { P.push(q.p.x + q.nx * o, y, q.p.z + q.nz * o); N.push(q.nx * dir, 0, q.nz * dir); U.push(q.s / 3, y / 3); }
         if (i) { const k = i * 2; if (dir > 0) I.push(k - 2, k, k - 1, k - 1, k, k + 1); else I.push(k - 2, k - 1, k, k - 1, k + 1, k); }
       });
       g.add(mesh(geo(P, N, U, I), con));
     }
+    // stopa muru (spód, lico w dół — kolejność odwrotna niż w koronie)
+    { const P = [], N = [], U = [], I = [];
+      S.pts.forEach((q, i) => { for (const o of [sd * half, sd * (half + T)]) { P.push(q.p.x + q.nx * o, q.p.y - 0.05, q.p.z + q.nz * o); N.push(0, -1, 0); U.push(o, q.s / 3); } if (i) { const k = i * 2; if (sd > 0) I.push(k - 2, k, k - 1, k - 1, k, k + 1); else I.push(k - 2, k - 1, k, k - 1, k + 1, k); } });
+      g.add(mesh(geo(P, N, U, I), con)); }
     // korona muru
     const P = [], N = [], U = [], I = [];
     S.pts.forEach((q, i) => { for (const o of [sd * half, sd * (half + T)]) { P.push(q.p.x + q.nx * o, ground + parapet, q.p.z + q.nz * o); N.push(0, 1, 0); U.push(o, q.s / 3); } if (i) { const k = i * 2; if (sd > 0) I.push(k - 2, k - 1, k, k - 1, k + 1, k); else I.push(k - 2, k, k - 1, k - 1, k, k + 1); } });
     g.add(mesh(geo(P, N, U, I), con));
   }
+  // końce murów zaślepione (od strony portalu i przy wjeździe)
+  for (const sd of [-1, 1]) for (const end of [0, 1]) {
+    const q = S.pts[end ? S.pts.length - 1 : 0];
+    g.add(capEnd(S, end, Math.min(sd * half, sd * (half + T)), Math.max(sd * half, sd * (half + T)), Math.min(ground, q.p.y) - q.p.y - 0.05, ground + parapet - q.p.y, con));
+  }
+  g.userData.doctorOk = 'floating';   // dwa mury bez jezdni między nimi — tak ma być
   return { group: g, length: S.L, half: half + T };
 }
 
@@ -1121,12 +1157,12 @@ export function buildSubway({ span = 18, depth = 3.4, width = 4 } = {}) {
   const plane = (w, h, m, x, y, z, ry) => { const pg = new THREE.PlaneGeometry(w, h), uv = pg.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * w / 1.2, uv.getY(i) * h / 1.2); const o = new THREE.Mesh(pg, m); o.position.set(x, y, z); o.rotation.y = ry; o.receiveShadow = true; g.add(o); return o; };
   const rise = 0.15, run = 0.3, steps = Math.round(D / rise), n1 = Math.ceil(steps / 2), n2 = steps - n1, LL = 1.5, Ls = steps * run + LL, Ltot = 2 * (hs + Ls);
   // posadzka, strop, ściany korytarza
-  box(W, 0.3, Ltot, con, 0, -D - 0.15, 0); box(W - 0.02, 0.02, 2 * hs, floorM, 0, -D + 0.01, 0, false);
-  box(W + 2 * T, 0.4, 2 * hs, con, 0, -D + CH + 0.2, 0);
+  box(W, 0.29, Ltot - 0.02, con, 0, -D - 0.145, 0); box(W - 0.02, 0.02, 2 * hs, floorM, 0, -D + 0.01, 0, false);
+  box(W + 2 * T - 0.02, 0.4, 2 * hs - 0.02, con, 0, -D + CH + 0.2, 0);
   for (const sx of [-1, 1]) {
-    box(T, CH + 0.4, 2 * hs, con, sx * (W / 2 + T / 2), -D + (CH + 0.4) / 2, 0);                               // ściany korytarza (pod ulicą)
+    box(T, CH + 0.68, 2 * hs, con, sx * (W / 2 + T / 2), -D - 0.29 + (CH + 0.68) / 2, 0);                                 // ściany korytarza (w klatkach schowane w murach)
     for (const sz of [-1, 1]) box(T, D + 1.1, Ls, con, sx * (W / 2 + T / 2), (1.1 - D) / 2, sz * (hs + Ls / 2));     // mury klatek z attyką
-    plane(2 * hs + 2 * Ls - 0.02, CH, tiles, sx * (W / 2 - 0.005), -D + CH / 2, 0, -sx * Math.PI / 2);          // płytki
+    plane(2 * hs + 2 * Ls - 0.02, CH, tiles, sx * (W / 2 - 0.012), -D + CH / 2, 0, -sx * Math.PI / 2);          // płytki (1,2 cm przed murem)
   }
   // oprawy w stropie
   const lamp = kitMat('tunnelLamp', () => new THREE.MeshStandardMaterial({ color: 0x333333, emissive: 0xfff1d6, emissiveIntensity: 2.2, roughness: 0.4 }));
@@ -1142,8 +1178,8 @@ export function buildSubway({ span = 18, depth = 3.4, width = 4 } = {}) {
       y += rise; pts.push(new THREE.Vector2(d, y)); d += run; pts.push(new THREE.Vector2(d, y));
     }
     pts.push(new THREE.Vector2(d, -D - 0.3));
-    const eg = new THREE.ExtrudeGeometry(new THREE.Shape(pts), { depth: W, bevelEnabled: false });
-    const m = new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 0, sz), new THREE.Vector3(0, 1, 0), new THREE.Vector3(-sz, 0, 0)); m.setPosition(sz * W / 2, 0, sz * hs); eg.applyMatrix4(m);
+    const eg = new THREE.ExtrudeGeometry(new THREE.Shape(pts), { depth: W - 0.03, bevelEnabled: false });   // 1,5 cm od murów
+    const m = new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 0, sz), new THREE.Vector3(0, 1, 0), new THREE.Vector3(-sz, 0, 0)); m.setPosition(sz * (W / 2 - 0.015), 0, sz * hs); eg.applyMatrix4(m);
     const stair = new THREE.Mesh(eg, con); stair.castShadow = stair.receiveShadow = true; g.add(stair);
     box(W, 1.1 + D - CH - 0.4 + 0.4, T, con, 0, (1.1 + (-D + CH)) / 2, sz * (hs + T / 2));                     // ścianka nad wylotem
     for (const sx of [-1, 1]) {

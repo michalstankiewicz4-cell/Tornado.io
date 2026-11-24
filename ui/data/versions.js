@@ -3,10 +3,10 @@
 (function () {
   "use strict";
   const V = {
-    app: "0.14.0",
+    app: "0.15.0",
     labs: {
       "labs/destruction.html": "0.3.0",
-      "labs/streets.html": "0.10.0",
+      "labs/streets.html": "0.10.1",
     },
   };
   window.GameLabVersions = V;

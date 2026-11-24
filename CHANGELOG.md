@@ -1,5 +1,16 @@
 # Zmiany
 
+## 0.15.0 — 2026-11-24
+- Doktor modeli (`tools/doctor.html`, `tools/doctor.py`, opis `docs/tools/doctor.md`): kopia z GameLaboratory
+  z ulepszeniami ogólnymi (grunt `opts.ground`, siatki powielane w teście `floating`, promienie `facing` najwyżej 1 cm
+  od ściany); bada wszystkie modele StreetKit i HouseKit — 0 błędów.
+- StreetKit (laboratorium ulic 0.10.1), poprawki znalezione przez doktora: spód pomostu wiaduktu zwrócony w dół
+  (spod wiaduktu prześwitywał), portal tunelu na wyjeździe zbudowany na lewą stronę i otwór portalu w płaszczyźnie
+  obudowy, naroża skrzyżowań zamknięte od strony kwartału, krawężnik zewnętrzny i łuki krawężników sięgają pod
+  nawierzchnię, zaślepione końce ekranów dźwiękochłonnych i murów rampy (ze stopą), słup latarni parkowej do kołnierza
+  latarni (latarnia wisiała 30 cm nad słupem), soczewki i tarcza sygnalizatora, obejmy i tył znaków, głowica słupka
+  kilometrowego, słupki poręczy wiaduktu, winda i przejście podziemne bez nakładających się ścian.
+
 ## 0.14.0 — 2026-11-24
 - Laboratorium ulic 0.10.0: kładka ze schodami naprzemiennymi, przejście podziemne pod ulicą (klatki schodowe
   z attyką), tunel pod równym terenem (zjazd rampą między murami oporowymi, odcinek pod ziemią, wyjazd).
