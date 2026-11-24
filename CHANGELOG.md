@@ -1,5 +1,9 @@
 # Zmiany
 
+## 0.11.0 — 2026-11-24
+- Laboratorium ulic 0.7.0: miejsca parkingowe — równoległe, skośne 60° i prostopadłe na pasie postojowym, miejsca
+  dla osób z niepełnosprawnością (P-24, znak D-18 z tabliczką T-29); próbka i wybór w oknie Wyposażenie.
+
 ## 0.10.0 — 2026-11-24
 - Laboratorium ulic 0.6.0: słupki połączone łańcuchem, ekrany dźwiękochłonne na wiaduktach (na koronie barier),
   słupki pikietażowe — hektometrowe co 100 m i kilometrowe (próbka i opcja w oknie Wyposażenie).

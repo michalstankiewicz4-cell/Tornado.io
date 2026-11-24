@@ -4,7 +4,7 @@
 import * as THREE from '../../../vendor/three/three.module.js';
 import { createStage, WEATHER } from '../../core/stage.js';
 import { groundDisc } from '../../world/ground.js';
-import { PROFILES, SURFACES, buildStreet, buildCrossing, buildTrafficLight, signalAt, SIGNAL_STATES, SIGNAL_TIMES, buildLamp, LAMPS, buildSign, SIGNS, alongStreet, buildViaduct, VIADUCT_PROFILE, BOLLARDS, buildBollards, RAILS, buildRail, NOISE, buildNoiseWall, buildMilepost, buildMileposts } from '../../models/streets/streetkit.js';
+import { PROFILES, SURFACES, buildStreet, buildCrossing, buildTrafficLight, signalAt, SIGNAL_STATES, SIGNAL_TIMES, buildLamp, LAMPS, buildSign, SIGNS, alongStreet, buildViaduct, VIADUCT_PROFILE, BOLLARDS, buildBollards, RAILS, buildRail, NOISE, buildNoiseWall, buildMilepost, buildMileposts, PARKING, buildParking } from '../../models/streets/streetkit.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...kids) => { const e = document.createElement(tag); Object.assign(e, props); kids.forEach((k) => e.append(k)); return e; };
@@ -29,9 +29,10 @@ const SCENES = {
     viaduct: Array.from({ length: 11 }, (_, k) => { const a = k * Math.PI * 1.6 / 10 - 0.6; return [Math.cos(a) * 34, Math.sin(a) * 34, 8.4 * (1 - k / 10) + 0.3]; }), lanes: 1 },
   furniture: { label: 'Latarnie i znaki', profile: 'city', note: 'Cztery rodzaje latarni (współczesna LED, podwójna, parkowa stylizowana, stara betonowa z sodówką) i polskie znaki drogowe: ostrzegawcze, zakazu, nakazu, informacyjne. Po zmroku latarnie się zapalają.', line: [[-40, 0], [40, 0]], furniture: true },
   barriers: { label: 'Słupki, barierki, ekrany', profile: 'city', note: 'Słupki: stalowy blokujący z pasami odblaskowymi, żeliwny grafitowy, żeliwne połączone łańcuchem, betonowy walec, prowadzący U-1a; pikietaż — słupki hektometrowe 1–9 i kilometrowy z czerwoną głowicą. Barierki: ochronna U-12a (czerwono-biała), miejska grafitowa, bariera energochłonna stalowa. Za zieleńcem ekrany dźwiękochłonne: kasety pochłaniające, przezroczysty z pasami przeciw ptakom, kasety z przeszkleniem u góry.', line: [[-45, 0], [45, 0]], barriers: true },
+  parking: { label: 'Miejsca parkingowe', profile: 'city', note: 'Pas postojowy przy jezdni: miejsca równoległe (2,5 × 6 m), skośne 60° i prostopadłe (2,5 × 5 m), wyznaczone liniami P-18. Na początku każdego pasa miejsca dla osób z niepełnosprawnością (3,6 m): niebieska powierzchnia z symbolem P-24, znak D-18 z tabliczką T-29. Rodzaj miejsc — w oknie Wyposażenie.', line: [[-40, 0], [40, 0]], parking: true },
   cycle: { label: 'Droga dla rowerów', profile: 'cycle', note: 'Czerwona kostka z osią przerywaną, niski krawężnik, chodnik z szarej kostki obok.', line: [[-35, 6], [-5, -4], [35, 2]] },
 };
-const S = { bollards: false, bollardType: 'steel', rails: false, railType: 'u12a', noise: false, noiseType: 'metal', noiseH: 4, mileposts: false, lamps: true, lampType: 'modern', lampEvery: 30, signs: true, lampsOn: 'auto', signal: 'cycle', scene: 'straight', profile: 'city', lanes: 2, laneW: 3.25, road: 'asphalt', marks: true, walkW: 2.5, curbH: 0.14, walk: 'slabs', corner: 6, weather: 'fair', sunEl: 32, sunAz: 215, ...(saved || {}) };
+const S = { bollards: false, bollardType: 'steel', rails: false, railType: 'u12a', noise: false, noiseType: 'metal', noiseH: 4, mileposts: false, parking: 'none', parkDisabled: true, lamps: true, lampType: 'modern', lampEvery: 30, signs: true, lampsOn: 'auto', signal: 'cycle', scene: 'straight', profile: 'city', lanes: 2, laneW: 3.25, road: 'asphalt', marks: true, walkW: 2.5, curbH: 0.14, walk: 'slabs', corner: 6, weather: 'fair', sunEl: 32, sunAz: 215, ...(saved || {}) };
 if (!SCENES[S.scene]) S.scene = 'straight'; if (!PROFILES[S.profile]) S.profile = 'city';
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* prywatny tryb */ } };
 
@@ -49,8 +50,12 @@ function profile() {
     if (st.k === 'sidewalk') { st.w = S.walkW; st.s = S.walk; }
   }
   P.strips = P.strips.filter((st) => st.w > 0.01);
+  const sc = SCENES[S.scene], pk = parkType();
+  if (pk && sc.line && P.lanes > 1 && !P.median) P.strips.unshift({ k: 'parking', w: PARKING[pk].depth, h: 0, s: S.road });
   return P;
 }
+// rodzaj miejsc: z okna Wyposażenie; próbka „Miejsca parkingowe” bez wybranego — prostopadłe
+const parkType = () => (S.parking !== 'none' ? S.parking : SCENES[S.scene].parking ? 'perpendicular' : null);
 let built = { tris: 0, ms: 0 }, lights = [], lamps = [];
 function rebuild() {
   holder.traverse((o) => { if (o.isMesh) o.geometry.dispose(); }); holder.clear();
@@ -70,6 +75,8 @@ function rebuild() {
   // próbka „Sygnalizator” — na słupie przy chodniku i na wysięgniku nad jezdnią
   lights = [];
   const half = P.lanes * P.laneW / 2 + (P.median || 0) / 2, walk = P.strips.reduce((a, x) => a + x.w, 0);
+  // pas postojowy (pierwszy w przekroju) — chodnik i wyposażenie zaczynają się za nim
+  const park = P.strips[0] && P.strips[0].k === 'parking' ? P.strips[0].w : 0, ST = park ? P.strips.slice(1) : P.strips, hp = half + park;
   if (sc.crossing) {
     const R0 = half + S.corner, ALL = [[1, 0], [0, 1], [-1, 0], [0, -1]];
     for (let i = 0; i < sc.crossing; i++) {
@@ -81,9 +88,9 @@ function rebuild() {
   }
   // latarnie i znaki
   lamps = [];
-  const edge = half + (P.strips[0] && P.strips[0].k === 'curb' ? P.strips[0].w : 0) + 0.6;
-  const putLamp = (type, x, z, rot) => { const L = buildLamp(type); L.group.position.set(x, P.strips[0] ? Math.max(0, P.strips[0].h) : 0, z); L.group.rotation.y = rot; holder.add(L.group); lamps.push(L); };
-  const putSign = (id, x, z, rot) => { const sg = buildSign(id); sg.group.position.set(x, P.strips[0] ? Math.max(0, P.strips[0].h) : 0, z); sg.group.rotation.y = rot; holder.add(sg.group); };
+  const edge = hp + (ST[0] && ST[0].k === 'curb' ? ST[0].w : 0) + 0.6;
+  const putLamp = (type, x, z, rot) => { const L = buildLamp(type); L.group.position.set(x, ST[0] ? Math.max(0, ST[0].h) : 0, z); L.group.rotation.y = rot; holder.add(L.group); lamps.push(L); };
+  const putSign = (id, x, z, rot, tab = null) => { const sg = buildSign(id, { tab }); sg.group.position.set(x, ST[0] ? Math.max(0, ST[0].h) : 0, z); sg.group.rotation.y = rot; holder.add(sg.group); };
   if (sc.furniture) {
     const types = Object.keys(LAMPS);
     types.forEach((t, i) => { const x = -30 + i * 20; putLamp(t, x, edge, Math.PI); putLamp(t, x + 10, -edge, 0); });
@@ -97,7 +104,7 @@ function rebuild() {
     }
   }
   // słupki, barierki, ekrany: przy krawężniku (albo poboczu) i za ostatnim pasem przekroju
-  const s0 = P.strips[0], kerb = half + (s0 && (s0.k === 'curb' || s0.k === 'shoulder') ? s0.w : 0), walkY = s0 ? Math.max(0, s0.h) : 0, outer = half + walk + 0.6;
+  const s0 = ST[0], kerb = hp + (s0 && (s0.k === 'curb' || s0.k === 'shoulder') ? s0.w : 0), walkY = s0 ? Math.max(0, s0.h) : 0, outer = half + walk + 0.6;
   const seg = (x0, x1) => [[x0, 0], [x1, 0]];
   if (sc.barriers) {
     [['steel', -45, -35], ['warsaw', -33, -23], ['chain', -21, -11], ['concrete', -9, -1]].forEach(([t, a, b]) => holder.add(buildBollards(seg(a, b), t, { offset: kerb + 0.45, y: walkY }).group));
@@ -113,6 +120,15 @@ function rebuild() {
       if (S.bollards) holder.add(buildBollards(sc.line, S.bollardType, { offset: sd * (kerb + (S.rails ? 0.75 : 0.45)), y: walkY }).group);
       if (S.noise) holder.add(buildNoiseWall(sc.line, S.noiseType, { offset: sd * outer, height: S.noiseH }).group);
       if (S.mileposts) holder.add(buildMileposts(sc.line, { offset: sd * (kerb + (S.rails ? 1.1 : 0.6)), y: walkY, start: 12 * 1000 + 950, every: 100 }).group);
+    }
+  }
+  // miejsca parkingowe: oznakowanie pasa postojowego, przy miejscach dla niepełnosprawnych znak D-18 z T-29
+  if (park && sc.line) {
+    for (const sd of [1, -1]) {
+      const pk = buildParking(sc.line, parkType(), { inner: half, side: sd, disabled: S.parkDisabled ? (parkType() === 'parallel' ? 1 : 2) : 0 });
+      holder.add(pk.group);
+      const first = pk.stalls.filter((x) => x.disabled);
+      if (first.length) for (const q of alongStreet(sc.line, 1000, sd * (kerb + 0.4), first[0].s)) putSign('D-18', q.x, q.z, q.rot, 'T-29');
     }
   }
   if (S.signs && sc.crossing) {
@@ -171,7 +187,9 @@ $('bollardType').replaceChildren(...Object.entries(BOLLARDS).map(([k, v]) => el(
 $('railType').replaceChildren(...Object.entries(RAILS).map(([k, v]) => el('option', { value: k, textContent: v.label })));
 $('noiseType').replaceChildren(...Object.entries(NOISE).map(([k, v]) => el('option', { value: k, textContent: v.label })));
 for (const k of ['bollardType', 'railType', 'noiseType']) { $(k).value = S[k]; $(k).onchange = () => { S[k] = $(k).value; rebuild(); }; }
-for (const k of ['bollards', 'rails', 'noise', 'mileposts']) { $(k).checked = S[k]; $(k).onchange = () => { S[k] = $(k).checked; rebuild(); }; }
+$('parking').replaceChildren(el('option', { value: 'none', textContent: 'Brak' }), ...Object.entries(PARKING).map(([k, v]) => el('option', { value: k, textContent: v.label })));
+$('parking').value = S.parking; $('parking').onchange = () => { S.parking = $('parking').value; rebuild(); };
+for (const k of ['bollards', 'rails', 'noise', 'mileposts', 'parkDisabled']) { $(k).checked = S[k]; $(k).onchange = () => { S[k] = $(k).checked; rebuild(); }; }
 $('noiseH').value = S.noiseH; $('noiseHV').textContent = S.noiseH.toFixed(1) + ' m';
 $('noiseH').oninput = () => { S.noiseH = +$('noiseH').value; $('noiseHV').textContent = S.noiseH.toFixed(1) + ' m'; }; $('noiseH').onchange = () => rebuild();
 $('signal').replaceChildren(el('option', { value: 'cycle', textContent: 'Cykl (dwie fazy)' }), ...Object.entries(SIGNAL_STATES).map(([k, v]) => el('option', { value: k, textContent: v })));
@@ -188,6 +206,7 @@ const CAMS = { Orbita: { yaw: 0.7, pitch: 0.45, dist: 45 }, Pieszy: { yaw: 0.25,
 $('cams').replaceChildren(...Object.entries(CAMS).map(([k, v]) => { const b = el('button', { type: 'button', textContent: k }); b.onclick = () => Object.assign(orbit, v); return b; }));
 function frame0() {
   if (SCENES[S.scene].viaduct) { Object.assign(orbit, { dist: 120, yaw: 0.65, pitch: 0.3 }); orbit.target.set(0, 3, 5); return; }
+  if (SCENES[S.scene].parking) { Object.assign(orbit, { dist: 30, yaw: 0.45, pitch: 0.42 }); orbit.target.set(-24, 0.5, 0); return; }
   if (SCENES[S.scene].barriers) { Object.assign(orbit, { dist: 34, yaw: 0.35, pitch: 0.16 }); orbit.target.set(0, 1.5, 0); return; }
   if (SCENES[S.scene].furniture) { Object.assign(orbit, { dist: 26, yaw: 0.25, pitch: 0.12 }); orbit.target.set(-12, 2.5, 3); return; }
   if (SCENES[S.scene].signals) { Object.assign(orbit, { dist: 13, yaw: -1.25, pitch: 0.12 }); orbit.target.set(0, 2.2, 0); return; }

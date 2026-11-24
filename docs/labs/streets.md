@@ -69,6 +69,16 @@ Pikietaż: `buildMilepost(km, hm)` — słupek hektometrowy (biały, 0,6 m, cyfr
 większy, numer kilometra, czerwona głowica); `buildMileposts(points, { offset, y, start, every: 100 })` — co 100 m
 według pikietażu `start` na początku linii.
 
+## Miejsca parkingowe
+
+Pas postojowy to pas przekroju `{ k: 'parking', w, h: 0, s }` przed krawężnikiem (laboratorium wstawia go na
+próbkach z jedną linią i jezdnią dwupasową). `buildParking(points, type, { inner, side, disabled, margin })` rysuje
+oznakowanie: `PARKING` — równoległe (2,5 × 6 m, linia oddzielająca od pasa ruchu), skośne 60° (2,5 × 5 m, skos
+w kierunku jazdy — ruch prawostronny), prostopadłe (2,5 × 5 m); `disabled` pierwszych miejsc dla osób
+z niepełnosprawnością (3,6 m): niebieska powierzchnia z białym obrysem i symbolem P-24 czytelnym z jezdni. Zwraca
+`stalls` — środki i kąty stanowisk (pod auta). Przy pierwszym takim miejscu znak D-18 z tabliczką T-29
+(`buildSign('D-18', { tab: 'T-29' })`).
+
 ## Wiadukty
 
 Trasa może mieć wysokość: punkty `[x, z, y]`. `buildViaduct(points3, profile, { pierEvery, deck, fillBelow, avoid })` —
@@ -80,7 +90,7 @@ wyżej; `avoid(x, z)` — gdzie nie stawiać filarów (jezdnia pod wiaduktem).
 ## Próbki
 
 Prosta ulica, łuk, skrzyżowanie (4 wloty, sygnalizatory na wlotach), skrzyżowanie T, aleja, droga wiejska, ścieżka,
-słupki, barierki i ekrany, wiadukt prosty (nad ulicą), wiadukt na łuku (estakada), łącznica (zjazd po pętli), sygnalizator (na słupie i na
+słupki, barierki i ekrany, miejsca parkingowe, wiadukt prosty (nad ulicą), wiadukt na łuku (estakada), łącznica (zjazd po pętli), sygnalizator (na słupie i na
 wysięgniku), latarnie i znaki (wszystkie rodzaje), droga dla rowerów. Okno Sygnalizacja:
 cykl albo stały stan. Okno Wyposażenie: latarnie wzdłuż ulic (rodzaj, co ile, kiedy świecą — po zmroku, zawsze, nigdy),
 znaki na skrzyżowaniach (D-6 przy przejściach, A-7 na bocznym wlocie skrzyżowania T). Okno
