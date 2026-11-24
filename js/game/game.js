@@ -151,7 +151,7 @@ async function build() {
 }
 
 /* ---------------- HUD i panele ---------------- */
-const KEYS = [['W A S D', 'ruch trąby'], ['Strzałki', 'przesuwanie kamery'], ['Mysz', 'celowanie'], ['Lewy przycisk', 'rzut najcięższą rzeczą'], ['Prawy przycisk', 'podpalenie w celu'],
+const KEYS = [['W A S D', 'ruch trąby'], ['Strzałki', 'przesuwanie kamery'], ['C', 'kamera z powrotem nad trąbę'], ['Mysz', 'celowanie'], ['Lewy przycisk', 'rzut najcięższą rzeczą'], ['Prawy przycisk', 'podpalenie w celu'],
   ['Prawy (przeciągnij), Q / E', 'obrót kamery'], ['Kółko', 'odległość kamery'], ['P', 'pauza'], ['R', 'nowa gra'], ['H', 'chowa okna']];
 $('keys').replaceChildren(...KEYS.flatMap(([a, b]) => [el('span', { textContent: a }), el('b', { textContent: b })]));
 $('weather').replaceChildren(...Object.entries(WEATHER).map(([k, w]) => el('option', { value: k, textContent: w.label || k })));
@@ -248,6 +248,7 @@ function frame(now) {
   if (keys.has('ArrowLeft')) { pan.x += fz * ps; pan.z -= fx * ps; }
   if (keys.has('ArrowRight')) { pan.x -= fz * ps; pan.z += fx * ps; }
   if (pan.length() > 400) pan.setLength(400);
+  if (keys.has('KeyC')) pan.set(0, 0, 0);   // C — kamera z powrotem nad trąbę
   const L = Math.hypot(mx, mz) || 1; move[0] = mx / L; move[1] = mz / L;
   if (dt > 0) {
     playT += dt;

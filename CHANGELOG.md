@@ -1,5 +1,8 @@
 # Zmiany
 
+## 0.4.1 — 2026-11-24
+- C — kamera przesunięta strzałkami wraca nad trąbę.
+
 ## 0.4.0 — 2026-11-24
 - Pożary. Wygląd: FireKit z laboratorium efektów GameLaboratory (`js/render/effects/fire/firekit.js`, kopia) — płomienie
   w barwach temperatury, dym i iskry według paliwa, światło ognia. Rozprzestrzenianie: DestructKit

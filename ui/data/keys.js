@@ -7,6 +7,7 @@ export const PAGES = {
     { title: ['Tornado', 'Trąba'], keys: [
       ['W / A / S / D', 'Move the tornado', 'Ruch trąby'],
       [['Arrows', 'Strzałki'], 'Move the camera', 'Przesuwanie kamery'],
+      ['C', 'Camera back over the tornado', 'Kamera z powrotem nad trąbę'],
       [['Mouse', 'Mysz'], 'Aim (the ring on the ground)', 'Celowanie (pierścień na ziemi)'],
       [['Left click', 'Lewy przycisk'], 'Throw the heaviest carried object at the aim', 'Rzut najcięższym niesionym przedmiotem w cel'],
       [['Right click', 'Prawy przycisk'], 'Set fire at the aim (only what burns: wood, tar felt, grass, paper, tyres, trees)', 'Podpalenie w celu (tylko to, co palne: drewno, papa, trawa, papier, opony, drzewa)'],
