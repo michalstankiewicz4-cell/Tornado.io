@@ -4,7 +4,7 @@
 import * as THREE from '../../../vendor/three/three.module.js';
 import { createStage, WEATHER } from '../../core/stage.js';
 import { groundDisc } from '../../world/ground.js';
-import { PROFILES, SURFACES, buildStreet, buildCrossing, buildTrafficLight, signalAt, SIGNAL_STATES, SIGNAL_TIMES, buildLamp, LAMPS, buildSign, SIGNS, alongStreet } from '../../models/streets/streetkit.js';
+import { PROFILES, SURFACES, buildStreet, buildCrossing, buildTrafficLight, signalAt, SIGNAL_STATES, SIGNAL_TIMES, buildLamp, LAMPS, buildSign, SIGNS, alongStreet, buildViaduct, VIADUCT_PROFILE } from '../../models/streets/streetkit.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...kids) => { const e = document.createElement(tag); Object.assign(e, props); kids.forEach((k) => e.append(k)); return e; };
@@ -21,6 +21,12 @@ const SCENES = {
   village: { label: 'Droga wiejska', profile: 'village', note: 'Stary asfalt bez oznakowania i krawężników, pobocza z kruszywa, rów z trawą.', line: [[-45, 10], [-20, 4], [0, 8], [20, -2], [45, -8]] },
   path: { label: 'Ścieżka', profile: 'path', note: 'Ścieżka z kruszywa z obrzeżem, kręta, przez trawnik.', line: [[-30, -10], [-15, 6], [0, -2], [12, 12], [28, 4]] },
   signal: { label: 'Sygnalizator', profile: 'city', note: 'Sygnalizator dla pojazdów: komora z soczewkami 300 mm (czerwone, żółte, zielone), daszki, tarcza z białą obwódką; na słupie przy chodniku i na wysięgniku nad jezdnią. Cykl jak w Polsce, nocą żółte migające.', line: [[-20, 0], [20, 0]], signals: true },
+  viaduct: { label: 'Wiadukt prosty', profile: 'city', note: 'Prosty wiadukt drogowy nad ulicą: wjazdy po nasypach ze skarpami, przyczółki, w środku pomost na filarach z oczepem (bez filarów na jezdni pod spodem), bariery betonowe z poręczą, prześwit ok. 6,5 m.',
+    viaduct: [[-95, 0, 0.3], [-65, 0, 2.6], [-38, 0, 6.4], [-16, 0, 7.7], [0, 0, 7.9], [16, 0, 7.7], [38, 0, 6.4], [65, 0, 2.6], [95, 0, 0.3]], under: [[0, -60], [0, 60]], lanes: 2 },
+  viaductCurve: { label: 'Wiadukt na łuku (estakada)', profile: 'city', note: 'Estakada skręcająca po łuku na wysokości ok. 9 m, na filarach co 24 m; wjazdy po nasypach na obu końcach.',
+    viaduct: [[-95, -35, 0.3], [-62, -32, 4.2], [-32, -20, 8.4], [-8, 2, 9.2], [10, 28, 9.4], [34, 46, 8.8], [64, 52, 4.4], [96, 50, 0.3]], lanes: 2 },
+  viaductRamp: { label: 'Łącznica (zjazd po pętli)', profile: 'city', note: 'Skręcająca łącznica: jeden szeroki pas zjeżdża pętlą o promieniu 34 m z wysokości 8 m na ziemię, na filarach, a nisko — po nasypie.',
+    viaduct: Array.from({ length: 11 }, (_, k) => { const a = k * Math.PI * 1.6 / 10 - 0.6; return [Math.cos(a) * 34, Math.sin(a) * 34, 8.4 * (1 - k / 10) + 0.3]; }), lanes: 1 },
   furniture: { label: 'Latarnie i znaki', profile: 'city', note: 'Cztery rodzaje latarni (współczesna LED, podwójna, parkowa stylizowana, stara betonowa z sodówką) i polskie znaki drogowe: ostrzegawcze, zakazu, nakazu, informacyjne. Po zmroku latarnie się zapalają.', line: [[-40, 0], [40, 0]], furniture: true },
   cycle: { label: 'Droga dla rowerów', profile: 'cycle', note: 'Czerwona kostka z osią przerywaną, niski krawężnik, chodnik z szarej kostki obok.', line: [[-35, 6], [-5, -4], [35, 2]] },
 };
@@ -48,7 +54,14 @@ let built = { tris: 0, ms: 0 }, lights = [], lamps = [];
 function rebuild() {
   holder.traverse((o) => { if (o.isMesh) o.geometry.dispose(); }); holder.clear();
   const t0 = performance.now(), sc = SCENES[S.scene], P = profile();
-  const r = sc.crossing ? buildCrossing(P, { arms: sc.crossing, arm: 32, corner: S.corner }) : buildStreet(sc.line, P);
+  let r;
+  if (sc.viaduct) {
+    // pomost: przekrój wiaduktu z suwakami szerokości pasa i nawierzchni; jedna łącznica — jeden szeroki pas
+    const V = { ...VIADUCT_PROFILE, laneW: sc.lanes === 1 ? Math.max(4.5, S.laneW) : S.laneW, lanes: sc.lanes, road: S.road, marks: S.marks ? (sc.lanes === 1 ? { edge: true } : VIADUCT_PROFILE.marks) : null };
+    const underHalf = sc.under ? P.lanes * P.laneW / 2 + P.strips.reduce((a, x) => a + x.w, 0) + 1 : 0;
+    r = buildViaduct(sc.viaduct, V, { avoid: sc.under ? (x) => Math.abs(x) < underHalf : null });
+    if (sc.under) holder.add(buildStreet(sc.under, P).group);
+  } else r = sc.crossing ? buildCrossing(P, { arms: sc.crossing, arm: 32, corner: S.corner }) : buildStreet(sc.line, P);
   holder.add(r.group); holder.position.y = 0.02;
   // sygnalizatory: skrzyżowanie — na każdym wlocie po prawej stronie wjeżdżających (fazy A/B na przemian),
   // próbka „Sygnalizator” — na słupie przy chodniku i na wysięgniku nad jezdnią
@@ -74,6 +87,7 @@ function rebuild() {
     Object.keys(SIGNS).forEach((id, i) => putSign(id, -33 + i * 5.2, edge + 1.8, 0));
   } else if (S.lamps) {
     if (sc.line) for (const sd of [1, -1]) for (const q of alongStreet(sc.line, S.lampEvery, sd * edge, sd > 0 ? S.lampEvery / 2 : S.lampEvery)) putLamp(S.lampType, q.x, q.z, q.rot);
+    if (sc.under) for (const sd of [1, -1]) for (const q of alongStreet(sc.under, S.lampEvery, sd * edge, sd > 0 ? S.lampEvery / 2 : S.lampEvery)) if (Math.abs(q.z) > 14) putLamp(S.lampType, q.x, q.z, q.rot);
     if (sc.crossing) {
       const R0 = half + S.corner, ALL = [[1, 0], [0, 1], [-1, 0], [0, -1]];
       for (let i = 0; i < sc.crossing; i++) { const [dx, dz] = ALL[i]; for (const q of alongStreet([[dx * R0, dz * R0], [dx * (R0 + 32), dz * (R0 + 32)]], S.lampEvery, edge, 8)) putLamp(S.lampType, q.x, q.z, q.rot); }
@@ -144,6 +158,7 @@ const orbit = { target: new THREE.Vector3(0, 0, 0), dist: 45, yaw: 0.7, pitch: 0
 const CAMS = { Orbita: { yaw: 0.7, pitch: 0.45, dist: 45 }, Pieszy: { yaw: 0.25, pitch: 0.03, dist: 9 }, 'Z góry': { yaw: 0, pitch: 1.45, dist: 70 }, Kierowca: { yaw: Math.PI / 2, pitch: 0.06, dist: 16 } };
 $('cams').replaceChildren(...Object.entries(CAMS).map(([k, v]) => { const b = el('button', { type: 'button', textContent: k }); b.onclick = () => Object.assign(orbit, v); return b; }));
 function frame0() {
+  if (SCENES[S.scene].viaduct) { Object.assign(orbit, { dist: 120, yaw: 0.65, pitch: 0.3 }); orbit.target.set(0, 3, 5); return; }
   if (SCENES[S.scene].furniture) { Object.assign(orbit, { dist: 26, yaw: 0.25, pitch: 0.12 }); orbit.target.set(-12, 2.5, 3); return; }
   if (SCENES[S.scene].signals) { Object.assign(orbit, { dist: 13, yaw: -1.25, pitch: 0.12 }); orbit.target.set(0, 2.2, 0); return; }
   orbit.dist = SCENES[S.scene].crossing ? 60 : 50; orbit.target.set(0, 0, 0);

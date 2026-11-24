@@ -52,10 +52,19 @@ z pierwszeństwem, D-6 przejście dla pieszych, D-18 parking.
 
 `alongStreet(points, every, offset)` — miejsca co `every` m wzdłuż trasy, odsunięte od osi, z obrotem przodem do osi.
 
+## Wiadukty
+
+Trasa może mieć wysokość: punkty `[x, z, y]`. `buildViaduct(points3, profile, { pierEvery, deck, fillBelow, avoid })` —
+pomost z przekrojem `VIADUCT_PROFILE` (dwa pasy 3,5 m, krawężnik, wąski chodnik), płyta pomostu 1,3 m (spód i boki
+z betonu), bariery betonowe z poręczą stalową, a pod spodem: nasyp ze skarpami 1 : 1,5 (darń) tam, gdzie pomost jest
+niżej niż `fillBelow` (5 m), ściany przyczółków na przejściu i filary z oczepem (dwa słupy Ø 1,2 m) co `pierEvery` m
+wyżej; `avoid(x, z)` — gdzie nie stawiać filarów (jezdnia pod wiaduktem).
+
 ## Próbki
 
 Prosta ulica, łuk, skrzyżowanie (4 wloty, sygnalizatory na wlotach), skrzyżowanie T, aleja, droga wiejska, ścieżka,
-sygnalizator (na słupie i na wysięgniku), latarnie i znaki (wszystkie rodzaje), droga dla rowerów. Okno Sygnalizacja:
+wiadukt prosty (nad ulicą), wiadukt na łuku (estakada), łącznica (zjazd po pętli), sygnalizator (na słupie i na
+wysięgniku), latarnie i znaki (wszystkie rodzaje), droga dla rowerów. Okno Sygnalizacja:
 cykl albo stały stan. Okno Wyposażenie: latarnie wzdłuż ulic (rodzaj, co ile, kiedy świecą — po zmroku, zawsze, nigdy),
 znaki na skrzyżowaniach (D-6 przy przejściach, A-7 na bocznym wlocie skrzyżowania T). Okno
 Przekrój: pasy, szerokość pasa, nawierzchnia jezdni, oznakowanie, szerokość i nawierzchnia chodnika, wysokość

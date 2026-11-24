@@ -1,5 +1,9 @@
 # Zmiany
 
+## 0.8.0 — 2026-11-24
+- Laboratorium ulic 0.4.0: wiadukty — prosty nad ulicą, na łuku (estakada) i łącznica zjeżdżająca pętlą; trasy
+  z wysokością w StreetKit, pomost z barierami i poręczą, nasypy ze skarpami, przyczółki, filary z oczepem.
+
 ## 0.7.0 — 2026-11-24
 - Laboratorium ulic 0.3.0: latarnie (współczesna LED, podwójna, parkowa stylizowana, stara betonowa z sodówką) —
   po zmroku świecą i oświetlają ulicę; polskie znaki drogowe (A-7, A-16, A-17, B-1, B-2, B-20, B-33, B-36, C-12, C-13,
