@@ -4,7 +4,7 @@
 import * as THREE from '../../../vendor/three/three.module.js';
 import { createStage, WEATHER } from '../../core/stage.js';
 import { groundDisc } from '../../world/ground.js';
-import { PROFILES, SURFACES, buildStreet, buildCrossing, buildTrafficLight, signalAt, SIGNAL_STATES, SIGNAL_TIMES, buildLamp, LAMPS, buildSign, SIGNS, alongStreet, buildViaduct, VIADUCT_PROFILE } from '../../models/streets/streetkit.js';
+import { PROFILES, SURFACES, buildStreet, buildCrossing, buildTrafficLight, signalAt, SIGNAL_STATES, SIGNAL_TIMES, buildLamp, LAMPS, buildSign, SIGNS, alongStreet, buildViaduct, VIADUCT_PROFILE, BOLLARDS, buildBollards, RAILS, buildRail, NOISE, buildNoiseWall } from '../../models/streets/streetkit.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...kids) => { const e = document.createElement(tag); Object.assign(e, props); kids.forEach((k) => e.append(k)); return e; };
@@ -28,9 +28,10 @@ const SCENES = {
   viaductRamp: { label: 'Łącznica (zjazd po pętli)', profile: 'city', note: 'Skręcająca łącznica: jeden szeroki pas zjeżdża pętlą o promieniu 34 m z wysokości 8 m na ziemię, na filarach, a nisko — po nasypie.',
     viaduct: Array.from({ length: 11 }, (_, k) => { const a = k * Math.PI * 1.6 / 10 - 0.6; return [Math.cos(a) * 34, Math.sin(a) * 34, 8.4 * (1 - k / 10) + 0.3]; }), lanes: 1 },
   furniture: { label: 'Latarnie i znaki', profile: 'city', note: 'Cztery rodzaje latarni (współczesna LED, podwójna, parkowa stylizowana, stara betonowa z sodówką) i polskie znaki drogowe: ostrzegawcze, zakazu, nakazu, informacyjne. Po zmroku latarnie się zapalają.', line: [[-40, 0], [40, 0]], furniture: true },
+  barriers: { label: 'Słupki, barierki, ekrany', profile: 'city', note: 'Słupki: stalowy blokujący z pasami odblaskowymi, żeliwny grafitowy, betonowy walec, prowadzący U-1a. Barierki: ochronna U-12a (czerwono-biała), miejska grafitowa, bariera energochłonna stalowa. Za zieleńcem ekrany dźwiękochłonne: kasety pochłaniające, przezroczysty z pasami przeciw ptakom, kasety z przeszkleniem u góry.', line: [[-45, 0], [45, 0]], barriers: true },
   cycle: { label: 'Droga dla rowerów', profile: 'cycle', note: 'Czerwona kostka z osią przerywaną, niski krawężnik, chodnik z szarej kostki obok.', line: [[-35, 6], [-5, -4], [35, 2]] },
 };
-const S = { lamps: true, lampType: 'modern', lampEvery: 30, signs: true, lampsOn: 'auto', signal: 'cycle', scene: 'straight', profile: 'city', lanes: 2, laneW: 3.25, road: 'asphalt', marks: true, walkW: 2.5, curbH: 0.14, walk: 'slabs', corner: 6, weather: 'fair', sunEl: 32, sunAz: 215, ...(saved || {}) };
+const S = { bollards: false, bollardType: 'steel', rails: false, railType: 'u12a', noise: false, noiseType: 'metal', noiseH: 4, lamps: true, lampType: 'modern', lampEvery: 30, signs: true, lampsOn: 'auto', signal: 'cycle', scene: 'straight', profile: 'city', lanes: 2, laneW: 3.25, road: 'asphalt', marks: true, walkW: 2.5, curbH: 0.14, walk: 'slabs', corner: 6, weather: 'fair', sunEl: 32, sunAz: 215, ...(saved || {}) };
 if (!SCENES[S.scene]) S.scene = 'straight'; if (!PROFILES[S.profile]) S.profile = 'city';
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* prywatny tryb */ } };
 
@@ -85,12 +86,28 @@ function rebuild() {
     const types = Object.keys(LAMPS);
     types.forEach((t, i) => { const x = -30 + i * 20; putLamp(t, x, edge, Math.PI); putLamp(t, x + 10, -edge, 0); });
     Object.keys(SIGNS).forEach((id, i) => putSign(id, -33 + i * 5.2, edge + 1.8, 0));
-  } else if (S.lamps) {
+  } else if (S.lamps && !sc.barriers) {
     if (sc.line) for (const sd of [1, -1]) for (const q of alongStreet(sc.line, S.lampEvery, sd * edge, sd > 0 ? S.lampEvery / 2 : S.lampEvery)) putLamp(S.lampType, q.x, q.z, q.rot);
     if (sc.under) for (const sd of [1, -1]) for (const q of alongStreet(sc.under, S.lampEvery, sd * edge, sd > 0 ? S.lampEvery / 2 : S.lampEvery)) if (Math.abs(q.z) > 14) putLamp(S.lampType, q.x, q.z, q.rot);
     if (sc.crossing) {
       const R0 = half + S.corner, ALL = [[1, 0], [0, 1], [-1, 0], [0, -1]];
       for (let i = 0; i < sc.crossing; i++) { const [dx, dz] = ALL[i]; for (const q of alongStreet([[dx * R0, dz * R0], [dx * (R0 + 32), dz * (R0 + 32)]], S.lampEvery, edge, 8)) putLamp(S.lampType, q.x, q.z, q.rot); }
+    }
+  }
+  // słupki, barierki, ekrany: przy krawężniku (albo poboczu) i za ostatnim pasem przekroju
+  const s0 = P.strips[0], kerb = half + (s0 && (s0.k === 'curb' || s0.k === 'shoulder') ? s0.w : 0), walkY = s0 ? Math.max(0, s0.h) : 0, outer = half + walk + 0.6;
+  const seg = (x0, x1) => [[x0, 0], [x1, 0]];
+  if (sc.barriers) {
+    [['steel', -45, -31], ['warsaw', -29, -17], ['concrete', -15, -3]].forEach(([t, a, b]) => holder.add(buildBollards(seg(a, b), t, { offset: kerb + 0.45, y: walkY }).group));
+    holder.add(buildBollards(seg(33, 45), 'delineator', { offset: kerb + 0.3, y: walkY, every: 3 }).group);
+    [['u12a', 1, 15], ['city', 17, 31]].forEach(([t, a, b]) => holder.add(buildRail(seg(a, b), t, { offset: kerb + 0.3, y: walkY }).group));
+    holder.add(buildRail(seg(-45, -5), 'guardrail', { offset: -(kerb + 0.35), y: walkY }).group);
+    [['metal', -45, -16], ['glass', -14, 14], ['mixed', 16, 45]].forEach(([t, a, b]) => holder.add(buildNoiseWall(seg(a, b), t, { offset: -outer, height: S.noiseH }).group));
+  } else if (sc.line) {
+    for (const sd of [1, -1]) {
+      if (S.rails) holder.add(buildRail(sc.line, S.railType, { offset: sd * (kerb + 0.3), y: walkY }).group);
+      if (S.bollards) holder.add(buildBollards(sc.line, S.bollardType, { offset: sd * (kerb + (S.rails ? 0.75 : 0.45)), y: walkY }).group);
+      if (S.noise) holder.add(buildNoiseWall(sc.line, S.noiseType, { offset: sd * outer, height: S.noiseH }).group);
     }
   }
   if (S.signs && sc.crossing) {
@@ -145,6 +162,13 @@ $('lampsOn').value = S.lampsOn; $('lampsOn').onchange = () => { S.lampsOn = $('l
 for (const k of ['lamps', 'signs']) { $(k).checked = S[k]; $(k).onchange = () => { S[k] = $(k).checked; rebuild(); }; }
 $('lampEvery').value = S.lampEvery; $('lampEveryV').textContent = S.lampEvery + ' m';
 $('lampEvery').oninput = () => { S.lampEvery = +$('lampEvery').value; $('lampEveryV').textContent = S.lampEvery + ' m'; }; $('lampEvery').onchange = () => rebuild();
+$('bollardType').replaceChildren(...Object.entries(BOLLARDS).map(([k, v]) => el('option', { value: k, textContent: v.label })));
+$('railType').replaceChildren(...Object.entries(RAILS).map(([k, v]) => el('option', { value: k, textContent: v.label })));
+$('noiseType').replaceChildren(...Object.entries(NOISE).map(([k, v]) => el('option', { value: k, textContent: v.label })));
+for (const k of ['bollardType', 'railType', 'noiseType']) { $(k).value = S[k]; $(k).onchange = () => { S[k] = $(k).value; rebuild(); }; }
+for (const k of ['bollards', 'rails', 'noise']) { $(k).checked = S[k]; $(k).onchange = () => { S[k] = $(k).checked; rebuild(); }; }
+$('noiseH').value = S.noiseH; $('noiseHV').textContent = S.noiseH.toFixed(1) + ' m';
+$('noiseH').oninput = () => { S.noiseH = +$('noiseH').value; $('noiseHV').textContent = S.noiseH.toFixed(1) + ' m'; }; $('noiseH').onchange = () => rebuild();
 $('signal').replaceChildren(el('option', { value: 'cycle', textContent: 'Cykl (dwie fazy)' }), ...Object.entries(SIGNAL_STATES).map(([k, v]) => el('option', { value: k, textContent: v })));
 $('signal').value = S.signal; $('signal').onchange = () => { S.signal = $('signal').value; save(); };
 $('weather').replaceChildren(...Object.entries(WEATHER).map(([k, w]) => el('option', { value: k, textContent: w.label || k })));
@@ -159,6 +183,7 @@ const CAMS = { Orbita: { yaw: 0.7, pitch: 0.45, dist: 45 }, Pieszy: { yaw: 0.25,
 $('cams').replaceChildren(...Object.entries(CAMS).map(([k, v]) => { const b = el('button', { type: 'button', textContent: k }); b.onclick = () => Object.assign(orbit, v); return b; }));
 function frame0() {
   if (SCENES[S.scene].viaduct) { Object.assign(orbit, { dist: 120, yaw: 0.65, pitch: 0.3 }); orbit.target.set(0, 3, 5); return; }
+  if (SCENES[S.scene].barriers) { Object.assign(orbit, { dist: 34, yaw: 0.35, pitch: 0.16 }); orbit.target.set(0, 1.5, 0); return; }
   if (SCENES[S.scene].furniture) { Object.assign(orbit, { dist: 26, yaw: 0.25, pitch: 0.12 }); orbit.target.set(-12, 2.5, 3); return; }
   if (SCENES[S.scene].signals) { Object.assign(orbit, { dist: 13, yaw: -1.25, pitch: 0.12 }); orbit.target.set(0, 2.2, 0); return; }
   orbit.dist = SCENES[S.scene].crossing ? 60 : 50; orbit.target.set(0, 0, 0);

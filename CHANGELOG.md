@@ -1,5 +1,10 @@
 # Zmiany
 
+## 0.9.0 — 2026-11-24
+- Laboratorium ulic 0.5.0: słupki (stalowe, żeliwne, betonowe, prowadzące U-1a), barierki (U-12a, miejska
+  grafitowa, bariera energochłonna) i ekrany dźwiękochłonne (kasety, przezroczyste, mieszane) — próbka i opcje
+  w oknie Wyposażenie.
+
 ## 0.8.0 — 2026-11-24
 - Laboratorium ulic 0.4.0: wiadukty — prosty nad ulicą, na łuku (estakada) i łącznica zjeżdżająca pętlą; trasy
   z wysokością w StreetKit, pomost z barierami i poręczą, nasypy ze skarpami, przyczółki, filary z oczepem.

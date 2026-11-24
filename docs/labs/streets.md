@@ -52,6 +52,17 @@ z pierwszeństwem, D-6 przejście dla pieszych, D-18 parking.
 
 `alongStreet(points, every, offset)` — miejsca co `every` m wzdłuż trasy, odsunięte od osi, z obrotem przodem do osi.
 
+## Słupki, barierki, ekrany dźwiękochłonne
+
+Wzdłuż linii trasy, przy odsunięciu od osi: `buildBollards(points, type, { offset, every, y })` — `BOLLARDS`: stalowy
+blokujący (Ø 114 mm, 1 m, pasy odblaskowe), żeliwny grafitowy, betonowy walec (Ø 0,6 m), prowadzący U-1a;
+`buildRail(points, type, { offset, y })` — `RAILS`: ochronna U-12a (czerwono-biała, 1,1 m), miejska grafitowa
+z prętami, bariera energochłonna (prowadnica falista na słupkach co 2 m, od strony jezdni);
+`buildNoiseWall(points, type, { offset, height, y })` — `NOISE`: kasety pochłaniające, przezroczysty PMMA z pasami
+przeciw ptakom, kasety z przeszkleniem u góry; cokół betonowy 0,5 m, słupy HEB 200 co 4 m. Słupki i słupy to
+`InstancedMesh`. W oknie Wyposażenie: słupki i barierka przy krawężniku, ekrany za ostatnim pasem przekroju (rodzaj,
+wysokość 2–6 m) — na próbkach z jedną linią trasy.
+
 ## Wiadukty
 
 Trasa może mieć wysokość: punkty `[x, z, y]`. `buildViaduct(points3, profile, { pierEvery, deck, fillBelow, avoid })` —
@@ -63,7 +74,7 @@ wyżej; `avoid(x, z)` — gdzie nie stawiać filarów (jezdnia pod wiaduktem).
 ## Próbki
 
 Prosta ulica, łuk, skrzyżowanie (4 wloty, sygnalizatory na wlotach), skrzyżowanie T, aleja, droga wiejska, ścieżka,
-wiadukt prosty (nad ulicą), wiadukt na łuku (estakada), łącznica (zjazd po pętli), sygnalizator (na słupie i na
+słupki, barierki i ekrany, wiadukt prosty (nad ulicą), wiadukt na łuku (estakada), łącznica (zjazd po pętli), sygnalizator (na słupie i na
 wysięgniku), latarnie i znaki (wszystkie rodzaje), droga dla rowerów. Okno Sygnalizacja:
 cykl albo stały stan. Okno Wyposażenie: latarnie wzdłuż ulic (rodzaj, co ile, kiedy świecą — po zmroku, zawsze, nigdy),
 znaki na skrzyżowaniach (D-6 przy przejściach, A-7 na bocznym wlocie skrzyżowania T). Okno
