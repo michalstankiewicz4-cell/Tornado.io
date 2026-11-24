@@ -1,5 +1,8 @@
 # Zmiany
 
+## 0.13.0 — 2026-11-24
+- Laboratorium ulic 0.9.0: kładka dla pieszych nad ulicą — ze schodami oraz ze schodami i windą (przeszklone szyby).
+
 ## 0.12.0 — 2026-11-24
 - Laboratorium ulic 0.8.0: tunele przez górę — łukowy (dwa pasy) i prostokątny dwukierunkowy 2 × 2 pasy ze słupami
   pośrodku; portale z ścianą czołową, okładziny, oświetlenie, dojazdy w przekopie.

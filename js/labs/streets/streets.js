@@ -4,7 +4,7 @@
 import * as THREE from '../../../vendor/three/three.module.js';
 import { createStage, WEATHER } from '../../core/stage.js';
 import { groundDisc } from '../../world/ground.js';
-import { PROFILES, SURFACES, surface, buildStreet, buildCrossing, buildTrafficLight, signalAt, SIGNAL_STATES, SIGNAL_TIMES, buildLamp, LAMPS, buildSign, SIGNS, alongStreet, buildViaduct, VIADUCT_PROFILE, BOLLARDS, buildBollards, RAILS, buildRail, NOISE, buildNoiseWall, buildMilepost, buildMileposts, PARKING, buildParking, buildTunnel, TUNNEL_PROFILE, TUNNEL_BOX_PROFILE } from '../../models/streets/streetkit.js';
+import { PROFILES, SURFACES, surface, buildStreet, buildCrossing, buildTrafficLight, signalAt, SIGNAL_STATES, SIGNAL_TIMES, buildLamp, LAMPS, buildSign, SIGNS, alongStreet, buildViaduct, VIADUCT_PROFILE, BOLLARDS, buildBollards, RAILS, buildRail, NOISE, buildNoiseWall, buildMilepost, buildMileposts, PARKING, buildParking, buildTunnel, TUNNEL_PROFILE, TUNNEL_BOX_PROFILE, buildFootbridge } from '../../models/streets/streetkit.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...kids) => { const e = document.createElement(tag); Object.assign(e, props); kids.forEach((k) => e.append(k)); return e; };
@@ -29,6 +29,8 @@ const SCENES = {
     viaduct: Array.from({ length: 11 }, (_, k) => { const a = k * Math.PI * 1.6 / 10 - 0.6; return [Math.cos(a) * 34, Math.sin(a) * 34, 8.4 * (1 - k / 10) + 0.3]; }), lanes: 1 },
   tunnel: { label: 'Tunel przez górę', profile: 'city', note: 'Tunel drogowy przez wzgórze: dojazdy w przekopie ze skarpami, portale — betonowe ściany czołowe z otworem, obudowa łukowa (ściany i sklepienie półkoliste), jasne okładziny ścian do 3 m, oprawy pod sklepieniem co 8 m, chodniki służbowe.', tunnel: 'arch' },
   tunnelBox: { label: 'Tunel z podporami (2 × 2 pasy)', profile: 'city', note: 'Tunel dwukierunkowy o przekroju prostokątnym: dwie jezdnie po dwa pasy, pośrodku wysepka z rzędem słupów co 6 m, strop płaski 5,2 m; w portalu dwa otwory rozdzielone filarem.', tunnel: 'box' },
+  footbridge: { label: 'Kładka ze schodami', profile: 'city', note: 'Kładka dla pieszych nad ulicą: pomost stalowy na wysokości 5 m (skrajnia 4,6 m), balustrady szklane z pochwytem, na końcach spoczniki na słupach i schody betonowe w dwóch biegach ze spocznikiem pośrednim (stopnie 15 × 30 cm).', line: [[-40, 0], [40, 0]], footbridge: 'stairs' },
+  footbridgeLift: { label: 'Kładka ze schodami i windą', profile: 'city', note: 'Ta sama kładka, a przy każdym spoczniku winda w przeszklonym szybie ze stalową ramą — wejście z chodnika na dole i ze spocznika na górze.', line: [[-40, 0], [40, 0]], footbridge: 'lift' },
   furniture: { label: 'Latarnie i znaki', profile: 'city', note: 'Cztery rodzaje latarni (współczesna LED, podwójna, parkowa stylizowana, stara betonowa z sodówką) i polskie znaki drogowe: ostrzegawcze, zakazu, nakazu, informacyjne. Po zmroku latarnie się zapalają.', line: [[-40, 0], [40, 0]], furniture: true },
   barriers: { label: 'Słupki, barierki, ekrany', profile: 'city', note: 'Słupki: stalowy blokujący z pasami odblaskowymi, żeliwny grafitowy, żeliwne połączone łańcuchem, betonowy walec, prowadzący U-1a; pikietaż — słupki hektometrowe 1–9 i kilometrowy z czerwoną głowicą. Barierki: ochronna U-12a (czerwono-biała), miejska grafitowa, bariera energochłonna stalowa. Za zieleńcem ekrany dźwiękochłonne: kasety pochłaniające, przezroczysty z pasami przeciw ptakom, kasety z przeszkleniem u góry.', line: [[-45, 0], [45, 0]], barriers: true },
   parking: { label: 'Miejsca parkingowe', profile: 'city', note: 'Pas postojowy przy jezdni: miejsca równoległe (2,5 × 6 m), skośne 60° i prostopadłe (2,5 × 5 m), wyznaczone liniami P-18. Na początku każdego pasa miejsca dla osób z niepełnosprawnością (3,6 m): niebieska powierzchnia z symbolem P-24, znak D-18 z tabliczką T-29. Rodzaj miejsc — w oknie Wyposażenie.', line: [[-40, 0], [40, 0]], parking: true },
@@ -133,6 +135,8 @@ function rebuild() {
       if (S.mileposts) holder.add(buildMileposts(sc.line, { offset: sd * (kerb + (S.rails ? 1.1 : 0.6)), y: walkY, start: 12 * 1000 + 950, every: 100 }).group);
     }
   }
+  // kładka nad ulicą (środek nad osią, schody poza chodnikiem)
+  if (sc.footbridge) { const fb = buildFootbridge({ span: 2 * (half + walk) + 1, lift: sc.footbridge === 'lift' }); holder.add(fb.group); }
   // miejsca parkingowe: oznakowanie pasa postojowego, przy miejscach dla niepełnosprawnych znak D-18 z T-29
   if (park && sc.line) {
     for (const sd of [1, -1]) {
@@ -238,6 +242,7 @@ const CAMS = { Orbita: { yaw: 0.7, pitch: 0.45, dist: 45 }, Pieszy: { yaw: 0.25,
 $('cams').replaceChildren(...Object.entries(CAMS).map(([k, v]) => { const b = el('button', { type: 'button', textContent: k }); b.onclick = () => Object.assign(orbit, v); return b; }));
 function frame0() {
   if (SCENES[S.scene].viaduct) { Object.assign(orbit, { dist: 120, yaw: 0.65, pitch: 0.3 }); orbit.target.set(0, 3, 5); return; }
+  if (SCENES[S.scene].footbridge) { Object.assign(orbit, { dist: 34, yaw: 0.75, pitch: 0.22 }); orbit.target.set(2, 3, 0); return; }
   if (SCENES[S.scene].tunnel) { Object.assign(orbit, { dist: 70, yaw: 1.05, pitch: 0.28 }); orbit.target.set(30, 6, 0); return; }
   if (SCENES[S.scene].parking) { Object.assign(orbit, { dist: 30, yaw: 0.45, pitch: 0.42 }); orbit.target.set(-24, 0.5, 0); return; }
   if (SCENES[S.scene].barriers) { Object.assign(orbit, { dist: 34, yaw: 0.35, pitch: 0.16 }); orbit.target.set(0, 1.5, 0); return; }

@@ -89,6 +89,14 @@ słupów co 6 m, oprawy nad każdą jezdnią. Oba: jasne okładziny ścian do 3 
 `half`, `top` i `arch` (przekrój) do wycięcia terenu. W próbce wzgórze z grzbietem w poprzek drogi: portale tam,
 gdzie nad stropem są ≥ 2 m gruntu, dojazdy w przekopie ze skarpami.
 
+## Kładki dla pieszych
+
+`buildFootbridge({ span, height, width, lift })` — pomost stalowy (dźwigary skrzynkowe, płyta) na wysokości 5 m
+(skrajnia 4,6 m), szerokość 3 m, balustrady szklane 1,1 m z pochwytem; na końcach spoczniki na czterech słupach, z nich
+schody betonowe w stronę +x (dwa biegi, spocznik pośredni, stopnie 15 × 30 cm, pochwyty). `lift: true` — przy każdym
+spoczniku winda w przeszklonym szybie ze stalową ramą, kabina, drzwi na dole i przy spoczniku. Lokalnie pomost biegnie
+wzdłuż z (w poprzek ulicy wzdłuż x).
+
 ## Wiadukty
 
 Trasa może mieć wysokość: punkty `[x, z, y]`. `buildViaduct(points3, profile, { pierEvery, deck, fillBelow, avoid })` —
@@ -100,7 +108,7 @@ wyżej; `avoid(x, z)` — gdzie nie stawiać filarów (jezdnia pod wiaduktem).
 ## Próbki
 
 Prosta ulica, łuk, skrzyżowanie (4 wloty, sygnalizatory na wlotach), skrzyżowanie T, aleja, droga wiejska, ścieżka,
-słupki, barierki i ekrany, miejsca parkingowe, tunel przez górę (łukowy i z podporami), wiadukt prosty (nad ulicą), wiadukt na łuku (estakada), łącznica (zjazd po pętli), sygnalizator (na słupie i na
+słupki, barierki i ekrany, miejsca parkingowe, tunel przez górę (łukowy i z podporami), kładka ze schodami i ze schodami i windą, wiadukt prosty (nad ulicą), wiadukt na łuku (estakada), łącznica (zjazd po pętli), sygnalizator (na słupie i na
 wysięgniku), latarnie i znaki (wszystkie rodzaje), droga dla rowerów. Okno Sygnalizacja:
 cykl albo stały stan. Okno Wyposażenie: latarnie wzdłuż ulic (rodzaj, co ile, kiedy świecą — po zmroku, zawsze, nigdy),
 znaki na skrzyżowaniach (D-6 przy przejściach, A-7 na bocznym wlocie skrzyżowania T). Okno
