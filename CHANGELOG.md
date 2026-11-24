@@ -1,5 +1,10 @@
 # Zmiany
 
+## 0.5.0 — 2026-11-24
+- Laboratorium ulic 0.1.0 (`labs/streets.html`) i StreetKit (`js/models/streets/streetkit.js`): trasy z przekroju po
+  linii — ulica miejska, aleja z dwiema jezdniami, droga wiejska, ścieżka, droga dla rowerów; łuki, skrzyżowania
+  (4 i 3 wloty) z łukami krawężników, przejściami dla pieszych i liniami zatrzymania; nawierzchnie z MatKit.
+
 ## 0.4.1 — 2026-11-24
 - C — kamera przesunięta strzałkami wraca nad trąbę.
 

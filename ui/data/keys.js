@@ -18,6 +18,7 @@ export const PAGES = {
       H,
     ] },
   ],
+  'labs/streets.html': [{ title: ['Streets lab', 'Laboratorium ulic'], keys: [[['Drag', 'Przeciągnij'], 'Orbit the camera', 'Obrót kamery'], H] }],
   'labs/destruction.html': [
     { title: ['Destruction lab', 'Laboratorium zniszczeń'], keys: [
       [['Left click', 'Lewy przycisk'], 'Use the tool (hit, throw, tornado) at the point', 'Użyj narzędzia (uderzenie, rzut, trąba) w punkcie'],

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<title>Laboratorium ulic — jezdnie, chodniki, skrzyżowania | Tornado.io</title>
+<meta name="description" content="Tornado.io: laboratorium ulic — ulica miejska, aleja z dwiema jezdniami, droga wiejska, ścieżka, droga dla rowerów; łuki, skrzyżowania z przejściami dla pieszych; asfalt, kostka, płyty, krawężniki z MatKit.">
+<link rel="icon" type="image/png" href="../assets/favicon-32.png">
+<link rel="stylesheet" href="../ui/style/sea.css">
+<link rel="stylesheet" href="../ui/ui.css">
+</head>
+<!-- Laboratorium ulic (js/labs/streets/): StreetKit (js/models/streets/streetkit.js). -->
+<body class="lab viewFits">
+<script src="../ui/shell/log.js"></script>
+<script src="../ui/data/versions.js"></script>
+<script src="../ui/data/catalog.js"></script>
+<script src="../ui/shell/menubar.js"></script>
+<script src="../ui/shell/loader.js"></script>
+<div id="view"></div>
+<div class="bar">
+  <select id="scene" aria-label="Próbka" title="Co pokazać"></select>
+  <select id="profile" aria-label="Przekrój" title="Przekrój trasy"></select>
+  <span class="sp"></span>
+  <span class="dimtxt" id="status"></span>
+</div>
+<aside class="panel" data-std="info">
+  <h2 class="stdName" id="sName"></h2>
+  <p class="stdText" id="sNote"></p>
+  <div class="stats" id="sStats"></div>
+</aside>
+<aside class="panel" data-window="section" data-title="Section" data-title-pl="Przekrój">
+  <h3>Jezdnia</h3>
+  <div class="row"><span>Pasy</span><input type="range" id="lanes" min="1" max="4" step="1"><output id="lanesV"></output></div>
+  <div class="row"><span>Szer. pasa</span><input type="range" id="laneW" min="1.5" max="4" step="0.05"><output id="laneWV"></output></div>
+  <div class="row"><span>Nawierzchnia</span><select id="road"></select><output></output></div>
+  <label class="chk"><input type="checkbox" id="marks"> Oznakowanie poziome</label>
+  <h3>Chodnik</h3>
+  <div class="row"><span>Szerokość</span><input type="range" id="walkW" min="0" max="6" step="0.1"><output id="walkWV"></output></div>
+  <div class="row"><span>Krawężnik</span><input type="range" id="curbH" min="0" max="0.25" step="0.01"><output id="curbHV"></output></div>
+  <div class="row"><span>Nawierzchnia</span><select id="walk"></select><output></output></div>
+  <h3>Skrzyżowanie</h3>
+  <div class="row"><span>Łuk krawężnika</span><input type="range" id="corner" min="4" max="15" step="0.5"><output id="cornerV"></output></div>
+  <p class="note">Przekrój to pasy od osi na zewnątrz: jezdnia, krawężnik, chodnik, zieleń (albo pobocze z kruszywa). Nawierzchnie z MatKit, oznakowanie z farby. Wymiary w metrach, jak na polskich ulicach.</p>
+</aside>
+<aside class="panel" data-std="camera">
+  <div class="btns" id="cams"></div>
+  <p class="note">Przeciągnij — obrót, kółko — odległość.</p>
+</aside>
+<aside class="panel" data-std="light">
+  <div class="row"><span>Pogoda</span><select id="weather"></select><output></output></div>
+  <div class="row"><span>Słońce</span><input type="range" id="sunEl" min="-6" max="70" step="1"><output id="sunElV"></output></div>
+  <div class="row"><span>Kierunek</span><input type="range" id="sunAz" min="0" max="360" step="2"><output id="sunAzV"></output></div>
+</aside>
+<aside class="panel" data-std="perf">
+  <div class="stats" id="stats"></div>
+</aside>
+<div class="foot">
+  <span id="fps"></span>
+  <span class="sp"></span>
+  <span>Tornado.io</span>
+</div>
+<script src="../ui/shell/perf.js"></script>
+<script src="../ui/shell/labwin.js"></script>
+<script src="../ui/shell/windows.js"></script>
+<script type="module" src="../js/labs/streets/streets.js"></script>
+</body>
+</html>

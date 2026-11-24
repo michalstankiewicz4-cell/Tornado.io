@@ -18,7 +18,8 @@ zbudowane (szyby, mury, dachówki, stropy). Mechanizm rozpadu (DestructKit) ma p
   RockKit (`js/models/rocks/`), ogień FireKit (`js/render/effects/fire/`), przedmioty JunkKit (`js/models/junkyard/items/`), CityKit z budynkami Warszawy
   z OpenStreetMap (`js/models/city/`, w tym `landmarks/` — Pałac Kultury i wieżowce).
 - Nowe: DestructKit (`js/destruct/`), HouseKit (`js/models/houses/`), scena (`js/core/stage.js`), grunt i przedmioty
-  (`js/world/`), gra (`js/game/`), laboratorium zniszczeń (`labs/destruction.html`, `js/labs/destruction/`).
+  (`js/world/`), gra (`js/game/`), laboratorium zniszczeń (`labs/destruction.html`, `js/labs/destruction/`),
+  ulice StreetKit (`js/models/streets/`) i laboratorium ulic (`labs/streets.html`) — próbki, w grze jeszcze nieużyte.
 
 ## DestructKit — zniszczenie wynikające z budowy modelu
 
