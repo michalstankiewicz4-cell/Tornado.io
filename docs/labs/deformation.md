@@ -15,8 +15,8 @@ Kamera: przeciągnij — obrót, kółko — odległość, W A S D — przesuwan
 
 Przełącznik **Plansza | Kontener** na pasku. Kontener bez dachu (wnętrze 2,2 × 1,3 m, ściany 1,6 m, na dwóch płozach)
 z siedmioma beczkami w dwóch warstwach: dwie stojące, leżąca w poprzek, leżąca wzdłuż, stojąca; na górze leżąca na
-stojących i pochylona — zaczynają nieco wyżej, spadają i układają się same. Jedna prasa na cały kontener zjeżdża do
-8 cm nad dno. Suwak **Ściany** ustawia przezroczystość kontenera (od 0 — niewidoczne ściany).
+stojących i pochylona — zaczynają nieco wyżej, spadają i układają się same. Jedna prasa na cały kontener (szczelina przy
+ścianach 1,5 cm) zjeżdża do 8 cm nad dno. Suwak **Ściany** ustawia przezroczystość kontenera (od 0 — niewidoczne ściany).
 
 Beczki odpychają się cząstkami (DeformKit `others`). Ich siatka fizyczna jest cofnięta o promień styku (2,5 cm), więc
 osadzony model dotyka sąsiada blachą. W kontenerze plastyczność działa też wtedy, gdy prasa naciska przez inne beczki.
@@ -41,7 +41,8 @@ Bez `createShell` model zostaje sztywny i nic nie kosztuje.
   nadmiar odkształcenia ponad granicę przechodzi w nową długość spoczynkową — tylko przy docisku prasą. Utrzymanie
   kształtu (`shape`): cząstki ciągnięte do kształtu spoczynkowego przesuniętego i obróconego jak beczka — bez tego
   powłoka uginała się pod własnym ciężarem; przy docisku odchyłka ponad `yieldShape` (4 mm) zmienia kształt
-  spoczynkowy. Chwyt (`pin`): wybrane cząstki ciągnięte do punktu. Zderzenia z
+  spoczynkowy. Trwała zmiana długości krawędzi najwyżej ±10 % (`stretchLimit`) — dalej blacha tylko się gnie.
+  Cząstka wciśnięta w bryłę wychodzi ścianą, którą weszła. Chwyt (`pin`): wybrane cząstki ciągnięte do punktu. Zderzenia z
   gruntem i prostopadłościanami (`makeBox`) z tarciem. Spoczynek po 0,5 s bez ruchu.
 - `shell.js` — `createShell`, `makeBox`, `embed` (siatki do rysowania osadzone na trójkątach siatki fizycznej:
   współrzędne barycentryczne i odsunięcie wzdłuż normalnej).

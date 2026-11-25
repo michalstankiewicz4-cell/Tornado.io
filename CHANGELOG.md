@@ -1,5 +1,13 @@
 # Zmiany
 
+## 0.20.1 — 2026-11-25
+- DeformKit: blacha nie płynie już jak plastelina — trwałe wydłużenie lub skrócenie krawędzi najwyżej o 10 % długości
+  pierwotnej (`stretchLimit`), dalej blacha tylko się gnie. Cząstka wciśnięta w bryłę wychodzi tą ścianą, którą weszła
+  (wcześniej przy krawędzi prasy uciekała bokiem w szczelinę). Zderzenia z bryłami i gruntem liczone po odpychaniu
+  między beczkami — sąsiad nie wpycha blachy w dno.
+- Laboratorium deformacji 0.3.1: w kontenerze szczelina między prasą a ścianami 1,5 cm (była 5 cm); gęstsze wieka
+  w siatce fizycznej beczek kontenera (co ok. 4 cm) — górna beczka nie przenika przez wieka stojących.
+
 ## 0.20.0 — 2026-11-25
 - Laboratorium deformacji 0.3.0: kamera przesuwana klawiszami W A S D; kliknięcie beczki przykleja ją do kursora
   (punkt chwytu prowadzony po płaszczyźnie pionowej zwróconej do kamery — w górę podnosi), kolejne kliknięcie puszcza.

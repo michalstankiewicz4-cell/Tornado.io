@@ -52,7 +52,7 @@ function simBarrel() {
 // model wychodzi z powrotem na prawdziwy obrys, więc beczki dotykają się blachą)
 const CR = 0.025;
 function simBarrelInset() {
-  const pts = [], rings = 3, rows = 16, r = R_WALL - CR, y0 = LID_Y + CR, lr = LID_R - CR;
+  const pts = [], rings = 6, rows = 16, r = R_WALL - CR, y0 = LID_Y + CR, lr = LID_R - CR;
   for (let k = 0; k <= rings; k++) pts.push(new THREE.Vector2(Math.max(1e-4, lr * k / rings), y0));
   pts.push(new THREE.Vector2(r, CR));
   for (let i = 1; i < rows; i++) pts.push(new THREE.Vector2(r, CR + (HT - 2 * CR) * i / rows));
@@ -138,7 +138,7 @@ function pressMatrix(p) { return new THREE.Matrix4().makeTranslation(p.x, p.y + 
 /* ---------------- kontener ---------------- */
 // kontener bez dachu (wnętrze 2,2 × 1,3 m, ściany 1,6 m) na dwóch płozach; dno na wysokości FLOOR. Beczki: dolna
 // warstwa — dwie stojące, leżąca w poprzek, leżąca wzdłuż, stojąca; górna — leżąca na stojących i pochylona nad
-// leżącymi (zaczynają nieco wyżej i spadają, układając się same). Prasa 2,1 × 1,2 m zjeżdża do 8 cm nad dno.
+// leżącymi (zaczynają nieco wyżej i spadają, układając się same). Prasa 2,17 × 1,27 m (szczelina przy ścianach 1,5 cm) zjeżdża do 8 cm nad dno.
 const CW = 1.1, CD = 0.65, CH = 1.6, FLOOR = 0.14, WALL_T = 0.004;
 const paint = makeMaterial({ ...PRESETS.hull, color: '#2f5d8a', color2: '#1d3a57', tile: 2 }, { res: 512 }).material;
 const BARRELS = [
@@ -165,7 +165,7 @@ function buildContainer() {
   wall(0, yc, CD + T, CW, CH / 2, T, { size: [CW * 2, CH, WALL_T], pos: [0, yc, CD + WALL_T / 2] });
   const floor = new THREE.Mesh(new THREE.BoxGeometry(CW * 2 + 0.01, 0.01, CD * 2 + 0.01), paint); floor.position.set(0, FLOOR - 0.005, 0); floor.receiveShadow = true; floor.userData.wall = true; holder.add(floor);
   for (const sz of [-1, 1]) { const sk = new THREE.Mesh(new THREE.BoxGeometry(CW * 2 + 0.2, FLOOR - 0.01, 0.16), steel); sk.position.set(0, (FLOOR - 0.01) / 2, sz * (CD - 0.15)); sk.castShadow = sk.receiveShadow = true; holder.add(sk); }
-  const press = addPress(0, FLOOR + CH + 0.05, FLOOR + 0.08, [CW - 0.05, 0.2, CD - 0.05]);
+  const press = addPress(0, FLOOR + CH + 0.05, FLOOR + 0.08, [CW - 0.015, 0.2, CD - 0.015]);   // szczelina 1,5 cm — węższa niż średnica styku cząstek (5 cm)
   BARRELS.forEach((b, k) => {
     const d = Math.PI / 180, q = new THREE.Quaternion().setFromEuler(new THREE.Euler(b.r[1] * d, b.r[2] * d, b.r[0] * d, 'YXZ'));
     const M = new THREE.Matrix4().compose(new THREE.Vector3(b.p[0], FLOOR + b.p[1] + 0.004, b.p[2]), q, one);
