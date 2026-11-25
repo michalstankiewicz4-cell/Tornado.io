@@ -32,7 +32,6 @@ zbudowane (szyby, mury, dachówki, stropy). Mechanizm rozpadu (DestructKit) ma p
 - Rysowanie: jeden BatchedMesh na materiał. Fizyka odłamków: `js/destruct/physics.js` (środowisko ląd).
 - Budynki miasta w grze: wygląd z CityKit (laboratorium miasta), części do zniszczenia z tych samych danych
   (`js/models/houses/landmark-house.js`) ukryte do pierwszego uszkodzenia (`world.addHouse(…, { hidden: true })`).
-  Własne budynki miasta HouseKit (`pkin`, `tower`, `highrise`) są w grze wyłączone (`OWN_CITY`), nie kasować.
 - Pożary: wygląd FireKit (z GameLaboratory: `labs/effects-land.html` — zmiany ognia najpierw tam, potem kopia),
   rozprzestrzenianie `js/destruct/burn.js`. Palą się tylko materiały z polem `burn` (materials.js), palne przedmioty
   (`ITEM_BURN`), drzewa i trawa; niepalne nie przenoszą ognia.

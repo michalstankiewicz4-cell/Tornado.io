@@ -1,5 +1,9 @@
 # Zmiany
 
+## 0.15.1 — 2026-11-25
+- Usunięte nieużywane budynki miasta HouseKit (`tower`, `highrise`, `pkin`) i ich kod w grze (`OWN_CITY`); w grze
+  zostają domy HouseKit i budynki Warszawy z CityKit. Laboratorium zniszczeń 0.3.1: bez tych trzech rodzajów.
+
 ## 0.15.0 — 2026-11-24
 - Doktor modeli (`tools/doctor.html`, `tools/doctor.py`, opis `docs/tools/doctor.md`): kopia z GameLaboratory
   z ulepszeniami ogólnymi (grunt `opts.ground`, siatki powielane w teście `floating`, promienie `facing` najwyżej 1 cm

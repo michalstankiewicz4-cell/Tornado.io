@@ -44,10 +44,6 @@ const HOUSES = [
 const PX = 692;
 const LANDMARK_LAYOUT = [['defilad-1', 0, 0], ['zlota-44', -178, 43], ['emilii-plater-49', -177, -46], ['chmielna-69', -292, 229], ['jerozolimskie-54', -143, 230],
   ['rondo-onz-1', -300, -88], ['twarda-2-4', -216, -287], ['europejski-1', -420, -32], ['chlodna-51', -440, -283]];
-// moje wcześniejsze budynki miasta (HouseKit: pkin, tower, highrise) — ukryte w grze, zostają w laboratorium zniszczeń
-const OWN_CITY = false;
-const CITY_BLD = [['pkin', 345, 0, 0], ['tower', 252, 76, Math.PI], ['highrise', 300, 82, Math.PI], ['tower', 362, 80, Math.PI], ['highrise', 425, 78, Math.PI],
-  ['highrise', 250, -80, 0], ['tower', 308, -80, 0], ['tower', 372, -82, 0], ['highrise', 432, -78, 0]];
 const START = { x: -175, z: roadZ(-175) };
 const WIND = [2.6, 1.2];   // lekki wiatr z zachodu [x, z] m/s: kładzie płomienie, niesie dym i ogień
 
@@ -77,12 +73,6 @@ async function build() {
   }
   world.onReveal((bld) => { if (bld.visual) { scene.remove(bld.visual.group); const i = visuals.indexOf(bld.visual.group); if (i >= 0) visuals.splice(i, 1); bld.visual.dispose(); bld.visual = null; } });
   setNight(0);
-  if (OWN_CITY) CITY_BLD.forEach(([type, x, z, rot], i) => {
-    const h = buildHouse(type, { seed: 71 + i * 19 });
-    world.addHouse(h, { x, z, rot });
-    if (type === 'pkin') for (let dx = -75; dx <= 75; dx += 25) spots.push([x + dx, z, 46]);   // długi obrys: kilka kół wzdłuż
-    else spots.push([x, z, Math.hypot(h.size[0], h.size[2]) / 2 + 2, h]);
-  });
   const free = (x, z, r) => !onRoad(x, z) && Math.abs(z - roadZ(x)) > 4 + r && spots.every(([sx, sz, sr]) => Math.hypot(x - sx, z - sz) > sr + r)
     && rects.every(([a, b, c, d]) => x < a - r || x > c + r || z < b - r || z > d + r);
 

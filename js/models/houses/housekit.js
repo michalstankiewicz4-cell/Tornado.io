@@ -15,9 +15,6 @@ export const HOUSE_TYPES = {
   barn: { name: 'Stodoła', note: 'Drewniana stodoła z desek ułożonych pionowo, duże wrota, wysoki dach z blachy falistej.' },
   garage: { name: 'Garaż', note: 'Garaż z pustaków z blaszaną bramą i dachem jednospadowym z blachy.' },
   shed: { name: 'Szopa', note: 'Mała drewniana szopa na narzędzia, dach z papy.' },
-  tower: { name: 'Wieżowiec biurowy', note: 'Szklany biurowiec: betonowy rdzeń i słupy, stropy co 4 m, ściana osłonowa z paneli (pas z aluminium i szyba). Bez podpór stropy spadają piętro po piętrze.' },
-  highrise: { name: 'Wieżowiec mieszkalny', note: 'Mieszkalny wieżowiec z betonowych płyt z rzędami okien, płaski dach z attyką.' },
-  pkin: { name: 'Pałac Kultury i Nauki', note: 'Tarasowa wieża w stylu socrealizmu: boczne skrzydła, człony coraz węższe ku górze, wieżyczki na narożach, iglica do 237 m. Mur pod okładziną ceramiczną.' },
   block: { name: 'Blok z wielkiej płyty', note: 'Czteropiętrowy blok z prefabrykowanych płyt betonowych, rzędy okien, płaski dach.' },
 };
 export const HOUSE_IDS = Object.keys(HOUSE_TYPES);
@@ -96,16 +93,7 @@ function builder() {
     return add({ name, mat, poly: P, t, pos: [x, 0, z], quat, supports, need, anchor: 'bottom' });
   }
   // ściana osłonowa: pas pod oknem (blacha) i szyba między stropami, panele co ~4 m po linii a→b
-  function curtain({ a, b, y0, h, supports, sill = 1.0, panel = 4.2, glassMat = 'curtain', sillMat = 'alu', name = 'ściana osłonowa' }) {
-    const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz), X = V(dx / L, 0, dz / L), Y = V(0, 1, 0), Z = V(-X.z, 0, X.x);
-    const pos = V(a[0], y0, a[1]).addScaledVector(Z, 0.05).toArray(), quat = qBasis(X, Y, Z), n = Math.max(1, Math.round(L / panel));
-    for (let i = 0; i < n; i++) {
-      const u0 = L * i / n + 0.03, u1 = L * (i + 1) / n - 0.03;
-      add({ name: name + ' — pas', mat: sillMat, poly: rect(u0, 0, u1, sill), t: 0.05, pos, quat, supports, need: 0.01, anchor: 'perimeter' });
-      add({ name: name + ' — szyba', mat: glassMat, poly: rect(u0, sill, u1, h - 0.02), t: 0.03, pos, quat, supports, need: 0.01, anchor: 'perimeter' });
-    }
-  }
-  return { parts, add, wall, slab, roofPlane, column, curtain };
+  return { parts, add, wall, slab, roofPlane, column };
 }
 
 // cztery ściany prostokąta W × D (osie ścian na obrysie), narożniki: front i tył przedłużone, boki skrócone
@@ -203,83 +191,6 @@ const BUILD = {
     B.slab({ x0: -W / 2, x1: W / 2, z0: -D / 2, z1: D / 2, y: y + 0.03, t: 0.06, mat: 'felt', supports: [last.id], need: 0.4, name: 'papa' });
     walls4(B, { W, D, y0: y, h: 0.5, t: 0.2, mat: 'panel', supports: [last.id], open: {}, name: 'attyka' });
     return { B, size: [W, y + 0.5, D], tint: [['#e8e2d2', '#d9d2c0', '#e2d9c8'][Math.floor(r() * 3)]] };
-  },
-  tower(r) {
-    const B = builder(), W = R(26, 34, r), D = R(24, 30, r), floors = Math.round(R(26, 40, r)), fh = 3.9, st = 0.3, base = 0.8;
-    const setAt = r() < 0.5 ? Math.round(floors * R(0.6, 0.75, r)) : floors, inset = R(3, 5, r);
-    const fnd = B.slab({ x0: -W / 2 - 1, x1: W / 2 + 1, z0: -D / 2 - 1, z1: D / 2 + 1, y: base / 2, t: base, mat: 'concrete', name: 'fundament', fixed: true });
-    let sup = [fnd.id], y = base, w = W, d = D;
-    for (let k = 0; k < floors; k++) {
-      if (k === setAt) { w -= 2 * inset; d -= 2 * inset; }
-      const core = walls4(B, { W: Math.min(12, w * 0.38), D: Math.min(10, d * 0.38), y0: y, h: fh, t: 0.35, mat: 'concrete', supports: sup, open: k ? {} : { front: [{ u: 3, w: 1.2, y: 0, h: 2.2, kind: 'door' }] }, name: 'rdzeń' });
-      const cols = [];
-      for (const fx of [-1, 0, 1]) for (const fz of [-1, 0, 1]) {
-        if (!fx && !fz) continue;
-        cols.push(B.column({ x: fx * (w / 2 - 0.8), z: fz * (d / 2 - 0.8), y0: y, y1: y + fh, w: 0.8, t: 0.8, mat: 'concrete', supports: sup, need: 0.5, name: 'słup' }).id);
-      }
-      const top = B.slab({ x0: -w / 2, x1: w / 2, z0: -d / 2, z1: d / 2, y: y + fh + st / 2, t: st, mat: 'concrete', supports: [...core.ids, ...cols], need: 0.3, name: `strop ${k + 1}` });
-      const hold = [...sup, top.id], hw = w / 2, hd = d / 2;
-      for (const [a, b] of [[[-hw, hd], [hw, hd]], [[hw, hd], [hw, -hd]], [[hw, -hd], [-hw, -hd]], [[-hw, -hd], [-hw, hd]]]) B.curtain({ a, b, y0: y, h: fh + st, supports: hold, sill: k ? 1.0 : 0.3 });
-      sup = [top.id]; y += fh + st;
-    }
-    walls4(B, { W: w, D: d, y0: y, h: 1.2, t: 0.25, mat: 'concrete', supports: sup, open: {}, name: 'attyka' });
-    if (r() < 0.6) B.column({ x: 0, z: 0, y0: y, y1: y + R(12, 25, r), w: 0.6, t: 0.6, mat: 'steel', supports: sup, poly: [[-0.5, y], [0.5, y], [0.12, y + 18], [-0.12, y + 18]], name: 'maszt' });
-    return { B, size: [W, y + 1.2, D], tint: null };
-  },
-  highrise(r) {
-    const B = builder(), W = R(20, 26, r), D = R(14, 18, r), floors = Math.round(R(14, 20, r)), fh = 2.8, st = 0.22, base = 0.6;
-    const fnd = B.slab({ x0: -W / 2 - 0.5, x1: W / 2 + 0.5, z0: -D / 2 - 0.5, z1: D / 2 + 0.5, y: base / 2, t: base, mat: 'concrete', name: 'fundament', fixed: true });
-    let sup = [fnd.id], y = base, last = null;
-    const nW = Math.round(W / 3.4), nD = Math.round(D / 3.4);
-    for (let k = 0; k < floors; k++) {
-      const w4 = walls4(B, { W, D, y0: y, h: fh, t: 0.26, mat: 'panel', supports: sup, frames: false, name: `płyta ${k + 1}`,
-        open: { front: row(W, nW, 1.5, 0.85, 1.45, k ? -1 : Math.floor(nW / 2), 1.6, 2.3), back: row(W, nW, 1.5, 0.85, 1.45), right: row(D, nD, 1.2, 0.85, 1.45), left: row(D, nD, 1.2, 0.85, 1.45) } });
-      y += fh;
-      last = B.slab({ x0: -W / 2, x1: W / 2, z0: -D / 2, z1: D / 2, y: y + st / 2, t: st, mat: 'concrete', supports: w4.ids, need: 0.35, name: `strop ${k + 1}` });
-      sup = [last.id]; y += st;
-    }
-    B.slab({ x0: -W / 2, x1: W / 2, z0: -D / 2, z1: D / 2, y: y + 0.03, t: 0.06, mat: 'felt', supports: sup, need: 0.4, name: 'papa' });
-    walls4(B, { W, D, y0: y, h: 0.9, t: 0.2, mat: 'panel', supports: sup, open: {}, name: 'attyka' });
-    return { B, size: [W, y + 0.9, D], tint: [['#e6e0d2', '#d8d2c4', '#cfd6d8', '#e9dcc4'][Math.floor(r() * 4)]] };
-  },
-  // PKiN: proporcje według prawdziwego budynku (wys. całkowita 237 m z iglicą), człony tarasowe, okna co 4,2 m,
-  // kondygnacja liczona po dwie (4,4 m) — tak, żeby budynek miał rozsądną liczbę części
-  pkin() {
-    const B = builder(), fh = 4.4, st = 0.4, base = 1.2;
-    const fnd = B.slab({ x0: -88, x1: 88, z0: -44, z1: 44, y: base / 2, t: base, mat: 'concrete', name: 'stylobat', fixed: true });
-    const win = (L, y = 0.9, h = 3.0, door = -1) => row(L, Math.max(1, Math.round(L / 4.2)), 1.5, y, h, door, 3, 3.6);
-    // człon: prostokąt W × D na środku (cx, cz), n kondygnacji od y; zwraca górny strop
-    function tier({ W, D, n, y, sup, cx = 0, cz = 0, name, doors = false }) {
-      let s = sup, top = null;
-      for (let k = 0; k < n; k++) {
-        const w4 = walls4(B, { W, D, y0: y, h: fh, t: 0.6, mat: 'ceramic', supports: s, frames: false, cx, cz, name,
-          open: { front: win(W, k ? 0.9 : 0, k ? 3.0 : 3.6, doors && !k ? Math.floor(Math.round(W / 4.2) / 2) : -1), back: win(W), right: win(D), left: win(D) } });
-        y += fh;
-        top = B.slab({ x0: cx - W / 2, x1: cx + W / 2, z0: cz - D / 2, z1: cz + D / 2, y: y + st / 2, t: st, mat: 'concrete', supports: w4.ids, need: 0.35, name: name + ' — strop' });
-        s = [top.id]; y += st;
-      }
-      walls4(B, { W, D, y0: y, h: 1.6, t: 0.5, mat: 'ceramic', supports: s, open: {}, cx, cz, name: name + ' — attyka' });
-      return { top, y };
-    }
-    // wieżyczki (pinakle) na narożach członu
-    function pinnacles(W, D, y, sup, h, s = 2.4) {
-      for (const fx of [-1, 1]) for (const fz of [-1, 1]) for (const turn of [0, Math.PI / 2])
-        B.column({ x: fx * (W / 2 - s / 2), z: fz * (D / 2 - s / 2), y0: y, y1: y + h, w: s, t: 0.5, mat: 'ceramic', supports: sup, turn,
-          poly: [[-s / 2, y], [s / 2, y], [s * 0.3, y + h * 0.75], [0, y + h], [-s * 0.3, y + h * 0.75]], name: 'wieżyczka' });
-    }
-    for (const side of [-1, 1]) tier({ W: 34, D: 64, n: 5, y: base, sup: [fnd.id], cx: side * 58, name: side < 0 ? 'skrzydło zachodnie' : 'skrzydło wschodnie', doors: true });
-    let t = tier({ W: 68, D: 56, n: 6, y: base, sup: [fnd.id], name: 'człon dolny', doors: true });
-    t = tier({ W: 50, D: 42, n: 6, y: t.y, sup: [t.top.id], name: 'człon drugi' }); pinnacles(50, 42, t.y, [t.top.id], 10);
-    t = tier({ W: 40, D: 34, n: 11, y: t.y, sup: [t.top.id], name: 'trzon wieży' }); pinnacles(40, 34, t.y, [t.top.id], 12);
-    t = tier({ W: 32, D: 28, n: 6, y: t.y, sup: [t.top.id], name: 'człon czwarty' }); pinnacles(32, 28, t.y, [t.top.id], 9, 2);
-    t = tier({ W: 24, D: 22, n: 5, y: t.y, sup: [t.top.id], name: 'człon piąty' }); pinnacles(24, 22, t.y, [t.top.id], 7, 1.8);
-    t = tier({ W: 18, D: 16, n: 4, y: t.y, sup: [t.top.id], name: 'człon zegarowy' });
-    t = tier({ W: 11, D: 11, n: 2, y: t.y, sup: [t.top.id], name: 'korona' });
-    // iglica do 237 m: dwie skrzyżowane kratownice zwężające się ku górze
-    const y0 = t.y + 1.6, H = 237 - y0;
-    for (const turn of [0, Math.PI / 2]) B.column({ x: 0, z: 0, y0, y1: 237, w: 6, t: 0.4, mat: 'steel', supports: [t.top.id], turn, need: 0.3,
-      poly: [[-3.2, y0], [3.2, y0], [0.15, y0 + H], [-0.15, y0 + H]], name: 'iglica' });
-    return { B, size: [176, 237, 88], tint: null };
   },
 };
 
