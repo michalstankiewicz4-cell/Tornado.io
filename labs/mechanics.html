@@ -20,17 +20,26 @@
 <script src="../ui/shell/loader.js"></script>
 <div id="view"></div>
 <div class="bar">
+  <div class="seg" id="modes"><button type="button" data-mode="items" title="Każdy przedmiot osobno, z ustawieniami">Przedmioty</button><button type="button" data-mode="machine" title="Maszyna złożona z przedmiotów, połączonych portami">Maszyna</button></div>
+  <span id="mBar">
   <label class="ctl" title="Prędkość silnika ustawiana falownikiem (od zera — silnik stoi)">Silnik <input type="range" id="rpm" min="0" max="1500" step="10" aria-label="Prędkość silnika"><output id="rpmV"></output></label>
   <label class="ctl" title="Moment hamulca na wale wyjściowym">Hamulec <input type="range" id="brake" min="0" max="300" step="5" aria-label="Moment hamulca"><output id="brakeV"></output></label>
   <label class="ctl" title="Przezroczystość obudów z akrylu (0 — bez szyb)">Obudowy <input type="range" id="alpha" min="0" max="1" step="0.05" aria-label="Przezroczystość obudów"><output id="alphaV"></output></label>
+  </span>
   <span class="sp"></span>
 </div>
 <aside class="panel" data-std="info">
   <h2 class="stdName">Transmisja ruchu</h2>
-  <p class="stdText">Jedna maszyna z elementów połączonych portami: silnik, sprzęgło kłowe, para zębatek, przekładnia dwustopniowa w obudowie z akrylu, łańcuch rolkowy, pas klinowy, sprzęgło kołnierzowe, wał z dwoma przegubami Cardana, przekładnia planetarna i hamulec tarczowy. Prędkość, kierunek i moment każdego elementu wynikają z połączeń.</p>
+  <p class="stdText" id="info" data-items="Każdy przedmiot osobno na stole: wybierz go w oknie Przedmioty, ustaw parametry (liczba zębów, moduł, profil, moc silnika…) w oknie Ustawienia. Okno Element pokazuje wyliczone dane, ostrzeżenia i porty, przez które przedmiot łączy się z innymi." data-machine="Jedna maszyna z elementów połączonych portami: silnik, sprzęgło kłowe, para zębatek, przekładnia dwustopniowa w obudowie z akrylu, łańcuch rolkowy, pas klinowy, sprzęgło kołnierzowe, wał z dwoma przegubami Cardana, przekładnia planetarna i hamulec tarczowy. Prędkość, kierunek i moment każdego elementu wynikają z połączeń.">Jedna maszyna z elementów połączonych portami: silnik, sprzęgło kłowe, para zębatek, przekładnia dwustopniowa w obudowie z akrylu, łańcuch rolkowy, pas klinowy, sprzęgło kołnierzowe, wał z dwoma przegubami Cardana, przekładnia planetarna i hamulec tarczowy. Prędkość, kierunek i moment każdego elementu wynikają z połączeń.</p>
   <div class="stats" id="bDrive"></div>
   <h3>Jak to liczy</h3>
   <p class="note">Kąt każdego elementu liczony jest od kąta silnika po połączeniach: zazębienie (stosunek zębów, zmiana kierunku), łańcuch i pas (ten sam kierunek), przegub Cardana (z geometrii krzyżaka — przełożenie zmienia się w czasie obrotu), przekładnia planetarna (wzór Willisa). Silnik przyspiesza bezwładność zredukowaną całej maszyny; hamulec obciąża wyjście, moment w każdym elemencie wynika z mocy i sprawności połączeń.</p>
+</aside>
+<aside class="panel" data-window="items" data-title="Items" data-title-pl="Przedmioty" data-side="left">
+  <div id="itemList"></div>
+</aside>
+<aside class="panel" data-window="settings" data-title="Settings" data-title-pl="Ustawienia" data-side="left">
+  <div id="itemSet"></div>
 </aside>
 <aside class="panel" data-window="element" data-title="Element" data-title-pl="Element" data-side="left">
   <h3 id="selName">Kliknij element maszyny</h3>

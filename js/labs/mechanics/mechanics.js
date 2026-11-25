@@ -1,4 +1,5 @@
-// Laboratorium mechaniki — kategoria 1: transmisja ruchu. Jedna maszyna na żeliwnym łożu, złożona z elementów MechKit
+// Laboratorium mechaniki — kategoria 1: transmisja ruchu. Tryb „Przedmioty”: każdy przedmiot osobno na stole, z ustawieniami
+// (katalog js/labs/mechanics/items.js) — dane, porty i podgląd ruchu. Tryb „Maszyna”: jedna maszyna na żeliwnym łożu z elementów MechKit
 // (js/models/mech/mechkit.js) połączonych portami w napędzie (js/behaviors/mech/drive.js):
 //   silnik → sprzęgło kłowe → wał → para zębatek 20 : 40 → przekładnia dwustopniowa (16 : 48, 24 : 40) w obudowie z akrylu
 //   → łańcuch 18 : 27 → pas klinowy Ø 160 : Ø 80 → sprzęgło kołnierzowe → wał przegubowy (dwa przeguby Cardana, 25°)
@@ -8,12 +9,13 @@ import * as THREE from '../../../vendor/three/three.module.js';
 import { createStage, WEATHER } from '../../core/stage.js';
 import * as MK from '../../models/mech/mechkit.js';
 import { createDrive, KIND_NAME } from '../../behaviors/mech/drive.js';
+import { ITEMS } from './items.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...kids) => { const e = document.createElement(tag); Object.assign(e, props); kids.forEach((k) => e.append(k)); return e; };
 const KEY = 'tornado.mechanics.v1';
 let saved = null; try { saved = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { saved = null; }
-const S = { rpm: 600, brake: 20, alpha: 0.25, weather: 'fair', sunEl: 40, sunAz: 205, ...(saved || {}) };
+const S = { mode: 'items', item: 'gear', items: {}, spin: 20, rpm: 600, brake: 20, alpha: 0.25, weather: 'fair', sunEl: 40, sunAz: 205, ...(saved || {}) };
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* prywatny tryb */ } };
 const TAU = Math.PI * 2, X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0);
 
@@ -34,7 +36,7 @@ const BED_TOP = 0.75, Y0 = 0.87, BX0 = -6.6, BX1 = 3.8, BZ0 = -0.35, BZ1 = 0.75;
   for (const z of [BZ0 + 0.2, BZ1 - 0.2]) { const slot = new THREE.Mesh(new THREE.BoxGeometry(BX1 - BX0 - 0.1, 0.002, 0.018), M.black); slot.position.set((BX0 + BX1) / 2, BED_TOP + 0.0005, z); root.add(slot); }   // rowki teowe
 }
 for (const [x, z] of [[-5, 1.6], [-1.5, 1.8], [2, 1.6]]) {   // lampy warsztatowe nad stanowiskami
-  const L = new THREE.SpotLight(0xffe2b8, 18, 9, 0.75, 0.6, 1.6); L.position.set(x, 3.4, z); L.target.position.set(x, Y0, 0.15); scene.add(L, L.target);
+  const L = new THREE.SpotLight(0xffe2b8, 18, 9, 0.75, 0.6, 1.6); L.position.set(x, 3.4, z); L.target.position.set(x, Y0, 0.15); root.add(L, L.target);
 }
 
 /* ---------------- napęd i elementy ---------------- */
@@ -234,8 +236,8 @@ let last = performance.now(), statT = 0, sel = null;
 const selBox = new THREE.BoxHelper(new THREE.Object3D(), 0xf2c14e); selBox.visible = false; scene.add(selBox);
 function loop(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
-  drive.step(dt, { rpm: S.rpm, brake: S.brake });
-  applyAngles();
+  if (S.mode === 'machine') { drive.step(dt, { rpm: S.rpm, brake: S.brake }); applyAngles(); }
+  else if (item) { itemTheta += S.spin * TAU / 60 * dt; item.update(itemTheta); }
   moveKeys(dt);
   if ((statT += dt) > 0.2) { statT = 0; stats(); }
   if (sel) selBox.update();
@@ -249,6 +251,7 @@ function loop(now) {
 const rpmOf = (w) => w * 60 / TAU, fmt = (v, d = 0) => v.toLocaleString('pl', { minimumFractionDigits: d, maximumFractionDigits: d });
 const dirOf = (w) => (Math.abs(w) < 1e-3 ? '—' : w > 0 ? '↺' : '↻');   // patrząc od +x wzdłuż osi
 function stats() {
+  if (S.mode !== 'machine') { itemStats(); return; }
   const st = drive.state;
   const rows = [['Silnik', `${fmt(rpmOf(st.omega))} obr/min`], ['Moment silnika', `${fmt(st.Tm, 1)} N·m`], ['Moc silnika', `${fmt(st.P)} W`], ['Moc na hamulcu', `${fmt(st.Pout || 0)} W`],
     ['Sprawność całkowita', `${fmt(eDisc.eta * 100, 1)} %`], ['Przełożenie całkowite', `${fmt(Math.abs(1 / (eDisc.r || 1e-9)), 2)} : 1`], ['Bezwładność zredukowana', `${fmt(st.Jeff * 1e4, 1)} kg·cm²`], ['Wyjście', `${fmt(rpmOf(eDisc.omega), 1)} obr/min, ${fmt(eDisc.T, 1)} N·m`]];
@@ -287,11 +290,14 @@ const orbit = { target: new THREE.Vector3(-1.4, 0.9, 0.2), dist: 9, yaw: 0.25, p
 const CAMS = { 'Cała maszyna': { t: [-1.4, 0.9, 0.2], dist: 9.5, yaw: 0.25, pitch: 0.4 }, 'Zębatki': { t: [-5.3, 0.9, 0.06], dist: 1.5, yaw: 0.7, pitch: 0.35 }, 'Przekładnia': { t: [-4.1, 0.95, 0.12], dist: 1.3, yaw: 0.35, pitch: 0.3 },
   'Łańcuch': { t: [-2.6, 1.07, 0.12], dist: 1.2, yaw: -1.15, pitch: 0.15 }, 'Pas': { t: [-0.95, 1.07, 0.12], dist: 1.2, yaw: -1.15, pitch: 0.15 }, 'Sprzęgła i przeguby': { t: [0.9, 0.9, 0.25], dist: 1.9, yaw: 0.2, pitch: 0.45 }, 'Planetarna': { t: [2.36, 0.87, 0.37], dist: 0.55, yaw: -1.0, pitch: 0.25 }, 'Hamulec': { t: [3.1, 0.9, 0.37], dist: 1.1, yaw: 0.8, pitch: 0.3 } };
 const setCam = (v) => { Object.assign(orbit, { yaw: v.yaw, pitch: v.pitch, dist: v.dist }); orbit.target.set(...v.t); };
-$('cams').replaceChildren(...Object.entries(CAMS).map(([k, v]) => { const b = el('button', { type: 'button', textContent: k }); b.onclick = () => setCam(v); return b; }));
+function cams() {
+  const C = S.mode === 'machine' ? CAMS : { 'Przedmiot': null, 'Z przodu': { yaw: Math.PI / 2, pitch: 0.05 }, 'Z boku': { yaw: 0, pitch: 0.1 }, 'Z góry': { yaw: 0.3, pitch: 1.4 } };
+  $('cams').replaceChildren(...Object.entries(C).map(([k, v]) => { const b = el('button', { type: 'button', textContent: k }); b.onclick = () => (S.mode === 'machine' ? setCam(v) : frameItem(v)); return b; }));
+}
 const cv = renderer.domElement; let drag = null;
 cv.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY }; cv.setPointerCapture(e.pointerId); });
 cv.addEventListener('pointermove', (e) => { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY; if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 4) drag.moved = true; if (drag.moved) { orbit.yaw -= dx * 0.005; orbit.pitch = Math.max(0.02, Math.min(1.52, orbit.pitch + dy * 0.004)); } });
-cv.addEventListener('pointerup', (e) => { const click = drag && !drag.moved; drag = null; if (click && e.button === 0) pick(e); });
+cv.addEventListener('pointerup', (e) => { const click = drag && !drag.moved; drag = null; if (click && e.button === 0 && S.mode === 'machine') pick(e); });
 cv.addEventListener('wheel', (e) => { e.preventDefault(); orbit.dist = Math.min(30, Math.max(0.3, orbit.dist * Math.exp(e.deltaY * 0.0011))); }, { passive: false });
 const held = new Set();
 addEventListener('keyup', (e) => held.delete(e.code)); addEventListener('blur', () => held.clear());
@@ -301,6 +307,101 @@ function moveKeys(dt) {
   const fx = -Math.sin(orbit.yaw), fz = -Math.cos(orbit.yaw), v = Math.max(0.6, orbit.dist) * 0.8 * dt;
   orbit.target.x += (fx * f - fz * s) * v; orbit.target.z += (fz * f + fx * s) * v;
 }
+
+/* ---------------- tryb „Przedmioty”: stół, katalog, ustawienia ---------------- */
+const IO = new THREE.Vector3(0, 0, -6), TABLE = 0.9;   // stół z podglądem z dala od maszyny
+const itemRoot = new THREE.Group(); scene.add(itemRoot);
+{
+  const tg = new THREE.CylinderGeometry(0.55, 0.55, 0.04, 64), tuv = tg.attributes.uv; for (let i = 0; i < tuv.count; i++) tuv.setXY(i, tuv.getX(i) * 1.1, tuv.getY(i) * 1.1);
+  const top = new THREE.Mesh(tg, M.bed); top.position.set(IO.x, TABLE - 0.02, IO.z); top.castShadow = top.receiveShadow = true;
+  const col = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, TABLE - 0.08, 24), M.paintGrey); col.position.set(IO.x, (TABLE - 0.04) / 2, IO.z); col.castShadow = true;
+  const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.36, 0.04, 48), M.iron); foot.position.set(IO.x, 0.02, IO.z); foot.castShadow = foot.receiveShadow = true;
+  const L = new THREE.SpotLight(0xfff0dc, 14, 6, 0.6, 0.5, 1.5); L.position.set(IO.x + 1.2, 3, IO.z + 1.6); L.target.position.set(IO.x, TABLE, IO.z);
+  itemRoot.add(top, col, foot, L, L.target);
+}
+let item = null, itemDef = null, itemTheta = 0, itemR = 0.3;
+const itemHolder = new THREE.Group(); itemRoot.add(itemHolder);
+// statyw: słupek z boku przedmiotu i poziomy czop wzdłuż osi obrotu (x) do środka przedmiotu
+const stand = new THREE.Group(); itemRoot.add(stand);
+const standPost = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1, 16), M.paintGrey), standArm = new THREE.Mesh(MK.cyl(0.006, 1, 16), M.steel), standFoot = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.055, 0.012, 32), M.iron);
+for (const o of [standPost, standArm, standFoot]) { o.castShadow = true; o.receiveShadow = true; stand.add(o); }
+function itemParams(def) { const saved0 = S.items[def.id] || {}; const p = {}; for (const q of def.params) p[q.key] = saved0[q.key] ?? q.def; return p; }
+function disposeTree(o) { o.traverse((c) => { if (c.geometry) c.geometry.dispose(); }); }
+function buildItem() {
+  itemDef = ITEMS.find((i) => i.id === S.item) || ITEMS[0]; S.item = itemDef.id;
+  for (const c of [...itemHolder.children]) { disposeTree(c); itemHolder.remove(c); }
+  item = itemDef.build(itemParams(itemDef));
+  const g = item.group; itemHolder.add(g); g.updateMatrixWorld(true);
+  const bb = new THREE.Box3().setFromObject(g), c = bb.getCenter(new THREE.Vector3()), sz = bb.getSize(new THREE.Vector3());
+  // na blacie (silnik, oprawa łożyska) albo nad blatem na statywie — część wirująca nie dotyka stołu
+  const lift = item.rest ? 0.015 : 0.06;
+  g.position.set(IO.x - c.x, TABLE + lift - bb.min.y, IO.z - c.z);
+  itemR = Math.max(0.08, sz.length() / 2);
+  stand.visible = !item.rest;
+  if (!item.rest) {
+    const cy = TABLE + lift + sz.y / 2, px = IO.x - sz.x / 2 - 0.05, h = cy - TABLE;
+    standPost.scale.y = h; standPost.position.set(px, TABLE + h / 2, IO.z); standFoot.position.set(px, TABLE + 0.006, IO.z);
+    standArm.scale.x = IO.x - px; standArm.position.set((px + IO.x) / 2, cy, IO.z);
+  }
+  item.update(itemTheta);
+  itemStats();
+}
+function frameItem(v) {
+  const c = new THREE.Box3().setFromObject(itemHolder).getCenter(new THREE.Vector3());
+  orbit.target.copy(c); orbit.dist = itemR * 3.2;
+  const d0 = item && item.view ? item.view : { yaw: 0.75, pitch: 0.32 };
+  if (v) { orbit.yaw = v.yaw; orbit.pitch = v.pitch; } else { orbit.yaw = d0.yaw; orbit.pitch = d0.pitch; }
+}
+function itemList() {
+  const groups = [...new Set(ITEMS.map((i) => i.group))];
+  $('itemList').replaceChildren(...groups.flatMap((gname) => [el('h4', { textContent: gname }), el('div', { className: 'btns' }, ...ITEMS.filter((i) => i.group === gname).map((i) => {
+    const b = el('button', { type: 'button', textContent: i.name, className: i.id === S.item ? 'on' : '' }); b.onclick = () => { S.item = i.id; save(); itemList(); itemSettings(); buildItem(); frameItem(); }; return b;
+  }))]));
+}
+function itemSettings() {
+  const def = ITEMS.find((i) => i.id === S.item) || ITEMS[0], p = itemParams(def), box0 = $('itemSet');
+  const fmtV = (q, v) => (q.unit === 'mm' ? `${Math.round(v * 1000)} mm` : q.unit === 'mm×2' ? `${Math.round(v * 1000)} mm` : q.unit === '°' ? `${v}°` : String(v));
+  const rows = def.params.map((q) => {
+    const set = (v) => { (S.items[def.id] ||= {})[q.key] = v; save(); buildItem(); };
+    if (q.type === 'select') {
+      const sel = el('select', {}, ...q.options.map(([v, t]) => el('option', { value: String(v), textContent: t })));
+      sel.value = String(p[q.key]); sel.onchange = () => { const o = q.options.find(([v]) => String(v) === sel.value); set(o[0]); };
+      return el('div', { className: 'row' }, el('span', { textContent: q.label }), sel, el('output'));
+    }
+    if (q.type === 'check') {
+      const cb = el('input', { type: 'checkbox', checked: !!p[q.key] }); cb.onchange = () => set(cb.checked);
+      return el('label', { className: 'row' }, el('span', { textContent: q.label }), cb, el('output'));
+    }
+    const r = el('input', { type: 'range', min: q.min, max: q.max, step: q.step, value: p[q.key] }), out = el('output', { textContent: fmtV(q, p[q.key]) });
+    r.oninput = () => { out.textContent = fmtV(q, +r.value); }; r.onchange = () => set(+r.value);
+    return el('div', { className: 'row' }, el('span', { textContent: q.label }), r, out);
+  });
+  const sp = el('input', { type: 'range', min: 0, max: 120, step: 1, value: S.spin }), spo = el('output', { textContent: `${S.spin} obr/min` });
+  sp.oninput = () => { S.spin = +sp.value; spo.textContent = `${S.spin} obr/min`; save(); };
+  const reset = el('button', { type: 'button', textContent: 'Domyślne' }); reset.onclick = () => { delete S.items[def.id]; save(); itemSettings(); buildItem(); };
+  box0.replaceChildren(el('h3', { textContent: def.name }), ...rows, el('h3', { textContent: 'Podgląd' }), el('div', { className: 'row' }, el('span', { textContent: 'Obrót wejścia' }), sp, spo), el('div', { className: 'btns' }, reset));
+}
+function itemStats() {
+  if (!item) return;
+  $('selName').textContent = itemDef.name;
+  const rows = [...item.info, ...(item.live ? item.live().slice(1) : [])];
+  const uniq = []; const seen = new Set(); for (const r of rows) { if (seen.has(r[0])) { uniq[uniq.findIndex((u) => u[0] === r[0])] = r; continue; } seen.add(r[0]); uniq.push(r); }
+  $('selProps').replaceChildren(...uniq.flatMap(([a, b]) => [el('span', { textContent: a }), el('b', { textContent: String(b) })]), ...(item.warn || []).map((w) => el('p', { className: 'warn', textContent: '⚠ ' + w })));
+  $('selPorts').replaceChildren(...item.ports.map((pt) => el('li', {}, el('b', { textContent: pt.name }), el('span', { textContent: ` · ${pt.kind}` }))));
+  if (window.LabPerf) window.LabPerf.modelRows([['Przedmiot', itemDef.name], ['Ustawienia', String(itemDef.params.length)], ['Porty', String(item.ports.length)]]);
+}
+function setMode(m) {
+  S.mode = m === 'machine' ? 'machine' : 'items'; save();
+  for (const b of document.querySelectorAll('#modes button')) b.classList.toggle('on', b.dataset.mode === S.mode);
+  const mach = S.mode === 'machine';
+  root.visible = mach; for (const c of [cross1, cross2]) c.visible = mach; itemRoot.visible = !mach; selBox.visible = mach && !!sel;
+  $('mBar').hidden = !mach;
+  $('info').textContent = mach ? $('info').dataset.machine : $('info').dataset.items;
+  if (mach) { sel = null; $('selName').textContent = 'Kliknij element maszyny'; $('selProps').replaceChildren(); $('selPorts').replaceChildren(); setCam(CAMS['Cała maszyna']); }
+  else { buildItem(); frameItem(); }
+  cams(); stats();
+}
+for (const b of document.querySelectorAll('#modes button')) b.onclick = () => setMode(b.dataset.mode);
 
 /* ---------------- UI ---------------- */
 const bind = (id, key, fmtV, after) => { $(id).value = S[key]; $(id + 'V').textContent = fmtV(S[key]); $(id).oninput = () => { S[key] = +$(id).value; $(id + 'V').textContent = fmtV(S[key]); if (after) after(); save(); }; };
@@ -318,8 +419,11 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyH') document.querySelectorAll('[data-window]').forEach((p) => p.classList.toggle('hidden-panel'));
 });
 
-// MechanicsApi.rpm(v), brake(Nm), alpha(0–1), state(), elements(), select(id), view(cel, odległość, yaw, pitch), run(sekundy)
+// MechanicsApi.mode('items' | 'machine'), item(id, ustawienia), items(), rpm(v), brake(Nm), alpha(0–1), state(), elements(), select(id), view(…), run(sekundy)
 window.MechanicsApi = {
+  mode(m) { setMode(m); return S.mode; },
+  item(id, params = {}) { S.item = id; S.items[id] = { ...(S.items[id] || {}), ...params }; itemList(); itemSettings(); buildItem(); frameItem(); return { name: itemDef.name, info: item.info, warn: item.warn || [], ports: item.ports.map((p) => p.name) }; },
+  items: () => ITEMS.map((i) => ({ id: i.id, name: i.name, group: i.group, params: i.params.map((q) => q.key) })),
   rpm(v) { S.rpm = v; $('rpm').value = v; $('rpmV').textContent = v ? `${v} obr/min` : 'stop'; return v; },
   brake(v) { S.brake = v; $('brake').value = v; $('brakeV').textContent = `${v} N·m`; return v; },
   alpha(a) { S.alpha = a; $('alpha').value = a; applyAlpha(); return a; },
@@ -331,6 +435,6 @@ window.MechanicsApi = {
   drive,
 };
 
-sky(); applyAlpha(); applyAngles(); stats();
+sky(); applyAlpha(); applyAngles(); itemList(); itemSettings(); setMode(S.mode);
 if (window.LabLoad) window.LabLoad.step('Maszyna złożona', 1);
 requestAnimationFrame(loop);

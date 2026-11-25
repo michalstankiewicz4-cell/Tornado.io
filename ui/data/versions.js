@@ -3,11 +3,11 @@
 (function () {
   "use strict";
   const V = {
-    app: "0.21.0",
+    app: "0.22.0",
     labs: {
       "labs/destruction.html": "0.3.2",
       "labs/deformation.html": "0.4.0",
-      "labs/mechanics.html": "0.1.0",
+      "labs/mechanics.html": "0.2.0",
       "labs/streets.html": "0.10.1",
     },
   };

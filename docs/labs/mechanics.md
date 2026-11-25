@@ -3,7 +3,35 @@
 `labs/mechanics.html`, skrypt `js/labs/mechanics/mechanics.js`, modele MechKit `js/models/mech/mechkit.js`, napęd
 `js/behaviors/mech/drive.js` (środowisko ląd).
 
-Kategoria 1 — **transmisja ruchu**. Jedna maszyna na żeliwnym łożu, złożona z elementów połączonych portami:
+Kategoria 1 — **transmisja ruchu**. Dwa tryby (przełącznik na pasku):
+
+## Przedmioty
+
+Każdy przedmiot osobno na stole (na statywie z czopem wzdłuż osi obrotu; silnik i oprawa łożyska — na blacie). Okno
+**Przedmioty** — wybór, okno **Ustawienia** — parametry przedmiotu i prędkość obrotu podglądu, okno **Element** —
+wyliczone dane, ostrzeżenia i porty. Katalog: `js/labs/mechanics/items.js` (`ITEMS`: `params` i `build(p)`).
+
+| Przedmiot | Ustawienia | Ostrzeżenia |
+| --- | --- | --- |
+| Zębatka walcowa | zęby, moduł, kąt przyporu, szerokość, otwór, materiał, otwory odciążające, piasta | podcięcie stopy (z < 2/sin²α), za duży otwór |
+| Para zębatek | zęby obu kół, moduł, szerokość, materiał koła | — (przełożenie, odległość osi, wskaźnik przyporu) |
+| Przekładnia planetarna | zęby słonecznego i satelitów, liczba satelitów, moduł, szerokość | warunek montażu (zs + zr)/n, kolizja satelitów |
+| Koło koronowe | zęby, moduł, szerokość, wieniec, materiał | — |
+| Koło łańcuchowe | zęby, łańcuch 06B / 08A / 10A / 12A, materiał | mniej niż 13 zębów (efekt wielokąta) |
+| Napęd łańcuchowy | zęby obu kół, łańcuch, odległość osi | — (liczba ogniw parzysta, odległość dobrana) |
+| Koło pasowe | średnica, profil SPZ / SPA / SPB, liczba rowków, materiał | średnica poniżej zalecanej |
+| Napęd pasowy | średnice, profil, liczba pasów, odległość osi | kąt opasania poniżej 120° |
+| Wał | długość, średnica, materiał, rowek wpustu | — |
+| Łożysko w oprawie | otwór (UCP204–208), wysokość osi | — |
+| Sprzęgło kłowe | średnica, gwiazda (92 Sh A, 98 Sh A, 64 Sh D) | — |
+| Sprzęgło kołnierzowe | średnica, liczba śrub | — |
+| Przegub Cardana | kąt łamania, podwójny (układ Z) | — (przełożenie chwilowe na żywo) |
+| Silnik elektryczny | moc 0,18–7,5 kW (wielkość IEC), bieguny, kolor | — |
+| Hamulec tarczowy | średnica, grubość, otwory | — |
+
+## Maszyna
+
+Jedna maszyna na żeliwnym łożu, złożona z elementów połączonych portami:
 
 1. silnik indukcyjny 1,1 kW (falownik — prędkość z suwaka) → sprzęgło kłowe z gwiazdą z poliuretanu → wał 1,
 2. para zębatek 20 : 40 (moduł 4, zarys ewolwentowy, α = 20°; mała ze stali, duża z mosiądzu),
@@ -53,5 +81,5 @@ czerniona, żeliwo, aluminium, farba; akryl i guma jako materiały Three.js.
 
 ## API (`window.MechanicsApi`)
 
-`rpm(v)`, `brake(N·m)`, `alpha(0–1)`, `state()`, `elements()`, `select(id)`, `view(cel, odległość, yaw, pitch)`,
+`mode('items' | 'machine')`, `item(id, ustawienia)`, `items()`, `rpm(v)`, `brake(N·m)`, `alpha(0–1)`, `state()`, `elements()`, `select(id)`, `view(cel, odległość, yaw, pitch)`,
 `run(sekundy)`, `drive`.

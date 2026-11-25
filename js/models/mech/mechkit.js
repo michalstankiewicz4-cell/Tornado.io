@@ -12,6 +12,7 @@ import * as THREE from '../../../vendor/three/three.module.js';
 import { makeMaterial, PRESETS } from '../../render/materials/matkit.js';
 
 export const STEEL_RHO = 7850, BRASS_RHO = 8500, IRON_RHO = 7200, ALU_RHO = 2700;
+const RHO = { gear: STEEL_RHO, steel: STEEL_RHO, dark: STEEL_RHO, brass: BRASS_RHO, iron: IRON_RHO, alu: ALU_RHO };
 const TAU = Math.PI * 2, ALPHA = 20 * Math.PI / 180;
 
 /* ---------------- materiały ---------------- */
@@ -64,9 +65,9 @@ function newPart(name, extra = {}) { const group = new THREE.Group(), spin = new
 
 /* ---------------- zarys ewolwentowy ---------------- */
 // punkty zarysu koła o z zębach, moduł m (wysokość głowy add·m, stopy ded·m); ząb 0 na kącie 0
-export function involuteOutline(z, m, { add = 1, ded = 1.25, steps = 7, backlash = 0.04 } = {}) {
-  const rp = m * z / 2, rb = rp * Math.cos(ALPHA), ra = rp + add * m, rf = rp - ded * m;
-  const inv = Math.tan(ALPHA) - ALPHA, half = Math.PI / (2 * z) - backlash / z + inv;   // połowa grubości zęba na kole zasadniczym (kąt)
+export function involuteOutline(z, m, { add = 1, ded = 1.25, steps = 7, backlash = 0.04, alpha = ALPHA } = {}) {
+  const ALPHA_ = alpha, rp = m * z / 2, rb = rp * Math.cos(ALPHA_), ra = rp + add * m, rf = rp - ded * m;
+  const inv = Math.tan(ALPHA_) - ALPHA_, half = Math.PI / (2 * z) - backlash / z + inv;   // połowa grubości zęba na kole zasadniczym (kąt)
   const tMax = Math.sqrt(Math.max(0, (ra / rb) ** 2 - 1)), tMin = rf > rb ? Math.sqrt((rf / rb) ** 2 - 1) : 0;
   const th = (t) => t - Math.atan(t), pts = [], P = (r, a) => pts.push(new THREE.Vector2(r * Math.cos(a), r * Math.sin(a)));
   for (let i = 0; i < z; i++) {
@@ -83,12 +84,12 @@ export function involuteOutline(z, m, { add = 1, ded = 1.25, steps = 7, backlash
 }
 
 /* ---------------- zębatka ---------------- */
-export function gear({ z = 20, m = 0.004, w = 0.04, bore = 0.0125, mat = 'gear', hub = true, name } = {}) {
-  const M = materials(), o = involuteOutline(z, m), shape = new THREE.Shape(o.pts);
+export function gear({ z = 20, m = 0.004, w = 0.04, bore = 0.0125, mat = 'gear', hub = true, holes: lighten = true, alpha = 20, name } = {}) {
+  const M = materials(), o = involuteOutline(z, m, { alpha: alpha * Math.PI / 180 }), shape = new THREE.Shape(o.pts);
   shape.holes.push(boreHole(bore));
   const hubR = Math.max(bore * 1.9, bore + 0.012), ring = o.rf - 0.006 - 1.2 * m;
   let holes = 0;
-  if (ring - hubR > 0.022) {   // otwory odciążające w tarczy
+  if (lighten && ring - hubR > 0.022) {   // otwory odciążające w tarczy
     holes = 6; const rr = (ring - hubR) * 0.36, rm = (ring + hubR) / 2;
     for (let k = 0; k < holes; k++) shape.holes.push(circlePath(rr, 32, rm * Math.cos(k * TAU / holes + Math.PI / holes), rm * Math.sin(k * TAU / holes + Math.PI / holes)));
   }
@@ -100,8 +101,8 @@ export function gear({ z = 20, m = 0.004, w = 0.04, bore = 0.0125, mat = 'gear',
     const hg = new THREE.Shape(); hg.absarc(0, 0, hubR, 0, TAU, false); hg.holes.push(boreHole(bore));
     for (const s of [-1, 1]) { const h = mesh(extrude(hg, hubLen, 0.0008), M[mat]); h.position.x = s * (w + hubLen) / 2; g.userData.spin.add(h); }
   }
-  const area = Math.PI * (o.rp * o.rp - bore * bore), rho = mat === 'brass' ? BRASS_RHO : STEEL_RHO, mass = rho * area * w * (holes ? 0.78 : 1);
-  Object.assign(g.userData, { z, m, rp: o.rp, ra: o.ra, w, mass, J: 0.5 * mass * (o.rp * o.rp * 0.9 + bore * bore), material: mat, hubLen });
+  const area = Math.PI * (o.rp * o.rp - bore * bore), rho = RHO[mat] || STEEL_RHO, mass = rho * area * w * (holes ? 0.78 : 1);
+  Object.assign(g.userData, { z, m, rp: o.rp, ra: o.ra, rf: o.rf, rb: o.rb, w, mass, J: 0.5 * mass * (o.rp * o.rp * 0.9 + bore * bore), material: mat, hubLen, holes });
   return g;
 }
 // koło koronowe: otwór o zarysie „wrębów” (głowa korony = stopa zęba koła zewnętrznego)
@@ -111,7 +112,7 @@ export function ringGear({ z = 72, m = 0.002, w = 0.03, rim = 0.012, mat = 'bras
   shape.holes.push(new THREE.Path(o.pts));
   const g = newPart(name || `Koło koronowe z = ${z}`);
   g.userData.spin.add(mesh(extrude(shape, w, 0.0005, 96), M[mat]));
-  const mass = BRASS_RHO * Math.PI * (R * R - o.rp * o.rp) * w;
+  const mass = (RHO[mat] || STEEL_RHO) * Math.PI * (R * R - o.rp * o.rp) * w;
   Object.assign(g.userData, { z, m, rp: o.rp, R, w, mass, J: 0.5 * mass * (R * R + o.rp * o.rp) });
   return g;
 }
@@ -139,22 +140,30 @@ export function sprocket({ z = 18, p = 0.0127, d1 = 0.00792, w = 0.0072, bore = 
   return g;
 }
 
-/* ---------------- koło pasowe (rowek klinowy SPA) ---------------- */
-export function pulley({ d = 0.16, w = 0.026, bore = 0.0125, mat = 'iron', name } = {}) {
-  const M = materials(), rp = d / 2, ro = rp + 0.0028, rg = rp - 0.011, top = 0.00675, bot = 0.0033, hubR = Math.max(0.026, bore * 2), web = 0.009;
-  const rimIn = rg - 0.008, hw = w / 2;
-  const prof = [[bore, -hw * 1.6], [hubR, -hw * 1.6], [hubR, -web / 2], [rimIn, -web / 2], [rimIn, -hw], [ro, -hw], [ro, -top - 0.0015], [rp + 0.001, -top], [rg, -bot], [rg, bot], [rp + 0.001, top], [ro, top + 0.0015], [ro, hw], [rimIn, hw], [rimIn, web / 2], [hubR, web / 2], [hubR, hw * 1.6], [bore, hw * 1.6], [bore, -hw * 1.6]];
+/* ---------------- koło pasowe (rowki klinowe) ---------------- */
+// profile pasów wąskoklinowych (ISO 4184): szerokość u góry, wysokość, szerokość skuteczna; podziałka rowków e
+export const VBELT = { SPZ: { top: 0.0097, h: 0.008, lw: 0.0085, e: 0.012, depth: 0.011 }, SPA: { top: 0.0127, h: 0.010, lw: 0.011, e: 0.015, depth: 0.0138 }, SPB: { top: 0.0163, h: 0.013, lw: 0.014, e: 0.019, depth: 0.0175 } };
+export function pulley({ d = 0.16, profile = 'SPA', grooves = 1, bore = 0.0125, mat = 'iron', name } = {}) {
+  const M = materials(), V = VBELT[profile] || VBELT.SPA, rp = d / 2, ro = rp + 0.0028, rg = rp - V.depth + 0.0028, top = V.lw / 2 + 0.0004, bot = top - (V.depth - 0.0028) * Math.tan(18 * Math.PI / 180);
+  const w = (grooves - 1) * V.e + V.lw + 0.016, hw = w / 2, hubR = Math.max(0.026, bore * 2), web = Math.max(0.009, w * 0.3), rimIn = rg - 0.008;
+  const prof = [[bore, -hw * 1.5], [hubR, -hw * 1.5], [hubR, -web / 2], [rimIn, -web / 2], [rimIn, -hw], [ro, -hw]];
+  for (let k = 0; k < grooves; k++) {
+    const c = -((grooves - 1) * V.e) / 2 + k * V.e;
+    prof.push([ro, c - top - 0.0015], [rp + 0.001, c - top], [rg, c - bot], [rg, c + bot], [rp + 0.001, c + top], [ro, c + top + 0.0015]);
+  }
+  prof.push([ro, hw], [rimIn, hw], [rimIn, web / 2], [hubR, web / 2], [hubR, hw * 1.5], [bore, hw * 1.5], [bore, -hw * 1.5]);
   const g = newPart(name || `Koło pasowe Ø ${Math.round(d * 1000)} mm`);
   g.userData.spin.add(mesh(lathe(prof, 64), M[mat]));
-  // ramiona między piastą a wieńcem (koła większe)
-  if (rimIn - hubR > 0.03) {
-    for (let k = 0; k < 5; k++) {
-      const a = k * TAU / 5, len = rimIn - hubR, s = mesh(box(web * 1.6, len, 0.012), M[mat]);
+  let spokes = 0;
+  if (rimIn - hubR > 0.03) {   // ramiona między piastą a wieńcem (koła większe)
+    spokes = 5;
+    for (let k = 0; k < spokes; k++) {
+      const a = k * TAU / spokes, len = rimIn - hubR, s = mesh(box(web * 1.6, len, 0.012 + d * 0.04), M[mat]);
       s.position.set(0, Math.cos(a) * (hubR + len / 2), Math.sin(a) * (hubR + len / 2)); s.rotation.x = a; g.userData.spin.add(s);
     }
   }
-  const mass = IRON_RHO * (Math.PI * (ro * ro - rimIn * rimIn) * w + Math.PI * (rimIn * rimIn - hubR * hubR) * web * 0.6 + Math.PI * hubR * hubR * w * 1.6);
-  Object.assign(g.userData, { d, rp, w, mass, J: 0.5 * mass * (ro * ro + rimIn * rimIn) * 0.85 });
+  const rho = RHO[mat] || IRON_RHO, mass = rho * (Math.PI * (ro * ro - rimIn * rimIn) * w + Math.PI * (rimIn * rimIn - hubR * hubR) * web * 0.6 + Math.PI * hubR * hubR * w * 1.5);
+  Object.assign(g.userData, { d, rp, w, profile, grooves, mass, J: 0.5 * mass * (ro * ro + rimIn * rimIn) * 0.85, spokes });
   return g;
 }
 
@@ -201,8 +210,8 @@ export function chainDistance(z1, z2, p, approx) {
 /* ---------------- łańcuch rolkowy (ANSI 40 / 08A) ---------------- */
 // ogniwa jako instancje: rolki, płytki wewnętrzne i zewnętrzne (kształt „ósemki”), sworznie; update(u) — przesunięcie
 // łańcucha w podziałkach
-export function chainLoop(path, N, { p = 0.0127, d1 = 0.00792, x = 0 } = {}) {
-  const M = materials(), g = new THREE.Group(); g.name = `Łańcuch rolkowy 08A, ${N} ogniw`;
+export function chainLoop(path, N, { p = 0.0127, d1 = 0.00792, x = 0, type = '08A' } = {}) {
+  const M = materials(), g = new THREE.Group(), k = p / 0.0127; g.name = `Łańcuch rolkowy ${type}, ${N} ogniw`;
   const plate = (h, t) => {   // płytka: dwa półkola połączone przewężeniem
     const s = new THREE.Shape(), r = h / 2;
     s.absarc(0, 0, r, Math.PI / 2, Math.PI * 1.5, false); s.lineTo(p / 2, -r * 0.78); s.lineTo(p, -r);
@@ -211,11 +220,11 @@ export function chainLoop(path, N, { p = 0.0127, d1 = 0.00792, x = 0 } = {}) {
     // kształt w (sx = wzdłuż ogniwa, sy = w poprzek drogi) wyciągnięty na grubość → oś x świata = grubość
     return extrude(s, t, 0.0002, 12);
   };
-  const inner = plate(0.0118, 0.0015), outer = plate(0.0104, 0.0015), roller = cyl(d1 / 2, 0.0078, 16), pin = cyl(0.00198, 0.0178, 10);
+  const inner = plate(0.0118 * k, 0.0015 * k), outer = plate(0.0104 * k, 0.0015 * k), roller = cyl(d1 / 2, 0.0078 * k, 16), pin = cyl(0.00198 * k, 0.0178 * k, 10);
   const half = Math.floor(N / 2), mk = (geo, mat, n) => { const im = new THREE.InstancedMesh(geo, mat, n); im.castShadow = true; im.receiveShadow = true; im.frustumCulled = false; g.add(im); return im; };
   const iIn = mk(inner, M.steel, half * 2), iOut = mk(outer, M.steel, half * 2), iRol = mk(roller, M.dark, N), iPin = mk(pin, M.steel, N);
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), pos = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), basis = new THREE.Matrix4();
-  const OFF_IN = 0.0047, OFF_OUT = 0.0067;   // odsunięcie płytek od środka (połowa szerokości wewnętrznej + płytka)
+  const OFF_IN = 0.0047 * k, OFF_OUT = 0.0067 * k;   // odsunięcie płytek od środka (połowa szerokości wewnętrznej + płytka)
   function update(u0) {
     const P = []; for (let k = 0; k <= N; k++) P.push(path.at(u0 + k));
     for (let k = 0; k < N; k++) {
@@ -230,47 +239,51 @@ export function chainLoop(path, N, { p = 0.0127, d1 = 0.00792, x = 0 } = {}) {
     for (const im of [iIn, iOut, iRol, iPin]) im.instanceMatrix.needsUpdate = true;
   }
   update(0);
-  const mass = N * 0.0094;   // 08A: ok. 0,7 kg/m
+  const mass = N * 0.0094 * k * k;   // 08A: ok. 0,7 kg/m (masa rośnie z kwadratem podziałki)
   g.userData = { N, p, mass, update };
   return g;
 }
 
 /* ---------------- pas klinowy SPA ---------------- */
 // przekrój trapezowy (13 × 10 mm) prowadzony po drodze; nadruk przesuwany teksturą (update(s) — przesunięcie w metrach)
-export function beltLoop(path, { x = 0, label = 'SPA 1250 Lw' } = {}) {
+export function beltLoop(path, { x = 0, label = 'SPA 1250 Lw', profile = 'SPA', grooves = 1 } = {}) {
+  const V = VBELT[profile] || VBELT.SPA;
   const c = document.createElement('canvas'); c.width = 512; c.height = 32;
   const cx = c.getContext('2d'); cx.fillStyle = '#1b1c1e'; cx.fillRect(0, 0, 512, 32);
   for (let i = 0; i < 512; i += 4) { cx.fillStyle = i % 8 ? '#1f2022' : '#18191b'; cx.fillRect(i, 0, 2, 32); }
   cx.fillStyle = '#d8d4c8'; cx.font = 'bold 15px sans-serif'; cx.fillText(label, 16, 21); cx.fillText(label, 272, 21);
   const tex = new THREE.CanvasTexture(c); tex.wrapS = THREE.RepeatWrapping; tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
   const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.88, metalness: 0 });
-  const sec = [[0.0045, -0.0066], [0.0045, 0.0066], [-0.0055, 0.0034], [-0.0055, -0.0034]];   // (normalna, oś x)
+  const t2 = V.top / 2, b2 = t2 - V.h * Math.tan(20 * Math.PI / 180), sec = [[V.h * 0.45, -t2], [V.h * 0.45, t2], [-V.h * 0.55, b2], [-V.h * 0.55, -b2]];   // (normalna, oś x)
   const n = Math.ceil(path.L / 0.004), period = 0.5, pos = [], uv = [], idx = [];
-  for (let i = 0; i <= n; i++) {
-    const s = path.L * i / n, a = path.at(s), ny = a.tz, nz = -a.ty;   // normalna na zewnątrz pętli
-    for (let k = 0; k <= 4; k++) { const [nn, xx] = sec[k % 4]; pos.push(x + xx, a.y + ny * nn, a.z + nz * nn); uv.push(s / period, k / 4); }
+  for (let gq = 0; gq < grooves; gq++) {
+    const xo = x - ((grooves - 1) * V.e) / 2 + gq * V.e, base = pos.length / 3;
+    for (let i = 0; i <= n; i++) {
+      const s = path.L * i / n, a = path.at(s), ny = a.tz, nz = -a.ty;   // normalna na zewnątrz pętli
+      for (let k = 0; k <= 4; k++) { const [nn, xx] = sec[k % 4]; pos.push(xo + xx, a.y + ny * nn, a.z + nz * nn); uv.push(s / period + gq * 0.37, k / 4); }
+    }
+    for (let i = 0; i < n; i++) for (let k = 0; k < 4; k++) { const a = base + i * 5 + k, b = a + 5; idx.push(a, b, a + 1, a + 1, b, b + 1); }
   }
-  for (let i = 0; i < n; i++) for (let k = 0; k < 4; k++) { const a = i * 5 + k, b = a + 5; idx.push(a, b, a + 1, a + 1, b, b + 1); }
   const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setIndex(idx); geo.computeVertexNormals();
   const m = mesh(geo, mat); m.name = `Pas klinowy ${label}`;
-  m.userData = { L: path.L, mass: path.L * 0.12, update: (s) => { tex.offset.x = -s / period; } };
+  m.userData = { L: path.L, mass: path.L * grooves * (profile === 'SPZ' ? 0.074 : profile === 'SPB' ? 0.195 : 0.123), update: (s) => { tex.offset.x = -s / period; } };
   return m;
 }
 
 /* ---------------- wał, łożysko ---------------- */
-export function shaft({ len = 1, r = 0.0125, mat = 'steel', name } = {}) {
+export function shaft({ len = 1, r = 0.0125, mat = 'steel', key: keyway = true, name } = {}) {
   const M = materials(), g = newPart(name || `Wał Ø ${Math.round(r * 2000)} mm`);
   const s = mesh(cyl(r, len, 32), M[mat]); s.position.x = len / 2; g.userData.spin.add(s);
-  const key = mesh(box(len * 0.92, 0.0018, r * 0.5), M.dark); key.position.set(len / 2, r - 0.0006, 0); g.userData.spin.add(key);   // rowek wpustu — widać obrót
+  if (keyway) { const key = mesh(box(len * 0.92, 0.0018, r * 0.5), M.dark); key.position.set(len / 2, r - 0.0006, 0); g.userData.spin.add(key); }   // rowek wpustu — widać obrót
   for (const e of [0, len]) { const ch = mesh(cyl(r * 0.86, 0.002, 32, r), M[mat]); ch.position.x = e ? len + 0.001 : -0.001; if (!e) ch.rotation.y = Math.PI; g.userData.spin.add(ch); }
-  const mass = STEEL_RHO * Math.PI * r * r * len;
+  const mass = (RHO[mat] || STEEL_RHO) * Math.PI * r * r * len;
   Object.assign(g.userData, { len, r, mass, J: 0.5 * mass * r * r });
   return g;
 }
 // oprawa łożyska stojąca (UCP) na podstawie: oś na wysokości h nad podstawą
 export function pillowBlock({ h = 0.12, r = 0.0125, name = 'Łożysko w oprawie stojącej UCP' } = {}) {
   const M = materials(), g = new THREE.Group(); g.name = name;
-  const hc = 0.036, base = h - hc;
+  const k = r / 0.0125, hc = 0.036 * k, base = h - hc, top = new THREE.Group(); top.scale.setScalar(k); top.position.y = base; g.add(top);
   const s = new THREE.Shape(); s.moveTo(-0.085, 0); s.lineTo(0.085, 0); s.lineTo(0.085, 0.016); s.lineTo(0.036, 0.019);
   s.absarc(0, hc, 0.038, -0.35, Math.PI + 0.35, false); s.lineTo(-0.085, 0.016); s.closePath();
   s.holes.push(circlePath(0.026, 40, 0, hc), circlePath(0.0065, 16, -0.064, 0.008), circlePath(0.0065, 16, 0.064, 0.008));
@@ -278,21 +291,23 @@ export function pillowBlock({ h = 0.12, r = 0.0125, name = 'Łożysko w oprawie 
   const SM = new THREE.Matrix4().set(0, 0, 1, 0, 0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 0, 1);
   const hg = new THREE.ExtrudeGeometry(s, { depth: 0.036, bevelEnabled: true, bevelThickness: 0.002, bevelSize: 0.002, bevelSegments: 1, curveSegments: 24 });
   hg.translate(0, 0, -0.018).applyMatrix4(SM); uvScale(hg, 6);
-  const hs = mesh(hg, M.paintGrey); hs.position.y = base; g.add(hs);
-  const ring = mesh(cyl(0.026, 0.03, 32), M.steel); ring.position.y = h; g.add(ring);
-  const nip = mesh(new THREE.CylinderGeometry(0.003, 0.004, 0.012, 8), M.brass); nip.position.y = h + 0.044; g.add(nip);
+  const hs = mesh(hg, M.paintGrey); top.add(hs);
+  const ring = mesh(cyl(0.026, 0.03, 32), M.steel); ring.position.y = 0.036; top.add(ring);
+  const nip = mesh(new THREE.CylinderGeometry(0.003, 0.004, 0.012, 8), M.brass); nip.position.y = 0.036 + 0.044; top.add(nip);
   if (base > 0.12) {   // wysoka podpora: słupek z rury kwadratowej 60 × 60, blacha podstawy i blacha pod oprawą
     const post = mesh(box(0.06, base - 0.024, 0.06), M.paintGrey); post.position.y = base / 2; g.add(post);
     for (const [y, t] of [[0.006, 0.012], [base - 0.006, 0.012]]) { const pl = mesh(box(0.1, t, 0.2), M.iron); pl.position.y = y; g.add(pl); }
     for (const s of [-1, 1]) { const rib = mesh(box(0.006, 0.08, 0.07), M.paintGrey); rib.position.set(0, 0.052, s * 0.065); g.add(rib); }
   } else if (base > 0.002) { const ped = mesh(box(0.05, base, 0.19), M.iron); ped.position.y = base / 2; g.add(ped); }
-  for (const z of [-0.064, 0.064]) { const b = mesh(new THREE.CylinderGeometry(0.0085, 0.0085, 0.008, 6), M.dark); b.position.set(0, base + 0.02, z); g.add(b); }
+  for (const z of [-0.064, 0.064]) { const b = mesh(new THREE.CylinderGeometry(0.0085, 0.0085, 0.008, 6), M.dark); b.position.set(0, 0.02, z); top.add(b); }
+  g.userData = { h, r, k, mass: 0.8 * k * k * k + (base > 0 ? IRON_RHO * 0.05 * 0.19 * base * 0.4 : 0) };
   return g;
 }
 
 /* ---------------- sprzęgła ---------------- */
 // sprzęgło kłowe z gwiazdą z poliuretanu: dwie piasty po 3 kły, gwiazda między nimi; część a i b (obie wirują z wałami)
-export function jawCoupling({ r = 0.032, bore = 0.0125 } = {}) {
+export const SPIDER = { '92A': { color: 0xd8432e, name: '92 Sh A (czerwona)' }, '98A': { color: 0xe8c22e, name: '98 Sh A (żółta)' }, '64D': { color: 0x3f9a4a, name: '64 Sh D (zielona)' } };
+export function jawCoupling({ r = 0.032, bore = 0.0125, spider: hard = '92A' } = {}) {
   const M = materials(), mk = (side) => {
     const g = new THREE.Group(), hub = new THREE.Shape(); hub.absarc(0, 0, r, 0, TAU, false); hub.holes.push(boreHole(bore));
     const h = mesh(extrude(hub, 0.03, 0.0012), M.alu); h.position.x = side * 0.027; g.add(h);
@@ -303,18 +318,19 @@ export function jawCoupling({ r = 0.032, bore = 0.0125 } = {}) {
     }
     return g;
   };
-  const spider = new THREE.Group();
+  const spider = new THREE.Group(), polyM = M.poly.clone(); polyM.color.setHex((SPIDER[hard] || SPIDER['92A']).color);
   for (let k = 0; k < 6; k++) {
     const a0 = k * TAU / 6 + Math.PI / 6, s = new THREE.Shape();
     s.absarc(0, 0, r * 0.96, a0 - 0.16, a0 + 0.16, false); s.absarc(0, 0, bore * 1.7, a0 + 0.16, a0 - 0.16, true);
-    spider.add(mesh(extrude(s, 0.017, 0.0008), M.poly));
+    spider.add(mesh(extrude(s, 0.017, 0.0008), polyM));
   }
   const ring = new THREE.Shape(); ring.absarc(0, 0, bore * 2, 0, TAU, false); ring.holes.push(circlePath(bore * 1.15));
-  spider.add(mesh(extrude(ring, 0.017, 0.0006), M.poly));
-  return { a: mk(-1), b: mk(1), spider, mass: 0.42, J: 0.5 * 0.42 * r * r };
+  spider.add(mesh(extrude(ring, 0.017, 0.0006), polyM));
+  const mass = ALU_RHO * Math.PI * r * r * 0.08 * 0.9;
+  return { a: mk(-1), b: mk(1), spider, mass, J: 0.5 * mass * r * r };
 }
 // sprzęgło kołnierzowe sztywne: dwie tarcze z piastami i 6 śrub
-export function flangeCoupling({ r = 0.055, bore = 0.0125 } = {}) {
+export function flangeCoupling({ r = 0.055, bore = 0.0125, bolts: nb = 6 } = {}) {
   const M = materials(), mk = (side) => {
     const g = new THREE.Group(), f = new THREE.Shape(); f.absarc(0, 0, r, 0, TAU, false); f.holes.push(boreHole(bore));
     const fl = mesh(extrude(f, 0.014, 0.001), M.iron); fl.position.x = side * 0.0075; g.add(fl);
@@ -323,12 +339,13 @@ export function flangeCoupling({ r = 0.055, bore = 0.0125 } = {}) {
     return g;
   };
   const bolts = new THREE.Group();
-  for (let k = 0; k < 6; k++) {
-    const a = k * TAU / 6, y = Math.cos(a) * r * 0.74, z = Math.sin(a) * r * 0.74;
+  for (let k = 0; k < nb; k++) {
+    const a = k * TAU / nb, y = Math.cos(a) * r * 0.74, z = Math.sin(a) * r * 0.74;
     const b = mesh(cyl(0.004, 0.036, 10), M.steel); b.position.set(0, y, z); bolts.add(b);
     for (const s of [-1, 1]) { const hx = mesh(new THREE.CylinderGeometry(0.0075, 0.0075, 0.006, 6).rotateZ(Math.PI / 2), M.dark); hx.position.set(s * 0.018, y, z); bolts.add(hx); }
   }
-  return { a: mk(-1), b: mk(1), bolts, mass: 2.6, J: 0.5 * 2.6 * r * r * 0.8 };
+  const mass = IRON_RHO * (Math.PI * r * r * 0.028 + Math.PI * (bore * 2.4) ** 2 * 0.06);
+  return { a: mk(-1), b: mk(1), bolts, mass, J: 0.5 * mass * r * r * 0.8 };
 }
 // widełki przegubu Cardana na końcu wału: piasta wzdłuż +x i dwa ramiona z oczkami; sworznie wzdłuż lokalnego y (oś krzyżaka)
 export function yoke({ r = 0.026, reach = 0.05, name = 'Widełki przegubu' } = {}) {
@@ -354,25 +371,37 @@ export function cross({ r = 0.026 } = {}) {
 
 /* ---------------- silnik ---------------- */
 // trójfazowy silnik indukcyjny 1,1 kW, wielkość 90: oś 90 mm nad łapami; wał wyjściowy na +x
-export function motor({ name = 'Silnik indukcyjny 1,1 kW' } = {}) {
-  const M = materials(), g = newPart(name), H = 0.09, L = 0.25;
-  const body = mesh(cyl(0.083, L, 40), M.paintBlue); body.position.set(-L / 2 - 0.04, H, 0); g.add(body);
+// silniki indukcyjne IEC (4 bieguny): moc → wielkość mechaniczna (wysokość osi), masa, bezwładność wirnika (dane katalogowe)
+export const MOTORS = [
+  { kW: 0.18, frame: '63', H: 0.063, mass: 4.2, J: 0.00035 }, { kW: 0.37, frame: '71', H: 0.071, mass: 6.2, J: 0.0008 }, { kW: 0.75, frame: '80', H: 0.08, mass: 9.5, J: 0.0018 },
+  { kW: 1.1, frame: '90S', H: 0.09, mass: 13.5, J: 0.0028 }, { kW: 1.5, frame: '90L', H: 0.09, mass: 15.5, J: 0.0035 }, { kW: 2.2, frame: '100L', H: 0.1, mass: 22, J: 0.0065 },
+  { kW: 4, frame: '112M', H: 0.112, mass: 31, J: 0.0115 }, { kW: 5.5, frame: '132S', H: 0.132, mass: 43, J: 0.0255 }, { kW: 7.5, frame: '132M', H: 0.132, mass: 52, J: 0.033 },
+];
+export function motor({ kW = 1.1, poles = 4, paint = 'paintBlue', name } = {}) {
+  const spec = MOTORS.find((m) => m.kW >= kW) || MOTORS[MOTORS.length - 1];
+  const M = materials(), g = newPart(name || `Silnik indukcyjny ${String(spec.kW).replace('.', ',')} kW`), H = 0.09, L = 0.25, body0 = new THREE.Group(), kS = spec.H / 0.09;
+  body0.scale.setScalar(kS); body0.position.y = 0; g.add(body0);
+  const add0 = (o) => body0.add(o);
+  const body = mesh(cyl(0.083, L, 40), M.paintBlue); body.position.set(-L / 2 - 0.04, H, 0); add0(body);
   const fins = new THREE.InstancedMesh(box(L * 0.92, 0.014, 0.0035), M.paintBlue, 30); fins.castShadow = true; fins.receiveShadow = true;
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
   for (let k = 0; k < 30; k++) { const a = k * TAU / 30; e.set(a, 0, 0); q.setFromEuler(e); m4.compose(new THREE.Vector3(-L / 2 - 0.04, H + Math.cos(a) * 0.09, Math.sin(a) * 0.09), q, new THREE.Vector3(1, 1, 1)); fins.setMatrixAt(k, m4); }
-  g.add(fins);
-  const bellF = mesh(lathe([[0.012, 0.0], [0.05, 0.0], [0.086, 0.025], [0.086, 0.04], [0.012, 0.04]], 40), M.paintBlue); bellF.position.set(-0.04, H, 0); g.add(bellF);
-  const cowl = mesh(cyl(0.09, 0.08, 40), M.paintBlue); cowl.position.set(-L - 0.08, H, 0); g.add(cowl);
-  const grill = mesh(new THREE.CircleGeometry(0.084, 40).rotateY(-Math.PI / 2), M.black); grill.position.set(-L - 0.121, H, 0); g.add(grill);
-  const tbox = mesh(box(0.1, 0.06, 0.1), M.paintBlue); tbox.position.set(-0.15, H + 0.11, 0); g.add(tbox);
-  const lid = mesh(box(0.104, 0.008, 0.104), M.paintBlue); lid.position.set(-0.15, H + 0.144, 0); g.add(lid);
-  const plateN = mesh(box(0.06, 0.0015, 0.035), M.alu); plateN.position.set(-0.22, H + 0.085, 0.045); plateN.rotation.x = 0.9; g.add(plateN);
-  for (const x of [-0.08, -0.25]) { const foot = mesh(box(0.04, 0.012, 0.18), M.paintBlue); foot.position.set(x, 0.006, 0); g.add(foot); const web = mesh(box(0.03, H - 0.05, 0.11), M.paintBlue); web.position.set(x, (H - 0.05) / 2 + 0.01, 0); g.add(web); }
+  add0(fins);
+  const bellF = mesh(lathe([[0.012, 0.0], [0.05, 0.0], [0.086, 0.025], [0.086, 0.04], [0.012, 0.04]], 40), M.paintBlue); bellF.position.set(-0.04, H, 0); add0(bellF);
+  const cowl = mesh(cyl(0.09, 0.08, 40), M.paintBlue); cowl.position.set(-L - 0.08, H, 0); add0(cowl);
+  const grill = mesh(new THREE.CircleGeometry(0.084, 40).rotateY(-Math.PI / 2), M.black); grill.position.set(-L - 0.121, H, 0); add0(grill);
+  const tbox = mesh(box(0.1, 0.06, 0.1), M.paintBlue); tbox.position.set(-0.15, H + 0.11, 0); add0(tbox);
+  const lid = mesh(box(0.104, 0.008, 0.104), M.paintBlue); lid.position.set(-0.15, H + 0.144, 0); add0(lid);
+  const plateN = mesh(box(0.06, 0.0015, 0.035), M.alu); plateN.position.set(-0.22, H + 0.085, 0.045); plateN.rotation.x = 0.9; add0(plateN);
+  for (const x of [-0.08, -0.25]) { const foot = mesh(box(0.04, 0.012, 0.18), M.paintBlue); foot.position.set(x, 0.006, 0); add0(foot); const web = mesh(box(0.03, H - 0.05, 0.11), M.paintBlue); web.position.set(x, (H - 0.05) / 2 + 0.01, 0); add0(web); }
   // wał wyjściowy (wiruje)
-  const sh = mesh(cyl(0.012, 0.05, 24), M.steel); sh.position.x = 0.025; g.userData.spin.add(sh);
-  const key = mesh(box(0.042, 0.002, 0.006), M.dark); key.position.set(0.025, 0.0115, 0); g.userData.spin.add(key);
-  g.userData.spin.position.y = H;
-  Object.assign(g.userData, { H, mass: 15.5, J: 0.0028 });   // wirnik 1,1 kW: ok. 0,0028 kg·m² (dane katalogowe)
+  const sr = 0.012 * kS, sl = 0.05 * kS;
+  const sh = mesh(cyl(sr, sl, 24), M.steel); sh.position.x = sl / 2; g.userData.spin.add(sh);
+  const key = mesh(box(sl * 0.84, 0.002 * kS, sr * 0.5), M.dark); key.position.set(sl / 2, sr - 0.0005, 0); g.userData.spin.add(key);
+  g.userData.spin.position.y = spec.H;
+  if (paint !== 'paintBlue') body0.traverse((o) => { if (o.material === M.paintBlue) o.material = M[paint] || M.paintBlue; });
+  const nSync = 6000 / poles, nRated = nSync * (1 - 0.034 - 0.02 / Math.sqrt(spec.kW));
+  Object.assign(g.userData, { H: spec.H, mass: spec.mass, J: spec.J * (poles >= 6 ? 1.6 : poles <= 2 ? 0.55 : 1), spec, poles, nSync, nRated, Tn: spec.kW * 1000 / (nRated * TAU / 60), shaftD: sr * 2, shaftL: sl });
   return g;
 }
 
@@ -402,4 +431,49 @@ export function tubeHousing({ r = 0.1, len = 0.1, name = 'Obudowa (rura z akrylu
   return g;
 }
 
-export const MechKit = { materials, gear, ringGear, sprocket, pulley, loopPath, chainDistance, chainLoop, beltLoop, shaft, pillowBlock, jawCoupling, flangeCoupling, yoke, cross, motor, housing, tubeHousing, involuteOutline };
+
+/* ---------------- przekładnia planetarna ---------------- */
+// słoneczne zs, n satelitów zp, korona zr = zs + 2·zp (stała), jarzmo; update(θs) ustawia jarzmo i satelity (Willis)
+export function planetary({ zs = 24, zp = 24, n = 3, m = 0.002, w = 0.02, mat = 'gear', matP = 'brass', matR = 'brass' } = {}) {
+  const M = materials(), zr = zs + 2 * zp, g = newPart(`Przekładnia planetarna ${zs}/${zp}/${zr}`), RC = m * (zs + zp) / 2;
+  const sun = gear({ z: zs, m, w: w * 1.1, mat, hub: false, bore: Math.min(0.0125, m * zs * 0.25), name: 'Koło słoneczne' }); g.userData.spin.add(sun);
+  const ring = ringGear({ z: zr, m, w, mat: matR }); g.add(ring);
+  const carrier = new THREE.Group(), planets = [];
+  for (let k = 0; k < n; k++) {
+    const pl = gear({ z: zp, m, w: w * 0.9, mat: matP, hub: false, bore: Math.min(0.004, m * zp * 0.18), name: 'Satelita' });
+    pl.position.set(0, RC * Math.cos(k * TAU / n), RC * Math.sin(k * TAU / n)); carrier.add(pl); planets.push(pl);
+    const pin = mesh(cyl(Math.min(0.004, m * zp * 0.18), w * 2.6, 12), M.steel); pin.position.copy(pl.position); pin.position.x = w * 0.7; carrier.add(pin);
+  }
+  for (const x of [w * 1.4, w * 2.1]) { const d = mesh(new THREE.CylinderGeometry(RC + m * zp * 0.35, RC + m * zp * 0.35, w * 0.3, 48).rotateZ(Math.PI / 2), M.alu); d.position.x = x; carrier.add(d); }
+  const out = mesh(cyl(0.0125, 0.08, 24), M.steel); out.position.x = w * 2.2 + 0.04; carrier.add(out);
+  g.add(carrier);
+  const assembly = (zs + zr) / n, clearance = (zs + zp) * Math.sin(Math.PI / n) - (zp + 2);
+  const p0 = Math.PI + Math.PI / zp, off = p0 - Math.round(p0 / (TAU / zp)) * (TAU / zp);   // faza korony pod satelitą 0
+  ring.userData.spin.rotation.x = off * zp / zr + Math.PI / zr;
+  function update(ts) {
+    const tc = ts * zs / (zs + zr), rel = ts - tc;
+    g.userData.spin.rotation.x = ts; carrier.rotation.x = tc;
+    planets.forEach((pl, k) => { const psi = k * TAU / n; pl.userData.spin.rotation.x = -(zs / zp) * (rel - psi) + psi + Math.PI + Math.PI / zp; });
+    return { tc };
+  }
+  const mass = sun.userData.mass + ring.userData.mass + planets.reduce((a, p) => a + p.userData.mass, 0) + 0.3;
+  Object.assign(g.userData, { zs, zp, zr, n, m, ratio: 1 + zr / zs, assemblyOk: Number.isInteger(assembly), assembly, clearanceOk: clearance > 0, RC, R: ring.userData.R, mass, update, carrier, ring, sun });
+  return g;
+}
+
+/* ---------------- hamulec tarczowy ---------------- */
+export function discBrake({ d = 0.2, t = 0.008, vents = 12 } = {}) {
+  const M = materials(), g = newPart(`Hamulec tarczowy Ø ${Math.round(d * 1000)}`), R = d / 2;
+  const ds = new THREE.Shape(); ds.absarc(0, 0, R, 0, TAU, false); ds.holes.push(boreHole(0.0125));
+  for (let k = 0; k < vents; k++) ds.holes.push(circlePath(R * 0.06, 16, R * 0.72 * Math.cos(k * TAU / vents), R * 0.72 * Math.sin(k * TAU / vents)));
+  const hub = new THREE.Shape(); hub.absarc(0, 0, R * 0.32, 0, TAU, false); hub.holes.push(boreHole(0.0125));
+  g.userData.spin.add(mesh(extrude(ds, t, 0.0005, 64), M.steel));
+  const h = mesh(extrude(hub, 0.03, 0.001), M.dark); h.position.x = -0.019; g.userData.spin.add(h);
+  const cal = mesh(box(0.05, 0.05, 0.07), M.paintRed); cal.position.set(0, R - 0.015, 0); g.add(cal);
+  const pad = mesh(box(t + 0.012, 0.03, 0.05), M.black); pad.position.set(0, R - 0.015, 0); g.add(pad);
+  const mass = STEEL_RHO * Math.PI * R * R * t * 0.9 + STEEL_RHO * Math.PI * (R * 0.32) ** 2 * 0.03;
+  Object.assign(g.userData, { d, t, vents, mass, J: 0.5 * mass * R * R * 0.85 });
+  return g;
+}
+
+export const MechKit = { materials, gear, ringGear, sprocket, pulley, loopPath, chainDistance, chainLoop, beltLoop, shaft, pillowBlock, jawCoupling, flangeCoupling, yoke, cross, motor, housing, tubeHousing, involuteOutline, planetary, discBrake };

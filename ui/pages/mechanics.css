@@ -8,3 +8,7 @@
 .ports a { color: var(--accent); text-decoration: none; }
 .stats.list span { cursor: pointer; }
 .stats.list span:hover { color: var(--accent); }
+.bar [hidden] { display: none; }
+#mBar { display: inline-flex; align-items: center; gap: 14px; }
+#itemList h4 { margin-block: 10px 4px; font-size: 11px; font-weight: 500; color: var(--dim); text-transform: none; }
+.warn { margin-block: 6px 0; font-size: 12px; color: var(--err); grid-column: 1 / -1; }

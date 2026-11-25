@@ -1,5 +1,18 @@
 # Zmiany
 
+## 0.22.0 — 2026-11-25
+- Laboratorium mechaniki 0.2.0: tryb **Przedmioty** (domyślny) — każdy przedmiot osobno na stole, na statywie z czopem
+  wzdłuż osi obrotu (silnik i oprawa łożyska — na blacie). Okno Przedmioty (zębatka walcowa, para zębatek, przekładnia
+  planetarna, koło koronowe, koło łańcuchowe, napęd łańcuchowy, koło pasowe, napęd pasowy, wał, łożysko w oprawie,
+  sprzęgło kłowe, sprzęgło kołnierzowe, przegub Cardana, silnik, hamulec tarczowy), okno Ustawienia (np. liczba zębów,
+  moduł, kąt przyporu, materiał, rodzaj łańcucha, profil i liczba rowków, moc i liczba biegunów silnika, kąt przegubu)
+  i okno Element — wyliczone dane, ostrzeżenia (podcięcie zęba, warunek montażu satelitów, kąt opasania, efekt
+  wielokąta…) i porty. Dotychczasowa maszyna — tryb **Maszyna**.
+- MechKit: kąt przyporu i wyłączane otwory odciążające zębatek, profile pasów SPZ / SPA / SPB i koła wielorowkowe,
+  łańcuchy 06B–12A, wał bez rowka wpustu, oprawy łożysk pod różne średnice wałów, gwiazdy sprzęgła kłowego (twardości),
+  liczba śrub sprzęgła kołnierzowego, silniki IEC 0,18–7,5 kW (wielkość mechaniczna, masa, bezwładność, 2 / 4 / 6
+  biegunów), przekładnia planetarna (`planetary`) i hamulec tarczowy (`discBrake`) jako przedmioty. Napęd: `pose(θ)`.
+
 ## 0.21.0 — 2026-11-25
 - Laboratorium mechaniki 0.1.0 (`labs/mechanics.html`, opis `docs/labs/mechanics.md`), kategoria 1 — transmisja ruchu:
   jedna maszyna z elementów połączonych portami — silnik 1,1 kW, sprzęgło kłowe, zębatki 20 : 40, przekładnia

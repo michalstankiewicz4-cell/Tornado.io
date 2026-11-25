@@ -119,5 +119,11 @@ export function createDrive() {
     return st;
   }
 
-  return { add, connect, solve, step, els, edges, state: st, get order() { return order; }, get conflicts() { return conflicts; } };
+  // pose(θ) — ustawia kąt silnika (źródła) bez dynamiki: kąty i przełożenia wszystkich elementów (podgląd, laboratorium)
+  function pose(t) {
+    const eps = 1e-4, p = evalAngles(t + eps), m = evalAngles(t - eps);
+    for (const el of els.values()) if (p.has(el)) el.r = (p.get(el) - m.get(el)) / (2 * eps);
+    evalAngles(t, true); st.theta = t;
+  }
+  return { add, connect, solve, step, pose, els, edges, state: st, get order() { return order; }, get conflicts() { return conflicts; } };
 }
