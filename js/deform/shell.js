@@ -146,6 +146,8 @@ export function createShell(simGeometries, opts = {}) {
   return {
     embed, step,
     get particles() { return X; },   // położenia cząstek (x, y, z po kolei) — do pomiarów
+    get triangles() { return T; },   // trójkąty siatki fizycznej (indeksy cząstek) — do podglądu
+    get radius() { return S.O.radius; },
     wake() { S.awake = true; S.still = 0; wakeNext = true; },
     get awake() { return S.awake; },
     get threaded() { return !!worker; },

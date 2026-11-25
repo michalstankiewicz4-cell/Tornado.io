@@ -6,7 +6,7 @@
     app: "0.20.3",
     labs: {
       "labs/destruction.html": "0.3.2",
-      "labs/deformation.html": "0.3.3",
+      "labs/deformation.html": "0.4.0",
       "labs/streets.html": "0.10.1",
     },
   };

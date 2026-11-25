@@ -1,5 +1,11 @@
 # Zmiany
 
+## Laboratorium deformacji 0.4.0 — 2026-11-25
+- Pole **Zderzacze** na pasku: bryły zderzeń (prasa — czerwona, podpory i ściany kontenera — żółte), siatka fizyczna
+  beczek z cząstkami (wielkość punktu = średnica styku), ramki beczek (po nich wybierani są sąsiedzi do zderzeń)
+  i cząstki trzymane przy chwytaniu (zielone); rysowane przez wszystko, na bieżąco. DeformKit: `shell.triangles`,
+  `shell.radius`.
+
 ## 0.20.3 — 2026-11-25
 - DeformKit: blacha nie przenika już prasy, a górne beczki dolnych. Przyczyna: gdy wątek beczki był zajęty, zaległe
   kroki liczyły się potem razem z ostatnim położeniem prasy i sąsiadów — prasa przeskakiwała kilka kroków naraz,

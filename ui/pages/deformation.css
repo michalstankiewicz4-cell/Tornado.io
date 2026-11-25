@@ -4,3 +4,4 @@
 .bar .speed output { font-family: var(--mono); min-inline-size: 64px; color: var(--text); }
 .bar [hidden] { display: none; }
 #view canvas.grabbing { cursor: grabbing; }
+.bar .chk { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dim); cursor: pointer; }

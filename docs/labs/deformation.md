@@ -11,6 +11,9 @@ Prasa zatrzymuje się na podporach.
 Kamera: przeciągnij — obrót, kółko — odległość, W A S D — przesuwanie. Kliknięcie beczki przykleja ją do kursora
 (w górę podnosi), kolejne kliknięcie puszcza.
 
+Pole **Zderzacze**: bryły zderzeń (prasa czerwona, podpory i ściany żółte), siatka fizyczna beczek z cząstkami
+(punkt = średnica styku), ramki beczek (fioletowe) i cząstki chwytu (zielone).
+
 ## Kontener
 
 Przełącznik **Plansza | Kontener** na pasku. Kontener bez dachu (wnętrze 2,2 × 1,3 m, ściany 1,6 m, na dwóch płozach)
