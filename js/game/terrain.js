@@ -6,17 +6,10 @@ import * as THREE from '../../vendor/three/three.module.js';
 import { grassMaterial } from '../world/ground.js';
 import { makeMaterial } from '../render/materials/matkit.js';
 
-const sm = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+// wysokość terenu w osobnym, czystym module (czyta ją też wątek fizyki odłamków — js/game/physics-env.js)
+import { sm, CITY, cityK, heightAt } from './height.js';
+export { CITY, heightAt };
 export const ROAD_W = 5.5;
-// dzielnica miejska na wschodzie: płaska, wybetonowana (wieżowce i Pałac Kultury)
-export const CITY = { x0: 190, x1: 850, z0: -335, z1: 325 };
-const cityK = (x, z, m = 30) => sm(-m, 0, Math.min(x - CITY.x0, CITY.x1 - x, z - CITY.z0, CITY.z1 - z));
-export function heightAt(x, z) {
-  const base = 3.2 * Math.sin(x * 0.0085 + 0.7) * Math.cos(z * 0.0072 - 0.4) + 1.7 * Math.sin(x * 0.019 + z * 0.013 + 2) + 0.6 * Math.sin(x * 0.05 - z * 0.041);
-  const d = Math.hypot(x / 1.7, z / 1.1);
-  const flat = Math.max(1 - sm(80, 170, d), cityK(x, z));
-  return (base + 0.25 * Math.sin(x * 0.11) * Math.sin(z * 0.09) * sm(40, 90, d)) * (1 - flat) + 0.6;
-}
 // droga: lekko wije się wokół z = 0
 export const roadZ = (x) => 2.5 * Math.sin(x * 0.012);
 export const onRoad = (x, z) => x < CITY.x0 + 5 && Math.abs(z - roadZ(x)) < ROAD_W / 2;   // droga kończy się na placu miasta

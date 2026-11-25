@@ -5,7 +5,7 @@
 // bez pętli po dziesiątkach tysięcy części przy każdym przebiegu obrazu i cieni); szkło zostaje sortowane (przezroczyste).
 // Zmiana macierzy lub barwy kawałka wysyła na kartę tylko jego wiersz tekstury (js/render/partial-upload.js).
 // createBatches(scene) → { add(geometry, matId, matrix, color?) → handle, set(handle, matrix), color(handle, c),
-//   remove(handle), stats() → { geoms, verts, draws }, clear() }
+//   remove(handle), prepare(matId), stats() → { geoms, verts, draws }, clear() }
 import * as THREE from '../../vendor/three/three.module.js';
 import { renderMaterial, MATS } from './materials.js';
 import { touchTex } from '../render/partial-upload.js';
@@ -50,6 +50,8 @@ export function createBatches(scene) {
       setM(b.mesh, iid, matrix); setC(b.mesh, iid, color || W);
       return { b, gid, iid, matId };
     },
+    // batch materiału gotowy zawczasu (tekstury MatKit liczone przy ładowaniu, nie przy pierwszym kawałku)
+    prepare(matId) { if (!B.has(matId)) B.set(matId, make(matId)); },
     set(h, matrix) { setM(h.b.mesh, h.iid, matrix); },
     color(h, c) { setC(h.b.mesh, h.iid, c); },
     visible(h, on) { if (h && !h.dead) h.b.mesh.setVisibleAt(h.iid, on); },

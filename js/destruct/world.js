@@ -8,7 +8,11 @@
 //   addObject(obj3d, { m, pts, r, A, size, kind, sleep }) → body   przedmiot z własną siatką (beczka, opona…)
 //   hit(point, J, { radius })                           uderzenie: punkt [Vector3], impuls [Vector3, N·s]
 //   windDamage(x, z, R, speedAt(x, y, z), dt)           wiatr niszczy części w promieniu R (szyby pierwsze)
-//   update(dt)                                          fizyka, zderzenia, statyka, rysowanie
+//   update(dt, { sync })                                fizyka, zderzenia, statyka, rysowanie
+//   opts.physicsWorker: adres modułu środowiska (ground, wind) — krok brył w osobnym wątku (js/destruct/physics-worker.js),
+//     wyniki w następnej klatce; env.windState — stan wiatru wysyłany do wątku (same liczby). Bez wątku albo
+//     z { sync: true } (np. symulacja dla AI) — krok na głównym wątku jak dotąd.
+//   Budynki ukryte (hidden) trafiają na kartę dopiero przy odsłonięciu (pierwsze uszkodzenie, ogień).
 //   bodies (Set), buildings, removeBody(b), stats(), clear(), onBreak(fn), onFragment(fn)
 // Body: { p, q, v, w, m, r, A, size, state 'active' | 'sleep' | 'held', kind 'frag' | 'part' | 'item', mat }
 import * as THREE from '../../vendor/three/three.module.js';
@@ -62,8 +66,9 @@ export function createWorld(scene, opts = {}) {
         need: sp.need, anchor: sp.anchor, fixed: !!sp.fixed, supports: [], dependents: [], ground: sp.supports.includes(-1) };
       part.hp = part.hpMax;
       part.aabb = aabbOf(part);
-      part.handle = addPartMesh(part, part.poly, tintOf(part)).h;
-      if (hidden) batches.visible(part.handle, false);
+      // ukryty budynek: siatki części na kartę dopiero przy odsłonięciu (reveal) — do tego czasu nie zajmują pamięci GPU
+      if (!hidden) part.handle = addPartMesh(part, part.poly, tintOf(part)).h;
+      else batches.prepare(part.mat);   // materiał (tekstury) gotowy od razu — odsłonięcie tylko kopiuje siatki
       if (!part.fixed) bld.vol0 += part.vol;
       bld.parts.push(part);
       gridAdd(part);
@@ -75,8 +80,25 @@ export function createWorld(scene, opts = {}) {
   function reveal(bld) {
     if (!bld.hidden) return;
     bld.hidden = false;
-    for (const p of bld.parts) if (p.handle) batches.visible(p.handle, true);
-    for (const f of listeners.reveal) f(bld);
+    // siatki części na kartę po kawałku (budżet czasu na klatkę) — duży budynek nie zatrzymuje gry; do końca części
+    // są niewidoczne, a gra pokazuje dalej model z laboratorium miasta, potem zamiana naraz (onReveal)
+    bld.pending = bld.parts.filter((p) => p.state === 'intact' && !p.handle);
+    bld.shown = [];
+    revealing.add(bld);
+  }
+  const revealing = new Set(), REVEAL_MS = 5;
+  function revealStep() {
+    const t0 = performance.now();
+    for (const bld of revealing) {
+      while (bld.pending.length) {
+        const p = bld.pending.pop();
+        if (p.state === 'intact' && !p.handle) { p.handle = addPartMesh(p, p.poly, tintOf(p)).h; batches.visible(p.handle, false); bld.shown.push(p); }
+        if (performance.now() - t0 > REVEAL_MS) return;
+      }
+      for (const p of bld.shown) if (p.handle) batches.visible(p.handle, true);
+      bld.shown = null; bld.pending = null; revealing.delete(bld);
+      for (const f of listeners.reveal) f(bld);
+    }
   }
   // barwa części: odcień budynku (tynk, płyta) i zwęglenie od ognia (char 0…1 — ciemnieje)
   function tintOf(part) {
@@ -125,6 +147,7 @@ export function createWorld(scene, opts = {}) {
   function removeBody(b) {
     if (!bodies.has(b)) return;
     bodies.delete(b);
+    if (phys && b.wid) phys.del.push(b.wid);
     if (b.handle) batches.remove(b.handle);
     if (b.obj && b.obj.parent) b.obj.parent.remove(b.obj);
     if (b.onRemove) b.onRemove(b);
@@ -350,18 +373,78 @@ export function createWorld(scene, opts = {}) {
     }
   }
 
+  /* ---------------- wątek fizyki ---------------- */
+  // Co klatkę: zastosuj wynik poprzedniego kroku (to, co w międzyczasie zmienił główny wątek — prędkość od trąby,
+  // odbicie od muru — dodaje się do wyniku), zderzenia, potem wyślij aktywne bryły na następny krok.
+  const STRIDE = 16, phys = opts.physicsWorker ? startWorker(opts.physicsWorker) : null;
+  function startWorker(envUrl) {
+    try {
+      const P = { w: new Worker(new URL('./physics-worker.js', import.meta.url), { type: 'module' }), ready: false, busy: false, stale: false, res: null, list: [], snap: null, acc: 0, add: [], del: [], next: 1 };
+      P.w.onmessage = (e) => { if (e.data.ready) { P.ready = true; return; } P.busy = false; if (P.stale) { P.stale = false; return; } P.res = e.data; };
+      P.w.onerror = () => { P.failed = true; };
+      P.w.postMessage({ init: envUrl });
+      return P;
+    } catch { return null; }
+  }
+  function applyResult(R) {
+    const { s, land } = R, snap = phys.snap;
+    phys.list.forEach((b, i) => {
+      if (!bodies.has(b) || b.state !== 'active') return;
+      const o = i * STRIDE;
+      // wynik kroku + to, co główny wątek dodał od wysłania
+      b.p.set(s[o] + b.p.x - snap[o], s[o + 1] + b.p.y - snap[o + 1], s[o + 2] + b.p.z - snap[o + 2]);
+      b.q.set(s[o + 3], s[o + 4], s[o + 5], s[o + 6]);
+      const dvx = b.v.x - snap[o + 7], dvy = b.v.y - snap[o + 8], dvz = b.v.z - snap[o + 9];
+      b.v.set(s[o + 7] + dvx, s[o + 8] + dvy, s[o + 9] + dvz);
+      b.w.set(s[o + 10] + b.w.x - snap[o + 10], s[o + 11] + b.w.y - snap[o + 11], s[o + 12] + b.w.z - snap[o + 12]);
+      b.sleepT = s[o + 13]; b.age = s[o + 14];
+      if (s[o + 15] && dvx * dvx + dvy * dvy + dvz * dvz < 1e-4) { b.state = 'sleep'; b.v.set(0, 0, 0); b.w.set(0, 0, 0); b.moved = true; }
+    });
+    for (let k = 0; k < land.length; k += 2) { const b = phys.list[land[k]]; if (b && bodies.has(b) && b.onLand) b.onLand(b, land[k + 1]); }
+  }
+  function sendStep(dt) {
+    const list = [];
+    for (const b of bodies) if (b.state === 'active') list.push(b);
+    const n = list.length, ids = new Int32Array(n), sArr = new Float32Array(n * STRIDE);
+    list.forEach((b, i) => {
+      if (!b.wid) { b.wid = phys.next++; phys.add.push([b.wid, b.m, b.I, b.r, b.A, b.e, b.mu, b.pts]); }
+      ids[i] = b.wid; const o = i * STRIDE;
+      sArr[o] = b.p.x; sArr[o + 1] = b.p.y; sArr[o + 2] = b.p.z; sArr[o + 3] = b.q.x; sArr[o + 4] = b.q.y; sArr[o + 5] = b.q.z; sArr[o + 6] = b.q.w;
+      sArr[o + 7] = b.v.x; sArr[o + 8] = b.v.y; sArr[o + 9] = b.v.z; sArr[o + 10] = b.w.x; sArr[o + 11] = b.w.y; sArr[o + 12] = b.w.z;
+      sArr[o + 13] = b.sleepT; sArr[o + 14] = b.age;
+    });
+    phys.list = list; phys.snap = sArr.slice();
+    phys.w.postMessage({ dt, wind: env.windState || null, windGain: env.windGain || 1, add: phys.add, del: phys.del, ids, s: sArr }, [ids.buffer, sArr.buffer]);
+    phys.add = []; phys.del = []; phys.busy = true;
+  }
+
   /* ---------------- krok ---------------- */
   const sub = 2;
-  function update(dt) {
+  function update(dt, { sync: inline = false } = {}) {
     dt = Math.min(dt, 1 / 20); simT += dt;
-    const h = dt / sub;
-    for (const b of bodies) {
-      if (b.state !== 'active') continue;
-      for (let i = 0; i < sub && b.state === 'active'; i++) stepBody(b, h, env);
-      if (bodies.has(b)) collide(b);
-      if (b.p.y < ground(b.p.x, b.p.z) - 30) removeBody(b);
+    const useWorker = phys && phys.ready && !phys.failed && !inline;
+    if (useWorker) {
+      if (phys.res) { applyResult(phys.res); phys.res = null; }
+      for (const b of bodies) {
+        if (b.state !== 'active') continue;
+        collide(b);
+        if (bodies.has(b) && b.p.y < ground(b.p.x, b.p.z) - 30) removeBody(b);
+      }
+      phys.acc += dt;
+      if (!phys.busy) { sendStep(Math.min(phys.acc, 1 / 15)); phys.acc = 0; }
+    } else {
+      if (phys && phys.busy) phys.stale = true;   // krok w wątku przestarzały — bryły policzone tutaj
+      if (phys) phys.res = null;
+      const h = dt / sub;
+      for (const b of bodies) {
+        if (b.state !== 'active') continue;
+        for (let i = 0; i < sub && b.state === 'active'; i++) stepBody(b, h, env);
+        if (bodies.has(b)) collide(b);
+        if (b.p.y < ground(b.p.x, b.p.z) - 30) removeBody(b);
+      }
     }
     processQueue();
+    if (revealing.size) revealStep();
     // za dużo odłamków: najstarsze leżące najmniejsze znikają (pył)
     if (fragCount > maxFrag) {
       const sleeping = [...bodies].filter((b) => b.kind === 'frag' && b.state === 'sleep').sort((a, c) => a.vol - c.vol || a.born - c.born);
@@ -396,5 +479,6 @@ export function createWorld(scene, opts = {}) {
     set maxFragments(n) { maxFrag = n; },
     onBreak(f) { listeners.break.push(f); }, onReveal(f) { listeners.reveal.push(f); }, reveal, setChar, onFragment(f) { listeners.frag.push(f); },
     get time() { return simT; },
+    get physicsThread() { return !!(phys && phys.ready && !phys.failed); },
   };
 }

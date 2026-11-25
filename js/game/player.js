@@ -55,6 +55,8 @@ export function createPlayer(scene, world, { heightAt, forest, x = 0, z = 0, bou
     tornado.set({ strength: clamp(P.R / 12, 0.15, 1), rc: P.R, top: 30 + P.R * 11, vmax: 22 + P.R * 4.5, kind: 'land' });
     tornado.update(dt, camera, { at: [P.x, P.z], groundAt: heightAt, isWater: () => false, light });
     const T = tornado.state;
+    // stan wiatru dla wątku fizyki (same liczby — funkcja wiatru jest po tamtej stronie)
+    world.env.windState = T ? { x: T.x, z: T.z, base: T.base, rc: T.rc, top: T.top, vmax: T.vmax, fade: T.fade, spin: T.spin } : null;
     if (!T) return;
     const gy = heightAt(P.x, P.z);
 

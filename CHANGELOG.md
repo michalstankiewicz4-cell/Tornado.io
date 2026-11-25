@@ -1,5 +1,15 @@
 # Zmiany
 
+## 0.16.0 — 2026-11-25
+- Fizyka odłamków w osobnym wątku (Web Worker, `js/destruct/physics-worker.js`): krok brył (te same obliczenia
+  `physics.js`) liczy się poza głównym wątkiem, wynik wraca w następnej klatce — to, co w międzyczasie zmienił główny
+  wątek (prędkość od trąby, odbicie od muru), dodaje się do wyniku. Środowisko wątku: `js/game/physics-env.js` (grunt
+  z `js/game/height.js`, wiatr trąby — stan wysyłany co klatkę). Bez wątku i w `TornadoApi.simulate` — krok na
+  głównym wątku jak dotąd.
+- Budynki Warszawy ukryte do pierwszego uszkodzenia nie zajmują pamięci karty (ok. 1 mln wierzchołków mniej na
+  starcie): siatki ich części trafiają na kartę dopiero przy odsłonięciu, po kawałku (5 ms na klatkę), a do końca gra
+  pokazuje model z laboratorium miasta; materiały (tekstury MatKit) przygotowane przy ładowaniu.
+
 ## 0.15.2 — 2026-11-25
 - Wydajność pod GPU: batche budynków (DestructKit) bez odrzucania części poza kadrem na CPU — karta rysuje wszystkie
   widoczne kawałki (pętla po ~45 tys. częściach przy każdym przebiegu obrazu i cieni zeszła z ~4 ms do ~1 ms na klatkę;

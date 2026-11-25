@@ -50,7 +50,7 @@ const WIND = [2.6, 1.2];   // lekki wiatr z zachodu [x, z] m/s: kładzie płomie
 async function build() {
   await step('Teren', 0.05);
   const terrain = createTerrain(); scene.add(terrain.mesh); scene.add(cityPaving());
-  const world = createWorld(scene, { ground: heightAt, maxFragments: 3000 });
+  const world = createWorld(scene, { ground: heightAt, maxFragments: 3000, physicsWorker: new URL('./physics-env.js', import.meta.url).href });   // fizyka odłamków w osobnym wątku
   await step('Budynki', 0.15);
   const spots = [];   // zajęte miejsca: [x, z, promień]
   HOUSES.forEach(([type, x, side, set], i) => {
@@ -290,7 +290,7 @@ window.TornadoApi = {
   go(x, z) { G.player.x = x; G.player.z = z; return this.state(); },
   hit(p, j, radius = 1) { return G.world.hit(new THREE.Vector3(...p), new THREE.Vector3(...j), { radius }); },
   throwAt(p) { const b = G.player.throwAt(new THREE.Vector3(...p)); return b ? { name: b.name, m: b.m } : null; },
-  simulate(sec = 1, mv = [0, 0]) { for (let t = 0; t < sec; t += 1 / 30) { G.player.update(1 / 30, mv, camera); G.world.update(1 / 30); G.burning.update(1 / 30); } return this.state(); },
+  simulate(sec = 1, mv = [0, 0]) { for (let t = 0; t < sec; t += 1 / 30) { G.player.update(1 / 30, mv, camera); G.world.update(1 / 30, { sync: true }); G.burning.update(1 / 30); } return this.state(); },   // krok na głównym wątku (od razu)
   camera(zoom, yaw) { if (zoom) S.zoom = zoom; if (yaw != null) cam.yaw = yaw; return { zoom: S.zoom, yaw: cam.yaw }; },
   get G() { return G; },
 };
