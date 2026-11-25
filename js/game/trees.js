@@ -2,6 +2,7 @@
 // (jedno wywołanie rysowania na wariant i część: kora, liście), wiatr w shaderze. Wyrwane drzewo staje się osobnym
 // obiektem (bryła świata: niesione przez trąbę, rzucane, zjadane).
 // createTrees(scene, list [{ x, z, species, seed, scale }], heightAt) → { trees, uproot(tree) → obj, wind(strength, dirDeg), tick(dt) }
+import { touchAttr } from '../render/partial-upload.js';
 import * as THREE from '../../vendor/three/three.module.js';
 import { growPlant, plantMaterials, windUniforms } from '../models/plants/plantkit.js';
 
@@ -36,7 +37,7 @@ export function createTrees(scene, list, heightAt) {
     uproot(t) {
       if (!t.alive) return null;
       t.alive = false;
-      for (const im of t.P.ims) { im.setMatrixAt(t.slot, ZERO); im.instanceMatrix.needsUpdate = true; }
+      for (const im of t.P.ims) { im.setMatrixAt(t.slot, ZERO); touchAttr(im.instanceMatrix, t.slot * 16, 16); }
       const obj = new THREE.Group(), inner = new THREE.Group(); inner.position.y = -t.h * 0.4 / t.scale; obj.add(inner);
       const m = mats[t.species];
       if (t.P.g.bark) { const b = new THREE.Mesh(t.P.g.bark, m.bark); b.customDepthMaterial = m.barkDepth; b.castShadow = true; inner.add(b); }
@@ -52,7 +53,7 @@ export function createTrees(scene, list, heightAt) {
     setChar(t, k) {
       t.char = Math.max(t.char || 0, Math.min(1, k));
       const c = new THREE.Color(1, 1, 1).multiplyScalar(1 - 0.85 * t.char);
-      if (t.alive) for (const im of t.P.ims) { im.setColorAt(t.slot, c); im.instanceColor.needsUpdate = true; }
+      if (t.alive) for (const im of t.P.ims) { im.setColorAt(t.slot, c); touchAttr(im.instanceColor, t.slot * 3, 3); }
       else if (t.obj) t.obj.traverse((o) => { if (o.isMesh) { if (!o.userData.own) { o.material = o.material.clone(); o.userData.own = true; } o.material.color.copy(c); } });
     },
     wind(strength, dirDeg) { wu.uWind.value = strength; const a = dirDeg * Math.PI / 180; wu.uWindDir.value.set(Math.sin(a), Math.cos(a)); },

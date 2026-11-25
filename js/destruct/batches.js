@@ -1,10 +1,18 @@
 // Rysowanie wszystkich części i odłamków: jeden BatchedMesh na materiał (jedno wywołanie rysowania na materiał,
 // niezależnie od liczby kawałków). Każdy kawałek: własna siatka w batchu i jedna instancja z macierzą i barwą.
 // Pamięć rośnie sama (podwaja się), a zwolnione miejsca odzyskuje optimize().
+// GPU: nieprzezroczyste batche bez odrzucania kawałków poza kadrem na CPU (karta rysuje wszystkie widoczne kawałki —
+// bez pętli po dziesiątkach tysięcy części przy każdym przebiegu obrazu i cieni); szkło zostaje sortowane (przezroczyste).
+// Zmiana macierzy lub barwy kawałka wysyła na kartę tylko jego wiersz tekstury (js/render/partial-upload.js).
 // createBatches(scene) → { add(geometry, matId, matrix, color?) → handle, set(handle, matrix), color(handle, c),
 //   remove(handle), stats() → { geoms, verts, draws }, clear() }
 import * as THREE from '../../vendor/three/three.module.js';
 import { renderMaterial, MATS } from './materials.js';
+import { touchTex } from '../render/partial-upload.js';
+
+// macierz instancji = 4 teksele RGBA (16 liczb), barwa = 1 teksel (szerokość tekstur jest wielokrotnością 4)
+function setM(mesh, iid, M) { mesh.setMatrixAt(iid, M); touchTex(mesh._matricesTexture, iid * 16, 16); }
+function setC(mesh, iid, c) { mesh.setColorAt(iid, c); touchTex(mesh._colorsTexture, iid * 4, 4); }
 
 export function createBatches(scene) {
   const B = new Map();   // matId → { mesh, verts, idx, inst, liveV, liveI, dead }
@@ -12,7 +20,9 @@ export function createBatches(scene) {
   function make(matId, maxI = 512, maxV = 65536, maxX = 131072) {
     const mesh = new THREE.BatchedMesh(maxI, maxV, maxX, renderMaterial(matId));
     mesh.castShadow = !MATS[matId].glass; mesh.receiveShadow = true; mesh.name = 'batch-' + matId;
-    mesh.perObjectFrustumCulled = true; mesh.sortObjects = !!MATS[matId].glass;
+    const glass = !!MATS[matId].glass;
+    mesh.perObjectFrustumCulled = glass; mesh.sortObjects = glass;
+    mesh.frustumCulled = false;   // kawałki rozlatują się po całej mapie — granice batcha i tak obejmują świat
     scene.add(mesh);
     return { mesh, maxI, maxV, maxX, usedV: 0, usedX: 0, n: 0, dead: 0 };
   }
@@ -37,11 +47,11 @@ export function createBatches(scene) {
       if (b.n >= b.maxI) { b.maxI *= 2; b.mesh.setInstanceCount(b.maxI); }
       const gid = b.mesh.addGeometry(geo), iid = b.mesh.addInstance(gid);
       b.usedV += nv; b.usedX += nx; b.n++;
-      b.mesh.setMatrixAt(iid, matrix); b.mesh.setColorAt(iid, color || W);
+      setM(b.mesh, iid, matrix); setC(b.mesh, iid, color || W);
       return { b, gid, iid, matId };
     },
-    set(h, matrix) { h.b.mesh.setMatrixAt(h.iid, matrix); },
-    color(h, c) { h.b.mesh.setColorAt(h.iid, c); },
+    set(h, matrix) { setM(h.b.mesh, h.iid, matrix); },
+    color(h, c) { setC(h.b.mesh, h.iid, c); },
     visible(h, on) { if (h && !h.dead) h.b.mesh.setVisibleAt(h.iid, on); },
     remove(h) { if (!h || h.dead) return; h.b.mesh.deleteGeometry(h.gid); h.b.n--; h.b.dead++; h.dead = true; },
     stats() { let geoms = 0, verts = 0; for (const b of B.values()) { geoms += b.n; verts += b.usedV; } return { geoms, verts, draws: B.size }; },

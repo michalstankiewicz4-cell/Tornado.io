@@ -1,6 +1,7 @@
 // Teren gry: łagodne pagórki, wioska na płaskim w środku, polna droga wzdłuż osi x, pola (zaorane i zboże) za wioską.
 // Trawa z tekstury (js/world/ground.js), kolory wierzchołków barwią drogę i pola.
 // createTerrain({ size, seg }) → { mesh, heightAt(x, z), onRoad(x, z), size }
+import { touchAttr } from '../render/partial-upload.js';
 import * as THREE from '../../vendor/three/three.module.js';
 import { grassMaterial } from '../world/ground.js';
 import { makeMaterial } from '../render/materials/matkit.js';
@@ -50,13 +51,13 @@ export function createTerrain({ size = 1320, seg = 380, tile = 3, cx = 290 } = {
   const mesh = new THREE.Mesh(geo, grassMaterial({ tile })); mesh.receiveShadow = true; mesh.name = 'teren';
   // siatka pożarów trawy = wierzchołki terenu (n × n, krok step); spalone ciemnieją (setBurnt), barwy wyjściowe w base
   const nG = seg + 1, step = size / seg, base = col.slice(), cattr = geo.attributes.color;
-  let dirty = false;
   const grid = { n: nG, step, x0: cx - size / 2, z0: -size / 2, fuel,
     index: (x, z) => { const i = Math.round((x - grid.x0) / step), j = Math.round((z - grid.z0) / step); return i < 0 || j < 0 || i >= nG || j >= nG ? -1 : j * nG + i; },
     pos: (k) => [grid.x0 + (k % nG) * step, grid.z0 + Math.floor(k / nG) * step],
     // k 0…1: 0 — trawa, 1 — wypalona ziemia (prawie czarna)
-    setBurnt(k, a) { const m = 1 - 0.85 * a; cattr.array[k * 3] = base[k * 3] * m * 0.9; cattr.array[k * 3 + 1] = base[k * 3 + 1] * m * 0.85; cattr.array[k * 3 + 2] = base[k * 3 + 2] * m * 0.8; dirty = true; },
-    flush() { if (dirty) { cattr.needsUpdate = true; dirty = false; } },
+    // na kartę idą tylko zmienione wierzchołki (3 liczby barwy), nie cała siatka terenu
+    setBurnt(k, a) { const m = 1 - 0.85 * a; cattr.array[k * 3] = base[k * 3] * m * 0.9; cattr.array[k * 3 + 1] = base[k * 3 + 1] * m * 0.85; cattr.array[k * 3 + 2] = base[k * 3 + 2] * m * 0.8; touchAttr(cattr, k * 3, 3); },
+    flush() {},
   };
   return { mesh, heightAt, onRoad, size, grid };
 }

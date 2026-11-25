@@ -1,5 +1,12 @@
 # Zmiany
 
+## 0.15.2 — 2026-11-25
+- Wydajność pod GPU: batche budynków (DestructKit) bez odrzucania części poza kadrem na CPU — karta rysuje wszystkie
+  widoczne kawałki (pętla po ~45 tys. częściach przy każdym przebiegu obrazu i cieni zeszła z ~4 ms do ~1 ms na klatkę;
+  zostaje tylko sortowanie szkła); częściowe wysyłanie danych na kartę (`js/render/partial-upload.js`) — ruch odłamka,
+  przedmiotu, wyrwanie i zwęglenie drzewa, spalona trawa wysyłają tylko zmienione macierze, barwy i wierzchołki zamiast
+  całych buforów co klatkę.
+
 ## 0.15.1 — 2026-11-25
 - Usunięte nieużywane budynki miasta HouseKit (`tower`, `highrise`, `pkin`) i ich kod w grze (`OWN_CITY`); w grze
   zostają domy HouseKit i budynki Warszawy z CityKit. Laboratorium zniszczeń 0.3.1: bez tych trzech rodzajów.
