@@ -20,7 +20,9 @@ zbudowane (szyby, mury, dachówki, stropy). Mechanizm rozpadu (DestructKit) ma p
   opis `docs/tools/doctor.md` — z ulepszeniami do przeniesienia z powrotem).
 - Nowe: DestructKit (`js/destruct/`), HouseKit (`js/models/houses/`), scena (`js/core/stage.js`), grunt i przedmioty
   (`js/world/`), gra (`js/game/`), laboratorium zniszczeń (`labs/destruction.html`, `js/labs/destruction/`),
-  ulice StreetKit (`js/models/streets/`) i laboratorium ulic (`labs/streets.html`) — próbki, w grze jeszcze nieużyte.
+  ulice StreetKit (`js/models/streets/`) i laboratorium ulic (`labs/streets.html`) — próbki, w grze jeszcze nieużyte;
+  DeformKit (`js/deform/` — deformacja blachy podpinana do zwykłego modelu) i laboratorium deformacji
+  (`labs/deformation.html`) — do przeniesienia do GameLaboratory.
 
 ## DestructKit — zniszczenie wynikające z budowy modelu
 

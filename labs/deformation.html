@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<title>Laboratorium deformacji — prasa zgniata stalowe beczki | Tornado.io</title>
+<meta name="description" content="Tornado.io: laboratorium deformacji — stalowe beczki 200 l pod prasą: pionowo, pod kątem 23°, 45°, 68° i bokiem, na podporach; blacha gnie się trwale (więzy długości i zginania z plastycznością).">
+<link rel="icon" type="image/png" href="../assets/favicon-32.png">
+<link rel="stylesheet" href="../ui/style/sea.css">
+<link rel="stylesheet" href="../ui/ui.css">
+<link rel="stylesheet" href="../ui/pages/deformation.css">
+</head>
+<!-- Laboratorium deformacji (js/labs/deformation/): DeformKit (js/deform/shell.js), beczka JunkKit (js/models/junkyard/items/barrel.js). -->
+<body class="lab viewFits">
+<script src="../ui/shell/log.js"></script>
+<script src="../ui/data/versions.js"></script>
+<script src="../ui/data/catalog.js"></script>
+<script src="../ui/shell/menubar.js"></script>
+<script src="../ui/shell/loader.js"></script>
+<div id="view"></div>
+<div class="bar">
+  <label class="speed" title="Prędkość opuszczania pras (od zera — prasy stoją)">Prasa <input type="range" id="speed" min="0" max="50" step="0.5" aria-label="Prędkość prasy"><output id="speedV"></output></label>
+  <button type="button" id="reset" title="Nowe beczki, prasy do góry (R)">Od nowa</button>
+  <span class="sp"></span>
+  <span class="dimtxt" id="status"></span>
+</div>
+<aside class="panel" data-std="info">
+  <h2 class="stdName">Beczki pod prasą</h2>
+  <p class="stdText">Stalowe beczki 200 l (blacha 1 mm, Ø 572 mm, wys. 880 mm) pod stalowymi blokami prasy: pionowo, pochylone o 23°, 45° i 68° (oparte bokiem o betonowe podpory) i bokiem (zablokowana klinami). Suwak na pasku opuszcza bloki z zadaną prędkością — od zera, gdy prasy stoją.</p>
+  <div class="stats" id="bStats"></div>
+  <h3>Jak to liczy</h3>
+  <p class="note">Każdy wierzchołek beczki to cząstka. Krawędzie trzymają długość (blacha prawie się nie rozciąga), pary wierzchołków naprzeciw krawędzi trzymają zgięcie (sztywność blachy). Gdy odkształcenie przekroczy granicę plastyczności, nowy kształt zostaje — zgniecenie jest trwałe. Prasa, podpory i grunt odpychają cząstki z tarciem.</p>
+</aside>
+<aside class="panel" data-std="camera">
+  <div class="btns" id="cams"></div>
+  <p class="note">Przeciągnij — obrót, kółko — odległość.</p>
+</aside>
+<aside class="panel" data-std="light">
+  <div class="row"><span>Pogoda</span><select id="weather"></select><output></output></div>
+  <div class="row"><span>Słońce</span><input type="range" id="sunEl" min="-6" max="70" step="1"><output id="sunElV"></output></div>
+  <div class="row"><span>Kierunek</span><input type="range" id="sunAz" min="0" max="360" step="2"><output id="sunAzV"></output></div>
+</aside>
+<aside class="panel" data-std="perf">
+  <div class="stats" id="stats"></div>
+</aside>
+<div class="foot">
+  <span id="fps"></span>
+  <span class="sp"></span>
+  <span>Tornado.io</span>
+</div>
+<script src="../ui/shell/perf.js"></script>
+<script src="../ui/shell/labwin.js"></script>
+<script src="../ui/shell/windows.js"></script>
+<script type="module" src="../js/labs/deformation/deformation.js"></script>
+</body>
+</html>

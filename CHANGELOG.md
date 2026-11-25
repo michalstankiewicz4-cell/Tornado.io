@@ -1,5 +1,12 @@
 # Zmiany
 
+## 0.18.0 — 2026-11-25
+- Laboratorium deformacji 0.1.0 (`labs/deformation.html`, opis `docs/labs/deformation.md`): pięć stalowych beczek
+  200 l (pionowo, ~23°, 45°, ~68°, bokiem) w podporach, nad każdą prasa; suwak szybkości zgniatania od zera.
+- DeformKit (`js/deform/`): powłoka z blachy (PBD na zgrubnej siatce, zginanie, plastyczność przy docisku, zderzenia
+  z gruntem i bryłami), siatki modelu osadzone na powłoce; każda powłoka w swoim wątku. Model zostaje osobno — bez
+  DeformKit jest zwykłym, sztywnym modelem.
+
 ## 0.17.0 — 2026-11-25
 - Drobny gruz na karcie graficznej (`js/destruct/chips.js`): przy pęknięciu części i rozbiciu spadającej sypią się
   okruchy (cegła, tynk, szkło, drzazgi — barwa z materiału, odcień budynku, zwęglenie). Lot liczy shader (rzut z oporem

@@ -28,6 +28,20 @@ window.GameLabCatalog =
       "art": { "bg": ["#3a2f2a", "#16120f"], "svg": "<path d=\"M30 92V50L70 26L110 50V92Z\" fill=\"#8e3b26\"/><path d=\"M120 92L130 70L150 80L160 92Z\" fill=\"#9a4b35\"/>" }
     },
     {
+      "file": "labs/deformation.html",
+      "cat": "matter",
+      "name": "Deformation lab",
+      "namePl": "Laboratorium deformacji",
+      "doc": "docs/labs/deformation.md",
+      "desc": "Steel 200 l drums under press blocks: upright, tilted 23°, 45° and 68° against concrete supports, and on the side between chocks; the sheet metal bends permanently (length and bending constraints with plasticity). Press speed from zero.",
+      "descPl": "Stalowe beczki 200 l pod blokami prasy: pionowo, pochylone o 23°, 45° i 68° na betonowych podporach i bokiem między klinami; blacha gnie się trwale (więzy długości i zginania z plastycznością). Prędkość prasy od zera.",
+      "kind": "lab",
+      "kit": "DeformKit",
+      "phrases": ["deformacja", "zgniatanie", "blacha", "beczki"],
+      "saved": ["tornado.deformation."],
+      "art": { "bg": ["#2a3038", "#121519"], "svg": "<path d=\"M60 30H140V44H60Z\" fill=\"#7c8388\"/><path d=\"M74 50H126L130 66L120 74L132 84L126 96H74L68 84L80 74L70 66Z\" fill=\"#1f4f8f\"/>" }
+    },
+    {
       "file": "labs/streets.html",
       "cat": "world",
       "name": "Streets lab",
@@ -43,5 +57,5 @@ window.GameLabCatalog =
     }
   ],
   "tools": [],
-  "phraseEn": { "zniszczenia": "destruction", "budynki": "buildings", "pękanie": "fracture", "gruz": "rubble", "ulice": "streets", "chodniki": "sidewalks", "drogi": "roads", "skrzyżowania": "crossings" }
+  "phraseEn": { "zniszczenia": "destruction", "budynki": "buildings", "pękanie": "fracture", "gruz": "rubble", "ulice": "streets", "chodniki": "sidewalks", "drogi": "roads", "skrzyżowania": "crossings", "deformacja": "deformation", "zgniatanie": "crushing", "blacha": "sheet metal", "beczki": "drums" }
 }/*END*/;

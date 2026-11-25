@@ -1,0 +1,4 @@
+/* Laboratorium deformacji: suwak prędkości prasy na pasku */
+.bar .speed { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dim); }
+.bar .speed input { inline-size: 160px; }
+.bar .speed output { font-family: var(--mono); min-inline-size: 64px; color: var(--text); }
