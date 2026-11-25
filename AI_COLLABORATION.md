@@ -33,3 +33,13 @@ Przegląd statyczny kodu laboratoriów deformacji, zniszczeń i ulic. Nie wprowa
 - **Ulice:** walidować argumenty `StreetsApi.set()` i ich zakresy, aby niepoprawne wartości nie trafiały do przebudowy sceny.
 
 W przeglądzie statycznym nie potwierdzono, że laboratoria są ogólnie niesprawne. Najbardziej konkretne punkty do dalszej weryfikacji to zwalnianie geometrii przy przebudowie deformacji oraz zwalnianie geometrii próbnego tunelu.
+
+## Uwagi do doktora modeli (2026-11-25)
+
+Przegląd statyczny narzędzia. Nie zmieniono kodu doktora ani nie uruchamiano go w tej analizie. W najnowszym wpisie `CHANGELOG.md` odnotowano wynik kontroli 43 modeli: 0 błędów i 0 ostrzeżeń.
+
+1. **Nieznany filtr może zakończyć się fałszywym sukcesem.** Jeśli filtr, np. `nieistniejaca/`, nie pasuje do żadnego modelu, skrypt może zakończyć się kodem sukcesu mimo że nie sprawdził niczego. Uruchamiacz powinien zgłaszać błąd, gdy wynik filtrowania jest pusty.
+   - Pliki: [run.js](https://github.com/michalstankiewicz4-cell/Tornado.io/blob/main/tools/doctor/run.js), [doctor.py](https://github.com/michalstankiewicz4-cell/Tornado.io/blob/main/tools/doctor.py)
+
+2. **Licznik postępu jest mylący przy filtrowaniu.** `run.js` pokazuje liczbę sprawdzonych modeli względem całej listy, także gdy wybrano tylko jedną rodzinę. Warto obliczyć mianownik z modeli, które pasują do aktywnego filtra.
+   - Plik: [run.js](https://github.com/michalstankiewicz4-cell/Tornado.io/blob/main/tools/doctor/run.js)
