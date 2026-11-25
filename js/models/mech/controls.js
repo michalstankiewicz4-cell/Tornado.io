@@ -196,4 +196,198 @@ export function inverter({ kW = 1.1, fmax = 50, ramp = 5 } = {}) {
   return g;
 }
 
-export const ControlKit = { enclosure, switchUnit, potentiometer, pushButton, inverter, plastics, BUTTON_COLORS };
+/* ---------------- grzybek bezpieczeństwa (awaryjne zatrzymanie) ---------------- */
+// czerwony grzybek Ø 40 mm na żółtej obudowie; wciśnięcie — zatrzaskuje się (styk NC otwarty), kolejne kliknięcie —
+// odblokowanie obrotem (grzybek obraca się i wraca)
+export function eStop({ contacts = '1NC' } = {}) {
+  const Pm = plastics(), g = new THREE.Group();
+  const box = enclosure({ w: 0.08, h: 0.08, d: 0.07, mat: 'yellow' }); g.add(box);
+  const f = box.userData.front, pivot = new THREE.Group(); pivot.position.copy(f); g.add(pivot);
+  const ring = canvasTex(256, 256, (c, w, h) => { c.fillStyle = '#e8c21c'; c.beginPath(); c.arc(128, 128, 126, 0, TAU); c.fill(); c.fillStyle = '#111'; c.font = 'bold 22px sans-serif'; c.textAlign = 'center'; c.fillText('STOP', 128, 32); c.fillText('AWARYJNY', 128, 236); });
+  const pl = mesh(new THREE.CircleGeometry(0.03, 48), new THREE.MeshStandardMaterial({ map: ring.t, roughness: 0.5 })); pl.position.z = 0.0004; pivot.add(pl);
+  const coll = mesh(new THREE.CylinderGeometry(0.0145, 0.016, 0.012, 32).rotateX(Math.PI / 2), Pm.black); coll.position.z = 0.006; pivot.add(coll);
+  const cap = new THREE.Group(); pivot.add(cap);
+  const head = mesh(new THREE.SphereGeometry(0.02, 40, 16, 0, TAU, 0, Math.PI / 2).rotateX(Math.PI / 2).scale(1, 1, 0.5), Pm.red); head.position.z = 0.016; cap.add(head);
+  const rim = mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.004, 40).rotateX(Math.PI / 2), Pm.red); rim.position.z = 0.014; cap.add(rim);
+  const arrow = mesh(new THREE.BoxGeometry(0.012, 0.0016, 0.0008), Pm.white); arrow.position.set(0, 0.012, 0.0215); arrow.rotation.z = 0.3; cap.add(arrow);
+  for (const o of [head, rim, arrow]) o.userData.control = 'estop';
+  let latched = false, depth = 0, twist = 0;
+  const api = {
+    get latched() { return latched; }, get closed() { return !latched; },
+    press(c) { if (c !== 'estop') return; if (latched) { latched = false; twist = 0.6; } else latched = true; },
+    release() {}, drag() {},
+    tick(dt) { const t = latched ? 0.005 : 0; depth += (t - depth) * Math.min(1, dt * 25); cap.position.z = -depth; twist = Math.max(0, twist - dt * 1.5); cap.rotation.z = -Math.sin(twist * Math.PI / 0.6) * 0.5; },
+  };
+  Object.assign(g.userData, { contacts, mass: 0.2, api });
+  return g;
+}
+
+/* ---------------- lampka sygnalizacyjna ---------------- */
+export function pilotLamp({ color = 'green', volts = '24DC' } = {}) {
+  const Pm = plastics(), g = new THREE.Group();
+  const box = enclosure({ w: 0.07, h: 0.07, d: 0.065 }); g.add(box);
+  const f = box.userData.front, pivot = new THREE.Group(); pivot.position.copy(f); g.add(pivot);
+  const bezel = mesh(new THREE.CylinderGeometry(0.0145, 0.0145, 0.006, 40).rotateX(Math.PI / 2), Pm.chrome); bezel.position.z = 0.003; pivot.add(bezel);
+  const lm = (Pm[color] || Pm.green).clone(); lm.transparent = true; lm.opacity = 0.85; lm.roughness = 0.15; lm.emissive = lm.color.clone(); lm.emissiveIntensity = 0;
+  const lens = mesh(new THREE.SphereGeometry(0.0115, 32, 12, 0, TAU, 0, Math.PI / 2).rotateX(Math.PI / 2).scale(1, 1, 0.55), lm); lens.position.z = 0.006; pivot.add(lens);
+  lens.userData.control = 'lamp';
+  const light = new THREE.PointLight(lm.color.getHex(), 0, 0.4, 2); light.position.z = 0.02; pivot.add(light);
+  let on = false, glow = 0;
+  const api = { get on() { return on; }, press(c) { if (c === 'lamp') on = !on; }, release() {}, drag() {},
+    tick(dt) { glow += ((on ? 1 : 0) - glow) * Math.min(1, dt * 20); lm.emissiveIntensity = 2.2 * glow; light.intensity = 0.25 * glow; } };
+  Object.assign(g.userData, { color, volts, mass: 0.06, api });
+  return g;
+}
+
+/* ---------------- przełącznik wyboru ---------------- */
+// 22 mm z rączką; pozycje: '0-I' (90°), 'I-0-II' (po 45° w lewo i w prawo); powrót sprężyną do 0 (opcja)
+export function selector({ positions = 'I-0-II', spring = false, handle = 'short' } = {}) {
+  const Pm = plastics(), g = new THREE.Group(), three = positions === 'I-0-II';
+  const box = enclosure({ w: 0.07, h: 0.07, d: 0.065 }); g.add(box);
+  const f = box.userData.front, pivot = new THREE.Group(); pivot.position.copy(f); g.add(pivot);
+  const plate = canvasTex(256, 256, (c, w, h) => {
+    c.fillStyle = '#16181a'; c.fillRect(0, 0, w, h); c.fillStyle = '#eee'; c.font = 'bold 40px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    if (three) { c.fillText('I', 56, 56); c.fillText('0', 128, 30); c.fillText('II', 200, 56); } else { c.fillText('0', 76, 40); c.fillText('I', 196, 76); }
+  });
+  const pl = mesh(new THREE.PlaneGeometry(0.036, 0.036), new THREE.MeshStandardMaterial({ map: plate.t, roughness: 0.5 })); pl.position.z = 0.0003; pivot.add(pl);
+  const bezel = mesh(new THREE.CylinderGeometry(0.0145, 0.0145, 0.006, 40).rotateX(Math.PI / 2), Pm.chrome); bezel.position.z = 0.003; pivot.add(bezel);
+  const kn = new THREE.Group(); kn.position.z = 0.006; pivot.add(kn);
+  const disc = mesh(new THREE.CylinderGeometry(0.0115, 0.0115, 0.005, 32).rotateX(Math.PI / 2), Pm.black); disc.position.z = 0.0025; kn.add(disc);
+  const hl = handle === 'long' ? 0.03 : 0.02, hnd = mesh(new THREE.BoxGeometry(0.0075, hl, 0.011), Pm.black); hnd.position.z = 0.009; kn.add(hnd);
+  const mk = mesh(new THREE.BoxGeometry(0.0015, 0.006, 0.0006), Pm.white); mk.position.set(0, hl / 2 - 0.004, 0.0148); kn.add(mk);
+  for (const o of [disc, hnd, mk]) o.userData.control = 'selector';
+  const P = three ? [['I', Math.PI / 4], ['0', 0], ['II', -Math.PI / 4]] : [['0', Math.PI / 4], ['I', -Math.PI / 4]];
+  let idx = three ? 1 : 0, ang = P[idx][1], down = false;
+  const api = {
+    get pos() { return P[idx][0]; },
+    press(c) { if (c !== 'selector') return; down = true; idx = (idx + 1) % P.length; },
+    release() { down = false; if (spring) idx = three ? 1 : 0; }, drag() {},
+    tick(dt) { ang += (P[idx][1] - ang) * Math.min(1, dt * 18); kn.rotation.z = ang; },
+  };
+  Object.assign(g.userData, { positions, spring, mass: 0.08, api });
+  return g;
+}
+
+/* ---------------- wyłącznik krańcowy ---------------- */
+// korpus z odlewu (aluminium, malowany), głowica z dźwignią i rolką albo popychaczem; styki 1NO + 1NC
+export function limitSwitch({ actuator = 'roller' } = {}) {
+  const Pm = plastics(), M = materials(), g = new THREE.Group();
+  const body = mesh(new THREE.BoxGeometry(0.031, 0.065, 0.03), Pm.yellow); body.position.set(0, 0.0325, 0.015); g.add(body);
+  const cover = mesh(new THREE.BoxGeometry(0.029, 0.04, 0.002), Pm.dark); cover.position.set(0, 0.03, 0.031); g.add(cover);
+  const gland = mesh(new THREE.CylinderGeometry(0.007, 0.008, 0.012, 16), Pm.black); gland.position.set(0, -0.006, 0.015); g.add(gland);
+  const head = mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.02, 24).rotateX(Math.PI / 2), M.alu); head.position.set(0, 0.075, 0.015); g.add(head);
+  const arm = new THREE.Group(); arm.position.set(0, 0.075, 0.027); g.add(arm);
+  let parts;
+  if (actuator === 'roller') {
+    const lever = mesh(new THREE.BoxGeometry(0.004, 0.04, 0.003), M.steel); lever.position.y = 0.02; arm.add(lever);
+    const roll = mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.006, 24).rotateZ(Math.PI / 2), Pm.black); roll.position.set(0, 0.04, 0); arm.add(roll);
+    parts = [lever, roll];
+  } else {
+    const pl = mesh(new THREE.CylinderGeometry(0.0035, 0.0035, 0.016, 16), M.steel); pl.position.y = 0.008; arm.position.set(0, 0.083, 0.015); arm.add(pl);   // popychacz wychodzi z głowicy
+    const tip = mesh(new THREE.SphereGeometry(0.004, 12, 8), M.steel); tip.position.y = 0.016; arm.add(tip); parts = [pl, tip];
+  }
+  for (const o of parts) o.userData.control = 'actuator';
+  let down = false, a = 0;
+  const api = { get actuated() { return down; }, press(c) { if (c === 'actuator') down = true; }, release() { down = false; }, drag() {},
+    tick(dt) { a += ((down ? 1 : 0) - a) * Math.min(1, dt * 25); if (actuator === 'roller') arm.rotation.z = -0.5 * a; else arm.position.y = 0.083 - 0.004 * a; } };
+  Object.assign(g.userData, { actuator, mass: 0.16, api });
+  return g;
+}
+
+/* ---------------- stycznik ---------------- */
+// na szynie DIN 35 mm; cewka 24 V DC albo 230 V AC; styki główne 3 × NO (AC-3) + pomocniczy; klik w okienko — test
+// (jak zasilona cewka): kotwica i wskaźnik przesuwają się
+export function contactor({ amps = 12, coil = '230AC', aux = '1NO' } = {}) {
+  const Pm = plastics(), M = materials(), g = new THREE.Group(), w = amps > 18 ? 0.054 : 0.045;
+  const rail = mesh(new THREE.BoxGeometry(0.16, 0.035, 0.0075), M.steel); rail.position.set(0, 0.0175, 0.00375); g.add(rail);
+  const body = mesh(new THREE.BoxGeometry(w, 0.082, 0.07), Pm.grey); body.position.set(0, 0.041, 0.0425); g.add(body);
+  const front = mesh(new THREE.BoxGeometry(w * 0.86, 0.04, 0.016), Pm.grey); front.position.set(0, 0.041, 0.0855); g.add(front);
+  for (const y of [0.0065, 0.0755]) for (let i = 0; i < 3; i++) { const sc = mesh(new THREE.CylinderGeometry(0.0028, 0.0028, 0.002, 12).rotateX(Math.PI / 2), M.steel); sc.position.set((i - 1) * w * 0.3, y, 0.0778); g.add(sc); }
+  const lab = canvasTex(256, 128, (c, ww, hh) => { c.fillStyle = '#d4d4cc'; c.fillRect(0, 0, ww, hh); c.fillStyle = '#111'; c.font = 'bold 24px sans-serif'; c.textAlign = 'center'; c.fillText(`AC-3 ${amps} A`, 128, 40); c.font = '20px sans-serif'; c.fillText(coil === '230AC' ? 'cewka 230 V AC' : 'cewka 24 V DC', 128, 76); c.fillText('1 3 5  →  2 4 6', 128, 108); });
+  const lh = Math.min(w * 0.4, 0.017), lb = mesh(new THREE.PlaneGeometry(w * 0.8, lh), new THREE.MeshStandardMaterial({ map: lab.t, roughness: 0.6 })); lb.position.set(0, 0.022 + lh / 2, 0.0942); g.add(lb);   // mieści się na froncie (0,021…0,061)   // tabliczka 0,7 mm przed frontem — bez migotania
+  const win = mesh(new THREE.BoxGeometry(0.012, 0.012, 0.0015), Pm.black); win.position.set(0, 0.055, 0.0938); g.add(win);
+  const ind = mesh(new THREE.BoxGeometry(0.008, 0.004, 0.002), Pm.yellow); ind.position.set(0, 0.058, 0.0945); g.add(ind);
+  for (const o of [win, ind, front]) o.userData.control = 'test';
+  let on = false, a = 0;
+  const api = { get on() { return on; }, press(c) { if (c === 'test') on = !on; }, release() {}, drag() {},
+    tick(dt) { a += ((on ? 1 : 0) - a) * Math.min(1, dt * 30); ind.position.y = 0.058 - 0.006 * a; } };
+  Object.assign(g.userData, { amps, coil, aux, mass: amps > 18 ? 0.55 : 0.36, api });
+  return g;
+}
+
+/* ---------------- przewód ---------------- */
+// linka H07V-K (Cu): izolacja PVC w kolorze, końce odizolowane z tulejkami (kolory tulejek DIN 46228-4)
+export const WIRE_COLORS = { brown: ['#7a4a26', 'brązowy (L1)'], black: ['#1b1b1d', 'czarny (L2)'], grey: ['#7d8085', 'szary (L3)'], blue: ['#1f56b0', 'niebieski (N)'], pe: ['#2f9a3f', 'żółto-zielony (PE)'], red: ['#c8221c', 'czerwony (+ DC)'], dblue: ['#14306b', 'granatowy (− DC)'], white: ['#ececec', 'biały (sterowanie)'] };
+const FERRULE = { 0.5: 0xf2f2f2, 0.75: 0x9a9da2, 1: 0xd8302a, 1.5: 0x1b1b1d, 2.5: 0x2a5fc0, 4: 0x8a8d92, 6: 0xe8c21c, 10: 0xd8302a, 16: 0x2a5fc0 };
+export function wire({ mm2 = 1.5, color = 'brown', len = 0.5 } = {}) {
+  const M = materials(), g = new THREE.Group();
+  const dCu = 2 * Math.sqrt(mm2 / Math.PI) / 1000, dIns = dCu * 1.35 + 0.0016;
+  const L = Math.max(0.1, len), span = Math.min(L * 0.75, 0.6);
+  // łuk w płaszczyźnie (x, y): końce na stole, środek uniesiony — długość krzywej ≈ L
+  const sag = Math.sqrt(Math.max(0, (L * L - span * span))) * 0.42;
+  const curve = new THREE.CatmullRomCurve3([new THREE.Vector3(-span / 2, 0, 0), new THREE.Vector3(-span / 4, sag * 0.8, 0.02), new THREE.Vector3(0, sag, 0), new THREE.Vector3(span / 4, sag * 0.8, -0.02), new THREE.Vector3(span / 2, 0, 0)]);
+  const RS = 12, tg = new THREE.TubeGeometry(curve, 64, dIns / 2, RS, false), pe = color === 'pe';
+  const ins = new THREE.MeshStandardMaterial({ color: pe ? 0xffffff : (WIRE_COLORS[color] || WIRE_COLORS.brown)[0], roughness: 0.5, vertexColors: pe });
+  if (pe) {   // żółto-zielony: dwa zielone paski wzdłuż przewodu na żółtej izolacji (kolor wierzchołków po obwodzie)
+    const n = tg.attributes.position.count, col = new Float32Array(n * 3), Yc = new THREE.Color('#d8c21c'), Gc = new THREE.Color('#2f9a3f');
+    for (let i = 0; i < n; i++) { const j = i % (RS + 1), c = (j % 6) < 3 ? Gc : Yc; col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
+    tg.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  }
+  const tube = new THREE.Mesh(tg, ins); tube.castShadow = true; g.add(tube);
+  for (const s of [-1, 1]) {   // tulejki na końcach
+    const p = curve.getPoint(s < 0 ? 0 : 1), t = curve.getTangent(s < 0 ? 0 : 1).multiplyScalar(s < 0 ? -1 : 1);
+    const fe = new THREE.Group(); fe.position.copy(p); fe.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), t); g.add(fe);
+    const col = mesh(new THREE.CylinderGeometry(dIns / 2 + 0.0006, dIns / 2 + 0.0004, 0.006, 16), new THREE.MeshStandardMaterial({ color: FERRULE[mm2] ?? 0x888888, roughness: 0.4 })); col.position.y = 0.003; fe.add(col);
+    const tb = mesh(new THREE.CylinderGeometry(dCu / 2 + 0.0003, dCu / 2 + 0.0003, 0.01, 12), M.steel); tb.position.y = 0.011; fe.add(tb);
+  }
+  const R = 0.0178 * L / mm2;   // Ω (Cu, 20 °C)
+  Object.assign(g.userData, { mm2, color, len: L, R, dIns, mass: L * (mm2 * 8.9e-3 + Math.PI * (dIns * dIns - dCu * dCu) / 4 * 1400) });
+  return g;
+}
+
+/* ---------------- umowne źródło zasilania ---------------- */
+// blok z gniazdami wyjściowymi, wyłącznikiem i wyświetlaczem (AC: przebieg sinusoidy, DC: wartość); umowne — nie model
+// konkretnego urządzenia, tylko „skąd bierze się prąd” w maszynie
+export function powerSource({ kind = 'AC', volts = 230, phases = 1, hz = 50, amps = 16 } = {}) {
+  const Pm = plastics(), M = materials(), g = new THREE.Group(), ac = kind === 'AC';
+  const body = mesh(new THREE.BoxGeometry(0.16, 0.1, 0.12), ac ? Pm.dark : Pm.blue); body.position.set(0, 0.05, 0.06); g.add(body);
+  const face = mesh(new THREE.BoxGeometry(0.15, 0.09, 0.002), Pm.black); face.position.set(0, 0.05, 0.1205); g.add(face);
+  const disp = canvasTex(256, 112, () => {});
+  const dm = new THREE.MeshStandardMaterial({ map: disp.t, emissive: 0xffffff, emissiveMap: disp.t, emissiveIntensity: 0.9, roughness: 0.3 });
+  const scr = mesh(new THREE.PlaneGeometry(0.085, 0.037), dm); scr.position.set(-0.025, 0.07, 0.1223); g.add(scr);
+  const sw = new THREE.Group(); sw.position.set(0.05, 0.072, 0.1215); g.add(sw);
+  const swb = mesh(new THREE.BoxGeometry(0.018, 0.026, 0.006), Pm.black); swb.position.z = 0.003; sw.add(swb);
+  const rocker = mesh(new THREE.BoxGeometry(0.014, 0.022, 0.006), Pm.red); rocker.position.z = 0.007; sw.add(rocker);
+  for (const o of [swb, rocker]) o.userData.control = 'power';
+  const terms = ac ? (phases === 3 ? ['L1', 'L2', 'L3', 'N', 'PE'] : ['L', 'N', 'PE']) : ['+', '−'];
+  const tcol = { L1: 0x7a4a26, L2: 0x1b1b1d, L3: 0x7d8085, L: 0x7a4a26, N: 0x1f56b0, PE: 0x2f9a3f, '+': 0xc8221c, '−': 0x14306b };
+  terms.forEach((t, i) => {
+    const x = -0.06 + i * (0.12 / Math.max(1, terms.length - 1)) * (terms.length > 1 ? 1 : 0);
+    const sock = mesh(new THREE.CylinderGeometry(0.0065, 0.0065, 0.008, 20).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: tcol[t], roughness: 0.4 })); sock.position.set(x, 0.022, 0.124); g.add(sock);
+    const hole = mesh(new THREE.CylinderGeometry(0.002, 0.002, 0.0012, 12).rotateX(Math.PI / 2), M.steel); hole.position.set(x, 0.022, 0.1285); g.add(hole);
+  });
+  const lab = canvasTex(512, 48, (c, w, h) => { c.fillStyle = '#0d0e10'; c.fillRect(0, 0, w, h); c.fillStyle = '#c8cccf'; c.font = 'bold 26px sans-serif'; c.textAlign = 'left'; c.fillText(terms.join('     '), 24, 34); });
+  const lb = mesh(new THREE.PlaneGeometry(0.15, 0.014), new THREE.MeshStandardMaterial({ map: lab.t, roughness: 0.6 })); lb.position.set(0, 0.038, 0.1223); g.add(lb);   // podpis gniazd 0,8 mm przed panelem
+  let on = false, t = 0, last = -1;
+  const draw = () => {
+    const c = disp.c.getContext('2d'); c.fillStyle = '#071017'; c.fillRect(0, 0, 256, 112);
+    c.fillStyle = on ? '#7fd8ff' : '#2c5566'; c.font = 'bold 30px monospace'; c.textAlign = 'left';
+    c.fillText(ac ? `${volts} V ~${hz} Hz` : `${volts.toFixed(1)} V =`, 8, 34);
+    c.font = '18px monospace'; c.fillText(on ? `WŁ  maks. ${amps} A` : 'WYŁ', 8, 104);
+    if (ac && on) {   // przebieg: ćwierć sekundy przewija się w czasie (umownie zwolniony 25 ×)
+      for (let ph = 0; ph < phases; ph++) {
+        c.strokeStyle = ['#ffb066', '#9fe8ff', '#d0d0d0'][ph]; c.lineWidth = 2; c.beginPath();
+        for (let x = 0; x < 240; x++) { const y = 66 - 18 * Math.sin(TAU * (x / 120 - t * hz / 25) - ph * TAU / 3); x ? c.lineTo(8 + x, y) : c.moveTo(8, y); }
+        c.stroke();
+      }
+    } else if (!ac && on) { c.strokeStyle = '#9fe8ff'; c.lineWidth = 2; c.beginPath(); c.moveTo(8, 60); c.lineTo(248, 60); c.stroke(); }
+    disp.t.needsUpdate = true;
+  };
+  draw();
+  const api = { get on() { return on; }, press(c) { if (c === 'power') { on = !on; draw(); } }, release() {}, drag() {},
+    tick(dt) { t += dt; rocker.rotation.x = on ? -0.25 : 0.25; if (ac && on && Math.floor(t * 15) !== last) { last = Math.floor(t * 15); draw(); } } };
+  Object.assign(g.userData, { kind, volts, phases, hz, amps, mass: 2.5, api });
+  return g;
+}
+
+export const ControlKit = { enclosure, switchUnit, potentiometer, pushButton, inverter, eStop, pilotLamp, selector, limitSwitch, contactor, wire, powerSource, plastics, BUTTON_COLORS, WIRE_COLORS };

@@ -381,7 +381,7 @@ function itemList() {
 }
 function itemSettings() {
   const def = ITEMS.find((i) => i.id === S.item) || ITEMS[0], p = itemParams(def), box0 = $('itemSet');
-  const fmtV = (q, v) => (q.unit === 'mm' ? `${Math.round(v * 1000)} mm` : q.unit === 'mm×2' ? `${Math.round(v * 1000)} mm` : q.unit === '°' ? `${v}°` : String(v));
+  const fmtV = (q, v) => (q.unit === 'mm' ? `${Math.round(v * 1000)} mm` : q.unit === 'mm×2' ? `${Math.round(v * 1000)} mm` : q.unit === '°' ? `${v}°` : q.unit ? `${String(v).replace('.', ',')} ${q.unit}` : String(v));
   const rows = def.params.map((q) => {
     const set = (v) => { (S.items[def.id] ||= {})[q.key] = v; save(); buildItem(); };
     if (q.type === 'select') {
@@ -400,8 +400,9 @@ function itemSettings() {
   const sp = el('input', { type: 'range', min: 0, max: 120, step: 1, value: S.spin }), spo = el('output', { textContent: `${S.spin} obr/min` });
   sp.oninput = () => { S.spin = +sp.value; spo.textContent = `${S.spin} obr/min`; save(); };
   const reset = el('button', { type: 'button', textContent: 'Domyślne' }); reset.onclick = () => { delete S.items[def.id]; save(); itemSettings(); buildItem(); };
-  const preview = def.group === 'Sterowanie' ? [el('p', { className: 'note', textContent: 'Obsługa na modelu: klik — dźwignia, przycisk, RUN / STOP; przeciąganie w górę / w dół — pokrętło.' })] : [el('h3', { textContent: 'Podgląd' }), el('div', { className: 'row' }, el('span', { textContent: 'Obrót wejścia' }), sp, spo)];
-  box0.replaceChildren(el('h3', { textContent: def.name }), ...rows, ...preview, el('div', { className: 'btns' }, reset));
+  // sterowanie i zasilanie — bez obrotu podglądu; sterowanie obsługuje się na modelu
+  const preview0 = def.group === 'Zasilanie i przewody' && def.id === 'wire' ? [] : ['Sterowanie', 'Zasilanie i przewody'].includes(def.group) ? [el('p', { className: 'note', textContent: 'Obsługa na modelu: klik — dźwignia, przycisk, wyłącznik, RUN / STOP; przytrzymanie — przycisk chwilowy, krańcówka; przeciąganie w górę / w dół — pokrętło.' })] : [el('h3', { textContent: 'Podgląd' }), el('div', { className: 'row' }, el('span', { textContent: 'Obrót wejścia' }), sp, spo)];
+  box0.replaceChildren(el('h3', { textContent: def.name }), ...rows, ...preview0, el('div', { className: 'btns' }, reset));
 }
 function itemStats() {
   if (!item) return;

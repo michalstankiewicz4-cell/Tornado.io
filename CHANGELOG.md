@@ -1,5 +1,19 @@
 # Zmiany
 
+## 0.24.0 — 2026-11-25
+- Laboratorium mechaniki 0.4.0 — nowe przedmioty, obsługa na modelu i stan na żywo:
+  - Sterowanie: **grzybek bezpieczeństwa** (zatrzask, odblokowanie obrotem, styki NC / NO), **lampka sygnalizacyjna**
+    (kolory, 24 V / 230 V, świeci z poświatą), **przełącznik wyboru** (0–I albo I–0–II, powrót sprężyną, rączka),
+    **wyłącznik krańcowy** (dźwignia z rolką albo popychacz, styki NO + NC), **stycznik** (AC-3 9–32 A, cewka 230 V AC /
+    24 V DC, styk pomocniczy, na szynie DIN; klik — test jak zasilona cewka).
+  - Nowa grupa **Zasilanie i przewody**: **przewód** (linka Cu H07V-K 0,5–16 mm², kolory izolacji wg funkcji —
+    L1 L2 L3 N PE, ± DC, sterowanie; żółto-zielony z paskami; długość; tulejki w kolorach DIN 46228-4; rezystancja,
+    obciążalność, spadek napięcia), **źródło zasilania AC (umowne)** (1 / 3 fazy, 24–400 V, 50 / 60 Hz, zabezpieczenie;
+    wyświetlacz z przebiegiem faz, gniazda L1–L3 N PE w kolorach), **źródło zasilania DC (umowne)** (1–60 V, prąd
+    maks.). Umowne — „skąd bierze się prąd” w maszynie, nie konkretne urządzenie.
+- ControlKit (`js/models/mech/controls.js`): `eStop`, `pilotLamp`, `selector`, `limitSwitch`, `contactor`, `wire`,
+  `powerSource`. Doktor: 64 modele mechaniki — 0 błędów, 0 ostrzeżeń.
+
 ## 0.23.0 — 2026-11-25
 - Laboratorium mechaniki 0.3.0: grupa **Sterowanie** — obsługa na modelu zamiast suwaków (klik: dźwignia, przycisk,
   RUN / STOP; przeciąganie w górę / w dół: pokrętło; kursor „rączka” nad częścią do obsługi), stan na żywo w oknie

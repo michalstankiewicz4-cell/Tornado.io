@@ -32,6 +32,14 @@ wyliczone dane, ostrzeżenia i porty. Katalog: `js/labs/mechanics/items.js` (`IT
 | Potencjometr | rezystancja, charakterystyka (B / A), kolor pokrętła | — (położenie, napięcie suwaka) |
 | Przycisk 22 mm | kolor, chwilowy / z podtrzymaniem, styk NO / NC, podświetlenie, grzybkowy | — (styk na żywo) |
 | Falownik z pokrętłem | moc, częstotliwość maks., rampa, bieguny silnika | — (zadana i wyjściowa Hz, U/f, obroty) |
+| Grzybek bezpieczeństwa | styki (1 NC, 2 NC, 1 NC + 1 NO) | — (zatrzaśnięty / zwolniony) |
+| Lampka sygnalizacyjna | kolor, zasilanie 24 V / 230 V | — (świeci / zgaszona) |
+| Przełącznik wyboru | pozycje 0–I / I–0–II, powrót sprężyną, rączka | — (pozycja, styki) |
+| Wyłącznik krańcowy | dźwignia z rolką / popychacz | — (najechany, styki NO / NC) |
+| Stycznik | prąd AC-3, cewka, styk pomocniczy | — (cewka, styki główne i pomocniczy) |
+| Przewód | przekrój, kolor izolacji, długość | — (rezystancja, obciążalność, spadek napięcia) |
+| Źródło zasilania AC (umowne) | fazy, napięcie, częstotliwość, prąd maks. | — (wyjście, napięcie szczytowe) |
+| Źródło zasilania DC (umowne) | napięcie, prąd maks. | — (wyjście) |
 
 Grupa **Sterowanie** obsługiwana jest na modelu: klik — dźwignia, przycisk, RUN / STOP; przeciąganie w górę / w dół —
 pokrętło (części z `userData.control`, modele w `js/models/mech/controls.js` z `api.press / release / drag / tick`).
