@@ -8,6 +8,9 @@ może ją zgnieść. Nad każdą beczką prasa (blok), suwak **Prasa** reguluje 
 **Od nowa** (R) przywraca beczki, **Podnieś prasy** (U) cofa prasy na górę (20 cm/s; beczki zostają zgniecione).
 Prasa zatrzymuje się na podporach.
 
+Kamera: przeciągnij — obrót, kółko — odległość, W A S D — przesuwanie. Kliknięcie beczki przykleja ją do kursora
+(w górę podnosi), kolejne kliknięcie puszcza.
+
 ## Kontener
 
 Przełącznik **Plansza | Kontener** na pasku. Kontener bez dachu (wnętrze 2,2 × 1,3 m, ściany 1,6 m, na dwóch płozach)
@@ -35,7 +38,10 @@ Bez `createShell` model zostaje sztywny i nic nie kosztuje.
 
 - `shell-core.js` — obliczenia bez Three.js: powłoka PBD (position based dynamics) na zgrubnej siatce (beczka: 32 × 16
   + wieka). Więzy: krawędzie (rozciąganie), pary naprzeciw krawędzi i cięciwy przez wierzchołek (zginanie). Plastyczność:
-  nadmiar odkształcenia ponad granicę przechodzi w nową długość spoczynkową — tylko przy docisku prasą. Zderzenia z
+  nadmiar odkształcenia ponad granicę przechodzi w nową długość spoczynkową — tylko przy docisku prasą. Utrzymanie
+  kształtu (`shape`): cząstki ciągnięte do kształtu spoczynkowego przesuniętego i obróconego jak beczka — bez tego
+  powłoka uginała się pod własnym ciężarem; przy docisku odchyłka ponad `yieldShape` (4 mm) zmienia kształt
+  spoczynkowy. Chwyt (`pin`): wybrane cząstki ciągnięte do punktu. Zderzenia z
   gruntem i prostopadłościanami (`makeBox`) z tarciem. Spoczynek po 0,5 s bez ruchu.
 - `shell.js` — `createShell`, `makeBox`, `embed` (siatki do rysowania osadzone na trójkątach siatki fizycznej:
   współrzędne barycentryczne i odsunięcie wzdłuż normalnej).

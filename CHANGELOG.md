@@ -1,5 +1,13 @@
 # Zmiany
 
+## 0.20.0 — 2026-11-25
+- Laboratorium deformacji 0.3.0: kamera przesuwana klawiszami W A S D; kliknięcie beczki przykleja ją do kursora
+  (punkt chwytu prowadzony po płaszczyźnie pionowej zwróconej do kamery — w górę podnosi), kolejne kliknięcie puszcza.
+- DeformKit: beczki nie gną się już same pod własnym ciężarem (wcześniej w podporach pod 45° i 68° do 13 cm, pionowa
+  i leżąca 2–3 cm — metoda była za miękka). Doszło utrzymanie kształtu (dopasowanie kształtu spoczynkowego: przesunięcie
+  i obrót, `shape`), odkształcenie sprężyste do kilku milimetrów; przy docisku nadmiar ponad `yieldShape` (4 mm)
+  zmienia kształt spoczynkowy na stałe — zgniatanie prasą bez zmian. Chwyt `pin` w kroku powłoki.
+
 ## 0.19.0 — 2026-11-25
 - Laboratorium deformacji 0.2.0: przycisk **Podnieś prasy** (U) — prasy wracają na górę z prędkością 20 cm/s, beczki
   zostają zgniecione, suwak wraca na zero. Przełącznik scen **Plansza | Kontener**: kontener bez dachu (wnętrze

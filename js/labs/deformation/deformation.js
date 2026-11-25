@@ -86,7 +86,7 @@ function placement(deg) {
 }
 function build() {
   for (const r of rigs) { r.shell.dispose(); }
-  holder.clear(); rigs = []; presses = []; walls = []; lifting = false;
+  holder.clear(); rigs = []; presses = []; walls = []; lifting = false; grab = null;
   if (S.scene === 'container') buildContainer(); else buildBoard();
   applyAlpha(); stats();
 }
@@ -122,7 +122,7 @@ function buildBoard() {
       }
     }
     const press = addPress(px, hi + 0.08, stop, pressHalf);
-    rigs.push({ set, shell, supports, press, ground: 0, h0: hi });
+    rigs.push({ set, shell, supports, press, ground: 0, h0: hi, model });
   });
 }
 function addPress(x, y0, stop, half) {
@@ -174,7 +174,7 @@ function buildContainer() {
     const shell = createShell([sim], { mass: 18, radius: CR, worker: true });
     model.matrixAutoUpdate = false; model.matrix.copy(M); holder.add(model);
     shell.embed(model); sim.dispose();
-    rigs.push({ set: { label: b.label }, shell, supports: walls, press, ground: FLOOR, h0: shell.bounds()[1] });
+    rigs.push({ set: { label: b.label }, shell, supports: walls, press, ground: FLOOR, h0: shell.bounds()[1], model });
   });
 }
 function applyAlpha() {
@@ -210,7 +210,9 @@ function simStep(h) {
       rigs.forEach((o, j) => { if (j !== i && overlap(boxes[i], boxes[j], e)) { others.push(o.shell.particles); if (o.shell.awake && !r.shell.awake) r.shell.wake(); } });
     }
     // w kontenerze prasa naciska przez inne beczki — plastyczność, gdy zjeżdża i jest już na beczkach
-    r.shell.step(h, { ground: r.ground, boxes: [P.box, ...r.supports], others, yield: many && P.moving && !lifting && P.y < topY() + 0.02 });
+    const pin = grab && grab.rig === r ? { ids: grab.ids, off: grab.off, target: grab.target, k: 0.5 } : null;
+    if (pin) r.shell.wake();
+    r.shell.step(h, { ground: r.ground, boxes: [P.box, ...r.supports], others, yield: many && P.moving && !lifting && P.y < topY() + 0.02, pin });
   });
 }
 const topY = () => Math.max(...rigs.map((r) => r.shell.bounds()[1]));
@@ -220,6 +222,7 @@ function loop(now) {
   while (acc >= H && n < 3) { simStep(H); acc -= H; n++; }
   if (n === 3) acc = 0;   // nie nadąża — zwalnia zamiast się zapętlić
   if ((statT += dt) > 0.25) { statT = 0; stats(); }
+  moveKeys(dt);
   const c = Math.cos(orbit.pitch);
   camera.position.set(orbit.target.x + Math.sin(orbit.yaw) * c * orbit.dist, orbit.target.y + Math.sin(orbit.pitch) * orbit.dist, orbit.target.z + Math.cos(orbit.yaw) * c * orbit.dist);
   camera.lookAt(orbit.target);
@@ -232,7 +235,7 @@ function stats() {
   $('bStats').replaceChildren(...rows.flatMap(([a, b]) => [el('span', { textContent: a }), el('b', { textContent: b })]));
   const s0 = rigs[0] ? rigs[0].shell.stats() : null;
   if (window.LabPerf && s0) window.LabPerf.modelRows([['Beczki', String(rigs.length)], ['Cząstki na beczkę', s0.particles.toLocaleString('pl')], ['Więzy na beczkę', s0.constraints.toLocaleString('pl')], ['Liczone teraz', rigs.filter((r) => r.shell.awake).length + ' / ' + rigs.length]]);
-  status(lifting ? 'Prasy jadą do góry' : S.speed > 0 ? (presses.every((P) => P.y <= P.stop) ? 'Prasy na dole — „Podnieś prasy” albo „Od nowa”' : 'Prasy zjeżdżają') : 'Prasy stoją — przesuń suwak prędkości');
+  status(grab ? 'Beczka przyklejona do kursora — kliknij, by puścić' : lifting ? 'Prasy jadą do góry' : S.speed > 0 ? (presses.every((P) => P.y <= P.stop) ? 'Prasy na dole — „Podnieś prasy” albo „Od nowa”' : 'Prasy zjeżdżają') : 'Prasy stoją — przesuń suwak prędkości');
 }
 
 /* ---------------- kamera ---------------- */
@@ -247,9 +250,61 @@ function cams() {
   setCam(Object.values(C)[0]);
 }
 const cv = renderer.domElement; let drag = null;
-cv.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY }; cv.setPointerCapture(e.pointerId); });
-cv.addEventListener('pointermove', (e) => { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag = { x: e.clientX, y: e.clientY }; orbit.yaw -= dx * 0.005; orbit.pitch = Math.max(0.01, Math.min(1.52, orbit.pitch + dy * 0.004)); });
-cv.addEventListener('pointerup', () => { drag = null; });
+cv.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY }; cv.setPointerCapture(e.pointerId); });
+cv.addEventListener('pointermove', (e) => {
+  if (grab) aim(e);
+  if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
+  if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 4) drag.moved = true;
+  if (drag.moved) { orbit.yaw -= dx * 0.005; orbit.pitch = Math.max(0.01, Math.min(1.52, orbit.pitch + dy * 0.004)); }
+});
+cv.addEventListener('pointerup', (e) => { const click = drag && !drag.moved; drag = null; if (click && e.button === 0) clickPick(e); });
+
+/* ---------------- chwytanie beczki myszą ---------------- */
+// kliknięcie na beczkę przykleja ją do kursora w punkcie trafienia (cząstki w promieniu 8 cm ciągnięte do celu), kursor
+// prowadzi ten punkt po płaszczyźnie pionowej zwróconej do kamery — w górę podnosi; kolejne kliknięcie puszcza
+let grab = null;
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), plane = new THREE.Plane();
+function pointer(e) { const r = cv.getBoundingClientRect(); ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera); }
+function clickPick(e) {
+  if (grab) { grab = null; cv.classList.remove('grabbing'); status('Puszczona'); return; }
+  pointer(e);
+  const hits = ray.intersectObjects(rigs.map((r) => r.model), true);
+  if (!hits.length) return;
+  const p = hits[0].point, rig = rigs.find((r) => { let o = hits[0].object; while (o && o !== r.model) o = o.parent; return !!o; });
+  if (!rig) return;
+  const X = rig.shell.particles, ids = [], off = [];
+  let best = -1, bd = Infinity;
+  for (let i = 0; i < X.length / 3; i++) {
+    const d = Math.hypot(X[i * 3] - p.x, X[i * 3 + 1] - p.y, X[i * 3 + 2] - p.z);
+    if (d < bd) { bd = d; best = i; }
+    if (d < 0.08) { ids.push(i); off.push(X[i * 3] - p.x, X[i * 3 + 1] - p.y, X[i * 3 + 2] - p.z); }
+  }
+  if (!ids.length) { ids.push(best); off.push(X[best * 3] - p.x, X[best * 3 + 1] - p.y, X[best * 3 + 2] - p.z); }
+  const n = new THREE.Vector3(camera.position.x - p.x, 0, camera.position.z - p.z).normalize();
+  plane.setFromNormalAndCoplanarPoint(n, p);
+  grab = { rig, ids, off, target: [p.x, p.y, p.z] };
+  rig.shell.wake(); cv.classList.add('grabbing'); status('Beczka przyklejona do kursora — kliknij, by puścić');
+}
+const hitP = new THREE.Vector3();
+function aim(e) {
+  pointer(e);
+  if (!ray.ray.intersectPlane(plane, hitP)) return;
+  grab.target[0] = hitP.x; grab.target[1] = Math.max(grab.rig.ground + 0.02, Math.min(3, hitP.y)); grab.target[2] = hitP.z;
+}
+
+/* ---------------- WSAD: przesuwanie kamery ---------------- */
+const held = new Set();
+addEventListener('keyup', (e) => held.delete(e.code));
+addEventListener('blur', () => held.clear());
+const fwd = new THREE.Vector3(), side = new THREE.Vector3();
+function moveKeys(dt) {
+  if (!held.size) return;
+  const f = (held.has('KeyW') ? 1 : 0) - (held.has('KeyS') ? 1 : 0), s = (held.has('KeyD') ? 1 : 0) - (held.has('KeyA') ? 1 : 0);
+  if (!f && !s) return;
+  fwd.set(-Math.sin(orbit.yaw), 0, -Math.cos(orbit.yaw)); side.set(-fwd.z, 0, fwd.x);
+  const v = Math.max(1, orbit.dist) * 0.8 * dt;   // szybciej z daleka
+  orbit.target.addScaledVector(fwd, f * v).addScaledVector(side, s * v);
+}
 cv.addEventListener('wheel', (e) => { e.preventDefault(); orbit.dist = Math.min(60, Math.max(1.2, orbit.dist * Math.exp(e.deltaY * 0.0011))); }, { passive: false });
 
 /* ---------------- UI ---------------- */
@@ -279,6 +334,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyH') document.querySelectorAll('[data-window]').forEach((p) => p.classList.toggle('hidden-panel'));
   if (e.code === 'KeyR') build();
   if (e.code === 'KeyU') lift();
+  if (['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) held.add(e.code);
 });
 
 // DeformationApi.speed(cm/s), lift(), scene('board' | 'container'), alpha(0–1), reset(), state(),

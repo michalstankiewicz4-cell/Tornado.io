@@ -3,3 +3,4 @@
 .bar .speed input { inline-size: 160px; }
 .bar .speed output { font-family: var(--mono); min-inline-size: 64px; color: var(--text); }
 .bar [hidden] { display: none; }
+#view canvas.grabbing { cursor: grabbing; }

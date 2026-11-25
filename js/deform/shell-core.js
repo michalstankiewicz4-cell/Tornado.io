@@ -5,8 +5,11 @@
 //     C: { ground: y | null, boxes: [{ half: [3], m: [16], inv: [16], prevInv: [16], aabb: [6], friction, plastic }],
 //          others: [Float32Array (x, y, z…)] — cząstki innych powłok (stan z poprzedniego kroku): odpychanie na odległość
 //            2 × radius, każda strona przesuwa swoje cząstki o połowę wcisku (obie razem — cały),
-//          yield: true — plastyczność także bez docisku prasy (np. gdy prasa naciska przez inne beczki) }
-export const DEFAULTS = { mass: 18, stretch: 1, bend: 0.6, yieldStretch: 0.03, yieldBend: 0.006, weld: 0.002, substeps: 2, iterations: 30, friction: 0.7, radius: 0.004, gravity: 9.81 };
+//          yield: true — plastyczność także bez docisku prasy (np. gdy prasa naciska przez inne beczki),
+//          pin: { ids: [cząstki], off: [x, y, z…], target: [x, y, z], k } — chwyt: cząstki ciągnięte do target + off }
+// shape: siła utrzymania kształtu na iterację (dopasowanie kształtu spoczynkowego: przesunięcie + obrót, Müller 2005);
+// yieldShape: odchyłka od kształtu (m), do której blacha wraca sprężyście — powyżej, przy docisku, kształt zmienia się na stałe
+export const DEFAULTS = { mass: 18, stretch: 1, bend: 0.6, shape: 0.15, yieldShape: 0.004, yieldStretch: 0.03, yieldBend: 0.006, weld: 0.002, substeps: 2, iterations: 30, friction: 0.7, radius: 0.004, gravity: 9.81 };
 
 export function buildShell(geoms, opts = {}) {
   const O = { ...DEFAULTS, ...opts };
@@ -41,12 +44,82 @@ export function buildShell(geoms, opts = {}) {
       if ((ax * bx + ay * by + az * bz) / (Math.hypot(ax, ay, az) * Math.hypot(bx, by, bz) || 1) < -0.866) addB(L[i], L[j]);
     }
   }
+  // kształt spoczynkowy względem środka masy (masy cząstek równe)
+  const REST = new Float32Array(N * 3); let cx = 0, cy = 0, cz = 0;
+  for (let i = 0; i < N; i++) { cx += X[i * 3]; cy += X[i * 3 + 1]; cz += X[i * 3 + 2]; }
+  cx /= N; cy /= N; cz /= N;
+  for (let i = 0; i < N; i++) { REST[i * 3] = X[i * 3] - cx; REST[i * 3 + 1] = X[i * 3 + 1] - cy; REST[i * 3 + 2] = X[i * 3 + 2] - cz; }
   const len = (A, B) => Float32Array.from(A, (a, i) => Math.hypot(X[a * 3] - X[B[i] * 3], X[a * 3 + 1] - X[B[i] * 3 + 1], X[a * 3 + 2] - X[B[i] * 3 + 2]));
   return {
     O, N, X, PREV: X.slice(), V: new Float32Array(N * 3), W: new Float32Array(N).fill(N / O.mass), T,
     sA: Int32Array.from(SA), sB: Int32Array.from(SB), sL: len(SA, SB), bA: Int32Array.from(BA), bB: Int32Array.from(BB), bL: len(BA, BB),
+    REST, q: [0, 0, 0, 1], R: new Float64Array(9), c: [0, 0, 0],
     awake: true, still: 0,
   };
+}
+
+// dopasowanie kształtu: środek masy i obrót najlepiej nakładający kształt spoczynkowy na obecny (obrót z macierzy
+// A = Σ (x − c) rᵀ metodą Müllera i in. 2016, kwaternion ciepły z poprzedniego kroku), potem przyciąganie cząstek do celu
+function fitShape(S) {
+  const { X, REST, N, q, R, c } = S;
+  let cx = 0, cy = 0, cz = 0;
+  for (let i = 0; i < N * 3; i += 3) { cx += X[i]; cy += X[i + 1]; cz += X[i + 2]; }
+  cx /= N; cy /= N; cz /= N; c[0] = cx; c[1] = cy; c[2] = cz;
+  let a00 = 0, a01 = 0, a02 = 0, a10 = 0, a11 = 0, a12 = 0, a20 = 0, a21 = 0, a22 = 0;
+  for (let i = 0; i < N * 3; i += 3) {
+    const px = X[i] - cx, py = X[i + 1] - cy, pz = X[i + 2] - cz, rx = REST[i], ry = REST[i + 1], rz = REST[i + 2];
+    a00 += px * rx; a01 += px * ry; a02 += px * rz; a10 += py * rx; a11 += py * ry; a12 += py * rz; a20 += pz * rx; a21 += pz * ry; a22 += pz * rz;
+  }
+  for (let it = 0; it < 8; it++) {
+    quatMat(q, R);
+    // kolumny R (r0, r1, r2) i A (k0, k1, k2)
+    const wx = (R[3] * a20 - R[6] * a10) + (R[4] * a21 - R[7] * a11) + (R[5] * a22 - R[8] * a12);
+    const wy = (R[6] * a00 - R[0] * a20) + (R[7] * a01 - R[1] * a21) + (R[8] * a02 - R[2] * a22);
+    const wz = (R[0] * a10 - R[3] * a00) + (R[1] * a11 - R[4] * a01) + (R[2] * a12 - R[5] * a02);
+    const den = Math.abs(R[0] * a00 + R[3] * a10 + R[6] * a20 + R[1] * a01 + R[4] * a11 + R[7] * a21 + R[2] * a02 + R[5] * a12 + R[8] * a22) + 1e-9;
+    const ox = wx / den, oy = wy / den, oz = wz / den, w = Math.sqrt(ox * ox + oy * oy + oz * oz);
+    if (w < 1e-9) break;
+    const s = Math.sin(w / 2) / w, dx = ox * s, dy = oy * s, dz = oz * s, dw = Math.cos(w / 2);
+    const [x, y, z, qw] = q;
+    q[0] = dw * x + dx * qw + dy * z - dz * y; q[1] = dw * y - dx * z + dy * qw + dz * x; q[2] = dw * z + dx * y - dy * x + dz * qw; q[3] = dw * qw - dx * x - dy * y - dz * z;
+    const l = Math.hypot(q[0], q[1], q[2], q[3]); q[0] /= l; q[1] /= l; q[2] /= l; q[3] /= l;
+  }
+  quatMat(q, R);
+}
+// macierz obrotu z kwaternionu, wierszami: R[0..2] — pierwszy wiersz
+function quatMat(q, R) {
+  const [x, y, z, w] = q;
+  R[0] = 1 - 2 * (y * y + z * z); R[1] = 2 * (x * y - z * w); R[2] = 2 * (x * z + y * w);
+  R[3] = 2 * (x * y + z * w); R[4] = 1 - 2 * (x * x + z * z); R[5] = 2 * (y * z - x * w);
+  R[6] = 2 * (x * z - y * w); R[7] = 2 * (y * z + x * w); R[8] = 1 - 2 * (x * x + y * y);
+}
+function pullShape(S, k) {
+  fitShape(S);
+  const { X, REST, N, R, c } = S;
+  for (let i = 0; i < N * 3; i += 3) {
+    const rx = REST[i], ry = REST[i + 1], rz = REST[i + 2];
+    X[i] += (R[0] * rx + R[1] * ry + R[2] * rz + c[0] - X[i]) * k;
+    X[i + 1] += (R[3] * rx + R[4] * ry + R[5] * rz + c[1] - X[i + 1]) * k;
+    X[i + 2] += (R[6] * rx + R[7] * ry + R[8] * rz + c[2] - X[i + 2]) * k;
+  }
+}
+// plastyczność kształtu: odchyłka ponad granicę przechodzi do kształtu spoczynkowego (w układzie bryły)
+function yieldShape(S, lim) {
+  fitShape(S);
+  const { X, REST, N, R, c } = S;
+  let mx = 0, my = 0, mz = 0;
+  for (let i = 0; i < N * 3; i += 3) {
+    const rx = REST[i], ry = REST[i + 1], rz = REST[i + 2];
+    const dx = X[i] - (R[0] * rx + R[1] * ry + R[2] * rz + c[0]), dy = X[i + 1] - (R[3] * rx + R[4] * ry + R[5] * rz + c[1]), dz = X[i + 2] - (R[6] * rx + R[7] * ry + R[8] * rz + c[2]);
+    const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    if (d > lim) {
+      const f = 1 - lim / d, ex = dx * f, ey = dy * f, ez = dz * f;   // Rᵀ · nadmiar
+      REST[i] += R[0] * ex + R[3] * ey + R[6] * ez; REST[i + 1] += R[1] * ex + R[4] * ey + R[7] * ez; REST[i + 2] += R[2] * ex + R[5] * ey + R[8] * ez;
+    }
+    mx += REST[i]; my += REST[i + 1]; mz += REST[i + 2];
+  }
+  mx /= N; my /= N; mz /= N;
+  for (let i = 0; i < N * 3; i += 3) { REST[i] -= mx; REST[i + 1] -= my; REST[i + 2] -= mz; }
 }
 
 function solve(S, A, B, L, k) {
@@ -138,6 +211,14 @@ function collideOthers(S, G) {
   return hit;
 }
 
+function pin(S, P) {
+  const X = S.X, t = P.target, k = P.k ?? 0.5;
+  for (let j = 0; j < P.ids.length; j++) {
+    const p = P.ids[j] * 3;
+    X[p] += (t[0] + P.off[j * 3] - X[p]) * k; X[p + 1] += (t[1] + P.off[j * 3 + 1] - X[p + 1]) * k; X[p + 2] += (t[2] + P.off[j * 3 + 2] - X[p + 2]) * k;
+  }
+}
+
 export function stepShell(S, dt, C = {}) {
   if (!S.awake || dt <= 0) return S.awake;
   const { O, N, X, PREV, V } = S, sub = O.substeps, h = dt / sub, g = O.gravity * h;
@@ -152,15 +233,17 @@ export function stepShell(S, dt, C = {}) {
     for (let it = 0; it < O.iterations; it++) {
       solve(S, S.sA, S.sB, S.sL, O.stretch);
       solve(S, S.bA, S.bB, S.bL, O.bend);
+      if (O.shape > 0) pullShape(S, O.shape);
       if (collide(S, C)) pressed = true;
       if (G) collideOthers(S, G);
+      if (C.pin) pin(S, C.pin);
     }
     let mv = 0;
     for (let i = 0; i < N * 3; i++) { const v = (X[i] - PREV[i]) / h; V[i] = v * 0.99; const av = v < 0 ? -v : v; if (av > mv) mv = av; }
     S.still = mv < 0.005 ? S.still + h : 0;
   }
   // plastyczność tylko przy docisku prasą (sam ciężar: drobne ugięcie metody nie narasta krok po kroku)
-  if (pressed) { yieldTo(S, S.sA, S.sB, S.sL, O.yieldStretch); yieldTo(S, S.bA, S.bB, S.bL, O.yieldBend); }
+  if (pressed) { yieldTo(S, S.sA, S.sB, S.sL, O.yieldStretch); yieldTo(S, S.bA, S.bB, S.bL, O.yieldBend); if (O.shape > 0) yieldShape(S, O.yieldShape); }
   if (S.still > 0.5) { S.awake = false; V.fill(0); }   // spoczynek — bez liczenia, aż coś obudzi
   return S.awake;
 }

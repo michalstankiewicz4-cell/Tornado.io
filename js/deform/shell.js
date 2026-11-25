@@ -16,7 +16,7 @@
 //   shell.step(dt, { ground, boxes }) krok; box z makeBox(half, matrix, friction), box.set(matrix) co klatkę
 //   shell.wake(), shell.awake, shell.bounds() → [ymin, ymax], shell.box() → [xmin, ymin, zmin, xmax, ymax, zmax],
 //   shell.stats() → { particles, constraints, crush }
-//   step(dt, { …, others: [shell.particles innych powłok], yield }) — zderzenia między powłokami (js/deform/shell-core.js)
+//   step(dt, { …, others: [shell.particles innych powłok], yield, pin }) — zderzenia między powłokami (js/deform/shell-core.js)
 //   opts.worker: true — obliczenia w osobnym wątku (js/deform/shell-worker.js, rdzeń js/deform/shell-core.js): krok
 //     wraca w następnej klatce, wiele powłok liczy się równolegle; shell.settled() → Promise (po wysłanych krokach)
 import * as THREE from '../../vendor/three/three.module.js';
@@ -31,7 +31,7 @@ export function makeBox(half, matrix = new THREE.Matrix4(), friction = 0.6) {
   upd();
   return b;
 }
-const colliders = (C) => ({ ground: C.ground ?? null, boxes: (C.boxes || []).map((b) => b.data()), others: C.others || null, yield: !!C.yield });
+const colliders = (C) => ({ ground: C.ground ?? null, boxes: (C.boxes || []).map((b) => b.data()), others: C.others || null, yield: !!C.yield, pin: C.pin || null });
 
 export function createShell(simGeometries, opts = {}) {
   const geoms = simGeometries.map((g) => ({ pos: Float32Array.from(g.attributes.position.array), idx: g.index ? Uint32Array.from(g.index.array) : null }));
