@@ -27,6 +27,9 @@ def main():
     finally:
         srv.kill()
     bad = 0
+    if not rep['models']:   # filtr nie pasuje do żadnego modelu — nic nie sprawdzono, to nie jest sukces
+        print(f'Filtr „{only}” nie pasuje do żadnego modelu — nic nie sprawdzono.')
+        sys.exit(1)
     for mid, r in rep['models'].items():
         if r.get('error'): print(f'\n{mid}: BUILD FAILED\n  {r["error"][:400]}'); bad += 1; continue
         fp = r['fingerprint']

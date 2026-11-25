@@ -1,5 +1,20 @@
 # Zmiany
 
+## 0.22.2 — 2026-11-25
+- Poprawki z przeglądu ChatGPT (odpowiedzi pod każdym punktem w `AI_COLLABORATION.md`):
+  - zapisane ustawienia laboratoriów wczytywane ostrożnie — wspólny `js/labs/shared/saved.js` (`loadState`, `pick`,
+    `valid`): tylko znane klucze, ten sam typ, wartości z listy albo zakresu; wartość usunięta z programu albo zepsuta
+    nie wykłada już strony (wcześniej np. stara nawierzchnia wykładała laboratorium ulic, nieliczbowa prędkość —
+    laboratorium deformacji). Laboratoria deformacji 0.4.1, zniszczeń 0.3.3, ulic 0.10.2, mechaniki 0.2.2 (także
+    ustawienia każdego przedmiotu, sprawdzane względem jego definicji);
+  - `StreetsApi.set()`, `scene()`, `signal()` i `DestructionApi.build()` przyjmują tylko poprawne wartości
+    (`set` zwraca odrzucone pola w `rejected`);
+  - DeformKit: osadzanie wierzchołka daleko od siatki fizycznej (ponad ok. 0,5 m) — pełne przeszukanie trójkątów zamiast
+    indeksu −1 i `NaN`; siatka fizyczna bez trójkątów zgłasza błąd;
+  - laboratorium deformacji zwalnia geometrie prostopadłościanów (prasy, podpory, ściany kontenera) przy przebudowie;
+  - doktor modeli: filtr, który nie pasuje do żadnego modelu, kończy się błędem (wcześniej „0 błędów” i sukces), licznik
+    postępu liczy względem modeli z filtra.
+
 ## 0.22.1 — 2026-11-25
 - Doktor modeli sprawdza przedmioty laboratorium mechaniki (`mech/…` — każdy przedmiot z katalogu, ustawienia domyślne
   i warianty skrajne, 37 modeli) i beczkę z laboratorium deformacji (`deform/…`, 6 modeli). Próg „tej samej płaszczyzny”

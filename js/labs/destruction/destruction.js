@@ -13,14 +13,15 @@ const HOUSE_TYPES = { ...HK_TYPES, ...Object.fromEntries(Object.entries(LANDMARK
 const buildHouse = (type, o) => (type.startsWith('lm:') ? landmarkHouse(type.slice(3)) : buildHK(type, o));
 import { createTornado, tornadoWind } from '../../envs/sky/tornado.js';
 import { groundDisc } from '../../world/ground.js';
+import { loadState } from '../shared/saved.js';
 import { ITEMS, loadItems, makeItem } from '../../world/items.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...kids) => { const e = document.createElement(tag); Object.assign(e, props); kids.forEach((k) => e.append(k)); return e; };
 const KEY = 'tornado.destruction.v1';
-let saved = null; try { saved = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { saved = null; }
-const S = { type: 'cottage', seed: 1, village: false, tool: 'hit', impulse: 2500, radius: 0.6, missile: 'barrel', speed: 30, wind: 75, core: 4, slow: 1, maxFrag: 2500, pause: false,
-  showMats: false, weather: 'fair', sunEl: 34, sunAz: 215, ...(saved || {}) };
+const DEFAULTS = { type: 'cottage', seed: 1, village: false, tool: 'hit', impulse: 2500, radius: 0.6, missile: 'barrel', speed: 30, wind: 75, core: 4, slow: 1, maxFrag: 2500, pause: false,
+  showMats: false, weather: 'fair', sunEl: 34, sunAz: 215 };
+const S = loadState(KEY, DEFAULTS, { type: Object.keys(HOUSE_TYPES), seed: (v) => Number.isInteger(v) && v >= 1, weather: Object.keys(WEATHER) });
 if (!HOUSE_TYPES[S.type]) S.type = 'cottage';
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* prywatny tryb */ } };
 const status = (t) => { $('status').textContent = t || ''; };
@@ -198,7 +199,7 @@ function frame(now) {
 // sweep(), stats(), types
 window.DestructionApi = {
   types: Object.fromEntries(Object.entries(HOUSE_TYPES).map(([k, v]) => [k, v.name])),
-  build(type, seed) { if (type) S.type = type; if (seed) S.seed = seed; S.village = false; $('type').value = S.type; $('seed').value = S.seed; rebuild(); frameCam(); return world.stats(); },
+  build(type, seed) { if (type && HOUSE_TYPES[type]) S.type = type; if (Number.isInteger(seed) && seed >= 1) S.seed = seed; S.village = false; $('type').value = S.type; $('seed').value = S.seed; rebuild(); frameCam(); return world.stats(); },
   village() { S.village = true; rebuild(); frameCam(); return world.stats(); },
   hit(p, j, radius = 0.6) { return world.hit(new THREE.Vector3(...p), new THREE.Vector3(...j), { radius }); },
   sweep() { $('sweep').onclick(); },

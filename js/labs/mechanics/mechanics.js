@@ -10,12 +10,13 @@ import { createStage, WEATHER } from '../../core/stage.js';
 import * as MK from '../../models/mech/mechkit.js';
 import { createDrive, KIND_NAME } from '../../behaviors/mech/drive.js';
 import { ITEMS } from './items.js';
+import { loadState, valid } from '../shared/saved.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...kids) => { const e = document.createElement(tag); Object.assign(e, props); kids.forEach((k) => e.append(k)); return e; };
 const KEY = 'tornado.mechanics.v1';
-let saved = null; try { saved = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { saved = null; }
-const S = { mode: 'items', item: 'gear', items: {}, spin: 20, rpm: 600, brake: 20, alpha: 0.25, weather: 'fair', sunEl: 40, sunAz: 205, ...(saved || {}) };
+const S = loadState(KEY, { mode: 'items', item: 'gear', items: {}, spin: 20, rpm: 600, brake: 20, alpha: 0.25, weather: 'fair', sunEl: 40, sunAz: 205 },
+  { mode: ['items', 'machine'], item: ITEMS.map((i) => i.id), items: (v) => !Array.isArray(v), spin: (v) => v >= 0 && v <= 120, rpm: (v) => v >= 0 && v <= 1500, brake: (v) => v >= 0 && v <= 300, alpha: (v) => v >= 0 && v <= 1, weather: Object.keys(WEATHER) });
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* prywatny tryb */ } };
 const TAU = Math.PI * 2, X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0);
 
@@ -325,7 +326,12 @@ const itemHolder = new THREE.Group(); itemRoot.add(itemHolder);
 const stand = new THREE.Group(); itemRoot.add(stand);
 const standPost = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1, 16), M.paintGrey), standArm = new THREE.Mesh(MK.cyl(0.006, 1, 16), M.steel), standFoot = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.055, 0.012, 32), M.iron);
 for (const o of [standPost, standArm, standFoot]) { o.castShadow = true; o.receiveShadow = true; stand.add(o); }
-function itemParams(def) { const saved0 = S.items[def.id] || {}; const p = {}; for (const q of def.params) p[q.key] = saved0[q.key] ?? q.def; return p; }
+// ustawienia przedmiotu: zapisana wartość tylko, gdy pasuje do definicji (typ, zakres, lista) — inaczej domyślna
+function itemParams(def) {
+  const saved0 = S.items[def.id] || {}, p = {};
+  for (const q of def.params) { const v = saved0[q.key]; p[q.key] = valid(q.def, v, q.type === 'select' ? q.options.map((o) => o[0]) : q.type === 'range' ? (x) => x >= q.min && x <= q.max : null) ? v : q.def; }
+  return p;
+}
 function disposeTree(o) { o.traverse((c) => { if (c.geometry) c.geometry.dispose(); }); }
 function buildItem() {
   itemDef = ITEMS.find((i) => i.id === S.item) || ITEMS[0]; S.item = itemDef.id;

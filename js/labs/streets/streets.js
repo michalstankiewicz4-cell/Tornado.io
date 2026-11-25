@@ -4,12 +4,12 @@
 import * as THREE from '../../../vendor/three/three.module.js';
 import { createStage, WEATHER } from '../../core/stage.js';
 import { groundDisc } from '../../world/ground.js';
+import { loadState, pick } from '../shared/saved.js';
 import { PROFILES, SURFACES, surface, buildStreet, buildCrossing, buildTrafficLight, signalAt, SIGNAL_STATES, SIGNAL_TIMES, buildLamp, LAMPS, buildSign, SIGNS, alongStreet, buildViaduct, VIADUCT_PROFILE, BOLLARDS, buildBollards, RAILS, buildRail, NOISE, buildNoiseWall, buildMilepost, buildMileposts, PARKING, buildParking, buildTunnel, TUNNEL_PROFILE, TUNNEL_BOX_PROFILE, buildFootbridge, buildTrough, buildSubway } from '../../models/streets/streetkit.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...kids) => { const e = document.createElement(tag); Object.assign(e, props); kids.forEach((k) => e.append(k)); return e; };
 const KEY = 'tornado.streets.v1';
-let saved = null; try { saved = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { saved = null; }
 
 // próbki: linia trasy albo skrzyżowanie; przekrój domyślny
 const SCENES = {
@@ -39,7 +39,12 @@ const SCENES = {
   parking: { label: 'Miejsca parkingowe', profile: 'city', note: 'Pas postojowy przy jezdni: miejsca równoległe (2,5 × 6 m), skośne 60° i prostopadłe (2,5 × 5 m), wyznaczone liniami P-18. Na początku każdego pasa miejsca dla osób z niepełnosprawnością (3,6 m): niebieska powierzchnia z symbolem P-24, znak D-18 z tabliczką T-29. Rodzaj miejsc — w oknie Wyposażenie.', line: [[-40, 0], [40, 0]], parking: true },
   cycle: { label: 'Droga dla rowerów', profile: 'cycle', note: 'Czerwona kostka z osią przerywaną, niski krawężnik, chodnik z szarej kostki obok.', line: [[-35, 6], [-5, -4], [35, 2]] },
 };
-const S = { bollards: false, bollardType: 'steel', rails: false, railType: 'u12a', noise: false, noiseType: 'metal', noiseH: 4, mileposts: false, parking: 'none', parkDisabled: true, lamps: true, lampType: 'modern', lampEvery: 30, signs: true, lampsOn: 'auto', signal: 'cycle', scene: 'straight', profile: 'city', lanes: 2, laneW: 3.25, road: 'asphalt', marks: true, walkW: 2.5, curbH: 0.14, walk: 'slabs', corner: 6, weather: 'fair', sunEl: 32, sunAz: 215, ...(saved || {}) };
+const DEFAULTS = { bollards: false, bollardType: 'steel', rails: false, railType: 'u12a', noise: false, noiseType: 'metal', noiseH: 4, mileposts: false, parking: 'none', parkDisabled: true, lamps: true, lampType: 'modern', lampEvery: 30, signs: true, lampsOn: 'auto', signal: 'cycle', scene: 'straight', profile: 'city', lanes: 2, laneW: 3.25, road: 'asphalt', marks: true, walkW: 2.5, curbH: 0.14, walk: 'slabs', corner: 6, weather: 'fair', sunEl: 32, sunAz: 215 };
+// dopuszczalne wartości list (zapisane ustawienia i StreetsApi.set — wartość usunięta z programu nie wykłada strony)
+const CHOICES = { scene: Object.keys(SCENES), profile: Object.keys(PROFILES), road: Object.keys(SURFACES), walk: Object.keys(SURFACES), lampType: Object.keys(LAMPS), lampsOn: ['auto', 'on', 'off'],
+  parking: ['none', ...Object.keys(PARKING)], bollardType: Object.keys(BOLLARDS), railType: Object.keys(RAILS), noiseType: Object.keys(NOISE), signal: ['cycle', ...Object.keys(SIGNAL_STATES)], weather: Object.keys(WEATHER),
+  lanes: (v) => v >= 1 && v <= 6, laneW: (v) => v >= 2 && v <= 5, walkW: (v) => v >= 0 && v <= 10, curbH: (v) => v >= 0 && v <= 0.4, corner: (v) => v >= 0 && v <= 30, noiseH: (v) => v >= 1 && v <= 10, lampEvery: (v) => v >= 5 && v <= 100 };
+const S = loadState(KEY, DEFAULTS, CHOICES);
 if (!SCENES[S.scene]) S.scene = 'straight'; if (!PROFILES[S.profile]) S.profile = 'city';
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* prywatny tryb */ } };
 
@@ -304,11 +309,12 @@ function loop() {
 // StreetsApi.scene(id), set({ profile, lanes, laneW, road, marks, walkW, curbH, walk, corner }), profiles, surfaces
 window.StreetsApi = {
   scenes: Object.fromEntries(Object.entries(SCENES).map(([k, v]) => [k, v.label])), profiles: Object.fromEntries(Object.entries(PROFILES).map(([k, v]) => [k, v.label])), surfaces: Object.keys(SURFACES),
-  scene(id) { $('scene').value = id; $('scene').onchange(); return { ...S }; },
-  set(o = {}) { if (o.profile) { S.profile = o.profile; fromProfile(); } for (const k of Object.keys(o)) if (k in S && k !== 'profile') S[k] = o[k]; show(); rebuild(); return { ...S }; },
+  scene(id) { if (!SCENES[id]) return { ...S, rejected: ['scene'] }; $('scene').value = id; $('scene').onchange(); return { ...S }; },
+  // set: tylko znane pola o poprawnych wartościach; odrzucone — w `rejected`
+  set(o = {}) { const { profile, ...rest } = o, bad = []; if (profile !== undefined) { if (CHOICES.profile.includes(profile)) { S.profile = profile; fromProfile(); } else bad.push('profile'); } bad.push(...pick(S, DEFAULTS, rest, CHOICES)); show(); rebuild(); return { ...S, rejected: bad }; },
   camera(name) { if (CAMS[name]) Object.assign(orbit, CAMS[name]); },
   view(target = [0, 0, 0], dist = 20, yaw = 0.5, pitch = 0.2) { orbit.target.set(...target); Object.assign(orbit, { dist, yaw, pitch }); },
-  signal(mode) { S.signal = mode; $('signal').value = mode; return lights.map((x) => x.tl.state); },
+  signal(mode) { if (CHOICES.signal.includes(mode)) { S.signal = mode; $('signal').value = mode; } return lights.map((x) => x.tl.state); },
 };
 
 sky(); show(); rebuild(); frame0();

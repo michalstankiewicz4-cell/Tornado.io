@@ -3,12 +3,12 @@
 (function () {
   "use strict";
   const V = {
-    app: "0.22.1",
+    app: "0.22.2",
     labs: {
-      "labs/destruction.html": "0.3.2",
-      "labs/deformation.html": "0.4.0",
-      "labs/mechanics.html": "0.2.1",
-      "labs/streets.html": "0.10.1",
+      "labs/destruction.html": "0.3.3",
+      "labs/deformation.html": "0.4.1",
+      "labs/mechanics.html": "0.2.2",
+      "labs/streets.html": "0.10.2",
     },
   };
   window.GameLabVersions = V;

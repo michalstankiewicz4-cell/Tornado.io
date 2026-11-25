@@ -11,12 +11,13 @@ import { makeMaterial, PRESETS } from '../../render/materials/matkit.js';
 import * as barrel from '../../models/junkyard/items/barrel.js';
 import { applyTextures } from '../../models/junkyard/textures.js';
 import { createShell, makeBox } from '../../deform/shell.js';
+import { loadState } from '../shared/saved.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...kids) => { const e = document.createElement(tag); Object.assign(e, props); kids.forEach((k) => e.append(k)); return e; };
 const KEY = 'tornado.deformation.v1';
-let saved = null; try { saved = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { saved = null; }
-const S = { speed: 0, scene: 'board', alpha: 0.35, debug: false, weather: 'fair', sunEl: 38, sunAz: 215, ...(saved || {}) };
+const S = loadState(KEY, { speed: 0, scene: 'board', alpha: 0.35, debug: false, weather: 'fair', sunEl: 38, sunAz: 215 },
+  { speed: (v) => v >= 0 && v <= 50, scene: ['board', 'container'], alpha: (v) => v >= 0 && v <= 1, weather: Object.keys(WEATHER), sunEl: (v) => v >= -6 && v <= 70, sunAz: (v) => v >= 0 && v <= 360 });
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* prywatny tryb */ } };
 const status = (t) => { $('status').textContent = t || ''; };
 
@@ -86,6 +87,9 @@ function placement(deg) {
 }
 function build() {
   for (const r of rigs) { r.shell.dispose(); }
+  // geometrie prostopadłościanów (prasy, podpory, ściany kontenera) tworzone przy każdej budowie — zwalniane z karty;
+  // materiały są wspólne (MatKit, JunkKit) i zostają
+  holder.traverse((o) => { if (o.isMesh) o.geometry.dispose(); });
   holder.clear(); rigs = []; presses = []; walls = []; lifting = false; grab = null;
   if (S.scene === 'container') buildContainer(); else buildBoard();
   applyAlpha(); buildDebug(); stats();

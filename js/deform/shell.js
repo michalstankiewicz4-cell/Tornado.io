@@ -36,6 +36,7 @@ const colliders = (C) => ({ ground: C.ground ?? null, boxes: (C.boxes || []).map
 export function createShell(simGeometries, opts = {}) {
   const geoms = simGeometries.map((g) => ({ pos: Float32Array.from(g.attributes.position.array), idx: g.index ? Uint32Array.from(g.index.array) : null }));
   const S = buildShell(geoms, opts), { N, X, T } = S, NT = T.length / 3, key = (x, y, z) => `${Math.round(x / S.O.weld)},${Math.round(y / S.O.weld)},${Math.round(z / S.O.weld)}`;
+  if (!S.T.length) throw new Error('DeformKit: siatka fizyczna bez trójkątów');
   const yr = () => { let lo = Infinity, hi = -Infinity; for (let i = 1; i < N * 3; i += 3) { if (X[i] < lo) lo = X[i]; if (X[i] > hi) hi = X[i]; } return [lo, hi]; };
   const h0 = (([lo, hi]) => hi - lo)(yr());
 
@@ -70,7 +71,12 @@ export function createShell(simGeometries, opts = {}) {
         if (d < bd) { bd = d; best = t; }
       }
     }
-    return best;
+    if (best < 0) for (let t = 0; t < NT; t++) {   // wierzchołek daleko od siatki fizycznej (ponad 4 komórki): przegląd wszystkich trójkątów
+      _a.fromArray(X, T[t * 3] * 3); _b.fromArray(X, T[t * 3 + 1] * 3); _c.fromArray(X, T[t * 3 + 2] * 3);
+      _tri.set(_a, _b, _c).closestPointToPoint(p, _q); const d = _q.distanceToSquared(p);
+      if (d < bd) { bd = d; best = t; }
+    }
+    return best;   // −1 tylko dla siatki fizycznej bez trójkątów (createShell to zgłasza)
   }
   function embed(obj) {
     obj.updateMatrixWorld(true);
