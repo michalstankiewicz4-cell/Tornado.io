@@ -16,3 +16,10 @@ budynku jako osobna siatka, jak w DestructKit przed zniszczeniem).
 
 Użycie: `python3 tools/doctor.py` (wszystkie), `python3 tools/doctor.py streets/` (wybrane); kod wyjścia 1 przy błędzie.
 Modeli nie poprawiamy ręcznie pod doktora — poprawka idzie do budującego kodu (StreetKit, HouseKit), ogólnie.
+
+## Modele Tornado.io w doktorze
+
+`tools/doctor/sources.js`: ulice (`streets/…`), budynki HouseKit (`houses/…`), przedmioty laboratorium mechaniki
+(`mech/…` — z katalogu `js/labs/mechanics/items.js`, ustawienia domyślne i warianty skrajne z `MECH_VARIANTS`) i beczka
+z laboratorium deformacji (`deform/…`). Przedmioty w skali milimetrów mają `planeEps: 0.0002` (domyślne 0,01 m jest dla
+ulic i budynków). Uruchomienie dla jednej rodziny: `python3 tools/doctor.py mech/`.

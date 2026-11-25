@@ -1,6 +1,8 @@
 // Model doctor (kopia z GameLaboratory: tools/doctor/modeldoctor.js) — modele Tornado.io: StreetKit (ulice, skrzyżowania,
 // sygnalizatory, latarnie, znaki, słupki, barierki, ekrany, pikietaż, parkingi, wiadukty, tunele, rampy, kładki,
-// przejście podziemne) i HouseKit (budynki z części DestructKit, każda część jako osobna siatka).
+// przejście podziemne), HouseKit (budynki z części DestructKit, każda część jako osobna siatka) i MechKit (przedmioty
+// laboratorium mechaniki z katalogu js/labs/mechanics/items.js — ustawienia domyślne i warianty skrajne), beczka JunkKit
+// z laboratorium deformacji (każdy wariant, obie wersje szczegółów).
 // Każdy model: { id, label, family, build() → { root, measured, opts } }.
 import * as THREE from '../../vendor/three/three.module.js';
 import { countDraw } from './common.js';
@@ -8,6 +10,8 @@ import * as K from '../../js/models/streets/streetkit.js';
 import { HOUSE_IDS, HOUSE_TYPES, buildHouse } from '../../js/models/houses/housekit.js';
 import { extrude } from '../../js/destruct/extrude.js';
 import { MATS, tileOf } from '../../js/destruct/materials.js';
+import { ITEMS } from '../../js/labs/mechanics/items.js';
+import * as BARREL from '../../js/models/junkyard/items/barrel.js';
 
 const done = (root, opts = {}) => { root.updateMatrixWorld(true); return { root, measured: countDraw(root), opts: { planeEps: 0.01, ...opts } }; };
 const G = (...objs) => { const g = new THREE.Group(); objs.forEach((o) => g.add(o)); return g; };
@@ -59,3 +63,29 @@ for (const id of HOUSE_IDS) models.push({
     return done(root, { ground: 0 });
   },
 });
+
+// przedmioty mechaniczne: ustawienia domyślne i warianty (krańce zakresów, inne rodzaje); kąt podglądu 0,4 rad
+const MECH_VARIANTS = {
+  gear: [{}, { z: 9, m: 0.001 }, { z: 120, m: 0.008, w: 0.08 }, { alpha: 14.5, holes: false, hub: false }],
+  pair: [{}, { z1: 10, z2: 120, m: 0.005 }], planet: [{}, { n: 4, zp: 18 }, { zs: 12, zp: 60, n: 2 }], ring: [{}, { z: 160, m: 0.003 }],
+  sprocket: [{}, { z: 9, type: '06B' }, { z: 60, type: '12A' }], chain: [{}, { z1: 9, z2: 80, type: '12A', a: 0.8 }],
+  pulley: [{}, { d: 0.05, profile: 'SPZ' }, { d: 0.4, profile: 'SPB', grooves: 5 }], belt: [{}, { d1: 0.063, d2: 0.4, profile: 'SPB', grooves: 4, a: 0.2 }],
+  shaft: [{}, { len: 0.1, d: 0.05, key: false }], bearing: [{}, { d: 0.04, h: 0.6 }], jaw: [{}, { r: 0.12, spider: '64D' }], flange: [{}, { d: 0.2, bolts: 8 }],
+  cardan: [{}, { beta: 0 }, { beta: 45, double: true }], motor: [{}, { kW: 0.18, poles: 2 }, { kW: 7.5, poles: 6, paint: 'paintRed' }], brake: [{}, { d: 0.35, t: 0.02, vents: 24 }],
+};
+for (const def of ITEMS) (MECH_VARIANTS[def.id] || [{}]).forEach((v, k) => models.push({
+  id: `mech/${def.id}${k ? '-' + k : ''}`, label: def.name + (k ? ' (' + Object.entries(v).map(([a, b]) => `${a}=${b}`).join(', ') + ')' : ''), family: 'mech',
+  build: () => {
+    const p = {}; for (const q of def.params) p[q.key] = v[q.key] ?? q.def;
+    const it = def.build(p); it.update(0.4);
+    // próg „tej samej płaszczyzny” w skali przedmiotów (mm), nie ulic (domyślne 0,01 m łączyło ścianki odległe o kilka mm)
+    const o = { planeEps: 0.0002 }; if (it.rest) o.ground = new THREE.Box3().setFromObject(it.group).min.y;
+    return done(G(it.group), o);
+  },
+}));
+
+// laboratorium deformacji: beczka 200 l (JunkKit) — stoi na ziemi (y = 0)
+BARREL.VARIANTS.forEach((v, k) => [0, 1].forEach((lod) => models.push({
+  id: `deform/barrel-${k}${lod ? '-lod' + lod : ''}`, label: `Beczka 200 l: ${v.name || v.label || 'wariant ' + k}${lod ? ' (daleka)' : ''}`, family: 'deform',
+  build: () => { const g = BARREL.build(lod, k); g.position.y -= new THREE.Box3().setFromObject(g).min.y; return done(G(g), { ground: 0, planeEps: 0.0002 }); },
+})));

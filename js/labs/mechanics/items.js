@@ -238,7 +238,7 @@ export const ITEMS = [
       if (p.double) {
         const J2 = dir.clone().multiplyScalar(L);
         { const y = MK.yoke(); y.rotation.x = Math.PI / 2; y.position.x = L; sB.userData.spin.add(y); }   // widełki w tej samej płaszczyźnie (układ Z)
-        sC = MK.shaft({ len: 0.3 }); sC.position.copy(J2); { const y = MK.yoke(); y.rotation.y = Math.PI; sC.userData.spin.add(y); } sC.userData.spin.children[0].position.x += 0.05; g.add(sC);
+        sC = MK.shaft({ len: 0.3 }); sC.position.copy(J2); { const y = MK.yoke(); y.rotation.y = Math.PI; sC.userData.spin.add(y); } g.add(sC);
         cr2 = MK.cross(); cr2.position.copy(J2); g.add(cr2);
         e.c = d.add({ id: 'c', J: 0, frame: { o: J2.clone(), axis: X, ref: Y } });
         d.connect('b', 'out', 'c', 'in', 'ujoint', { pinA: zq.clone(), pinB: Y.clone() });

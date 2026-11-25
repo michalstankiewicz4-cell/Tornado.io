@@ -86,11 +86,12 @@ export function involuteOutline(z, m, { add = 1, ded = 1.25, steps = 7, backlash
 /* ---------------- zębatka ---------------- */
 export function gear({ z = 20, m = 0.004, w = 0.04, bore = 0.0125, mat = 'gear', hub = true, holes: lighten = true, alpha = 20, name } = {}) {
   const M = materials(), o = involuteOutline(z, m, { alpha: alpha * Math.PI / 180 }), shape = new THREE.Shape(o.pts);
+  bore = Math.min(bore, (o.rf - 0.5 * m) / 1.35);   // otwór z rowkiem wpustu (do 1,28 r) mieści się pod stopą zęba
   shape.holes.push(boreHole(bore));
   const hubR = Math.max(bore * 1.9, bore + 0.012), ring = o.rf - 0.006 - 1.2 * m;
   let holes = 0;
   if (lighten && ring - hubR > 0.022) {   // otwory odciążające w tarczy
-    holes = 6; const rr = (ring - hubR) * 0.36, rm = (ring + hubR) / 2;
+    holes = 6; const rm = (ring + hubR) / 2, rr = Math.min((ring - hubR) * 0.36, rm * Math.sin(Math.PI / holes) * 0.75);   // otwory nie nachodzą na siebie
     for (let k = 0; k < holes; k++) shape.holes.push(circlePath(rr, 32, rm * Math.cos(k * TAU / holes + Math.PI / holes), rm * Math.sin(k * TAU / holes + Math.PI / holes)));
   }
   const g = newPart(name || `Zębatka z = ${z}`), body = mesh(extrude(shape, w), M[mat]);
@@ -99,7 +100,7 @@ export function gear({ z = 20, m = 0.004, w = 0.04, bore = 0.0125, mat = 'gear',
   if (hub && holes) {   // piasta po obu stronach tarczy
     hubLen = w * 0.35;
     const hg = new THREE.Shape(); hg.absarc(0, 0, hubR, 0, TAU, false); hg.holes.push(boreHole(bore));
-    for (const s of [-1, 1]) { const h = mesh(extrude(hg, hubLen, 0.0008), M[mat]); h.position.x = s * (w + hubLen) / 2; g.userData.spin.add(h); }
+    for (const s of [-1, 1]) { const h = mesh(extrude(hg, hubLen + 0.001, 0.0008), M[mat]); h.position.x = s * (w + hubLen - 0.001) / 2; g.userData.spin.add(h); }   // piasta zachodzi 0,5 mm w tarczę — bez wspólnej płaszczyzny
   }
   const area = Math.PI * (o.rp * o.rp - bore * bore), rho = RHO[mat] || STEEL_RHO, mass = rho * area * w * (holes ? 0.78 : 1);
   Object.assign(g.userData, { z, m, rp: o.rp, ra: o.ra, rf: o.rf, rb: o.rb, w, mass, J: 0.5 * mass * (o.rp * o.rp * 0.9 + bore * bore), material: mat, hubLen, holes });
@@ -130,11 +131,12 @@ export function sprocket({ z = 18, p = 0.0127, d1 = 0.00792, w = 0.0072, bore = 
     }
     pts.push(new THREE.Vector2(r * ux, r * uy));
   }
+  bore = Math.min(bore, (R - rs - 0.002) / 1.35);   // otwór z wpustem pod gniazdami rolek
   const shape = new THREE.Shape(pts); shape.holes.push(boreHole(bore));
   const g = newPart(name || `Koło łańcuchowe z = ${z}`);
   g.userData.spin.add(mesh(extrude(shape, w, 0.0005), M[mat]));
-  const hubR = Math.min(R - d1 - 0.004, bore * 2.2), hs = new THREE.Shape(); hs.absarc(0, 0, hubR, 0, TAU, false); hs.holes.push(boreHole(bore));
-  const hub = mesh(extrude(hs, 0.022, 0.0008), M[mat]); hub.position.x = -(w + 0.022) / 2; g.userData.spin.add(hub);
+  const hubR = Math.max(bore * 1.45, Math.min(R - rs - 0.002, bore * 2.2)), hs = new THREE.Shape(); hs.absarc(0, 0, hubR, 0, TAU, false); hs.holes.push(boreHole(bore));
+  const hub = mesh(extrude(hs, 0.023, 0.0008), M[mat]); hub.position.x = -(w + 0.021) / 2; g.userData.spin.add(hub);   // zachodzi 1 mm w tarczę
   const mass = STEEL_RHO * Math.PI * R * R * w + STEEL_RHO * Math.PI * hubR * hubR * 0.022;
   Object.assign(g.userData, { z, p, R, w, mass, J: 0.5 * mass * R * R * 0.8 });
   return g;
@@ -273,9 +275,9 @@ export function beltLoop(path, { x = 0, label = 'SPA 1250 Lw', profile = 'SPA', 
 /* ---------------- wał, łożysko ---------------- */
 export function shaft({ len = 1, r = 0.0125, mat = 'steel', key: keyway = true, name } = {}) {
   const M = materials(), g = newPart(name || `Wał Ø ${Math.round(r * 2000)} mm`);
-  const s = mesh(cyl(r, len, 32), M[mat]); s.position.x = len / 2; g.userData.spin.add(s);
+  const s = mesh(uvScale(new THREE.CylinderGeometry(r, r, len - 0.004, 32, 1, true).rotateZ(-Math.PI / 2), 1), M[mat]); s.position.x = len / 2; g.userData.spin.add(s);   // bez denek — końce zamykają fazki
   if (keyway) { const key = mesh(box(len * 0.92, 0.0018, r * 0.5), M.dark); key.position.set(len / 2, r - 0.0006, 0); g.userData.spin.add(key); }   // rowek wpustu — widać obrót
-  for (const e of [0, len]) { const ch = mesh(cyl(r * 0.86, 0.002, 32, r), M[mat]); ch.position.x = e ? len + 0.001 : -0.001; if (!e) ch.rotation.y = Math.PI; g.userData.spin.add(ch); }
+  for (const e of [0, len]) { const ch = mesh(cyl(r, 0.002, 32, r * 0.86), M[mat]); ch.position.x = e ? len - 0.001 : 0.001; if (!e) ch.rotation.y = Math.PI; g.userData.spin.add(ch); }   // fazka 0,14 r na końcach
   const mass = (RHO[mat] || STEEL_RHO) * Math.PI * r * r * len;
   Object.assign(g.userData, { len, r, mass, J: 0.5 * mass * r * r });
   return g;
@@ -313,7 +315,7 @@ export function jawCoupling({ r = 0.032, bore = 0.0125, spider: hard = '92A' } =
     const h = mesh(extrude(hub, 0.03, 0.0012), M.alu); h.position.x = side * 0.027; g.add(h);
     for (let k = 0; k < 3; k++) {
       const a0 = k * TAU / 3 + (side > 0 ? Math.PI / 3 : 0), s = new THREE.Shape();
-      s.absarc(0, 0, r, a0 - 0.42, a0 + 0.42, false); s.absarc(0, 0, bore * 1.6, a0 + 0.42, a0 - 0.42, true);
+      s.absarc(0, 0, r * 0.99, a0 - 0.42, a0 + 0.42, false); s.absarc(0, 0, bore * 1.6, a0 + 0.42, a0 - 0.42, true);   // kły odrobinę mniejsze niż piasta — bez wspólnej powierzchni
       const jw = mesh(extrude(s, 0.02, 0.0008), M.alu); jw.position.x = side * 0.004; g.add(jw);
     }
     return g;
@@ -325,7 +327,7 @@ export function jawCoupling({ r = 0.032, bore = 0.0125, spider: hard = '92A' } =
     spider.add(mesh(extrude(s, 0.017, 0.0008), polyM));
   }
   const ring = new THREE.Shape(); ring.absarc(0, 0, bore * 2, 0, TAU, false); ring.holes.push(circlePath(bore * 1.15));
-  spider.add(mesh(extrude(ring, 0.017, 0.0006), polyM));
+  spider.add(mesh(extrude(ring, 0.0164, 0.0006), polyM));   // pierścień cieńszy od ramion — bez wspólnych płaszczyzn
   const mass = ALU_RHO * Math.PI * r * r * 0.08 * 0.9;
   return { a: mk(-1), b: mk(1), spider, mass, J: 0.5 * mass * r * r };
 }
@@ -342,7 +344,7 @@ export function flangeCoupling({ r = 0.055, bore = 0.0125, bolts: nb = 6 } = {})
   for (let k = 0; k < nb; k++) {
     const a = k * TAU / nb, y = Math.cos(a) * r * 0.74, z = Math.sin(a) * r * 0.74;
     const b = mesh(cyl(0.004, 0.036, 10), M.steel); b.position.set(0, y, z); bolts.add(b);
-    for (const s of [-1, 1]) { const hx = mesh(new THREE.CylinderGeometry(0.0075, 0.0075, 0.006, 6).rotateZ(Math.PI / 2), M.dark); hx.position.set(s * 0.018, y, z); bolts.add(hx); }
+    for (const s of [-1, 1]) { const hx = mesh(new THREE.CylinderGeometry(0.0075, 0.0075, 0.006, 6).rotateZ(Math.PI / 2), M.dark); hx.position.set(s * 0.0172, y, z); bolts.add(hx); }   // łeb wchodzi 0,3 mm w kołnierz
   }
   const mass = IRON_RHO * (Math.PI * r * r * 0.028 + Math.PI * (bore * 2.4) ** 2 * 0.06);
   return { a: mk(-1), b: mk(1), bolts, mass, J: 0.5 * mass * r * r * 0.8 };
@@ -353,8 +355,9 @@ export function yoke({ r = 0.026, reach = 0.05, name = 'Widełki przegubu' } = {
   const hub = mesh(cyl(0.019, 0.03, 24), M.gear); hub.position.x = -reach + 0.015; g.add(hub);
   const bridge = mesh(box(0.012, r * 2 + 0.014, 0.03), M.gear); bridge.position.x = -reach + 0.03; g.add(bridge);
   for (const s of [-1, 1]) {
-    const arm = mesh(box(reach - 0.024, 0.009, 0.03), M.gear); arm.position.set(-(reach - 0.024) / 2 - 0.006, s * (r + 0.0025), 0); g.add(arm);
-    const eye = mesh(new THREE.CylinderGeometry(0.0145, 0.0145, 0.012, 24), M.gear); eye.position.set(0, s * (r + 0.004), 0); g.add(eye);
+    // ramię węższe od mostka, oczko wyższe od ramienia — bez wspólnych płaszczyzn
+    const arm = mesh(box(reach - 0.024, 0.0087, 0.028), M.gear); arm.position.set(-(reach - 0.024) / 2 - 0.006, s * (r + 0.0025), 0); g.add(arm);
+    const eye = mesh(new THREE.CylinderGeometry(0.0145, 0.0145, 0.0126, 24), M.gear); eye.position.set(0, s * (r + 0.0041), 0); g.add(eye);
   }
   return g;
 }
@@ -388,8 +391,9 @@ export function motor({ kW = 1.1, poles = 4, paint = 'paintBlue', name } = {}) {
   for (let k = 0; k < 30; k++) { const a = k * TAU / 30; e.set(a, 0, 0); q.setFromEuler(e); m4.compose(new THREE.Vector3(-L / 2 - 0.04, H + Math.cos(a) * 0.09, Math.sin(a) * 0.09), q, new THREE.Vector3(1, 1, 1)); fins.setMatrixAt(k, m4); }
   add0(fins);
   const bellF = mesh(lathe([[0.012, 0.0], [0.05, 0.0], [0.086, 0.025], [0.086, 0.04], [0.012, 0.04]], 40), M.paintBlue); bellF.position.set(-0.04, H, 0); add0(bellF);
-  const cowl = mesh(cyl(0.09, 0.08, 40), M.paintBlue); cowl.position.set(-L - 0.08, H, 0); add0(cowl);
-  const grill = mesh(new THREE.CircleGeometry(0.084, 40).rotateY(-Math.PI / 2), M.black); grill.position.set(-L - 0.121, H, 0); add0(grill);
+  const cowl = mesh(uvScale(new THREE.CylinderGeometry(0.09, 0.09, 0.084, 40, 1, true).rotateZ(-Math.PI / 2), 1), M.paintBlue); cowl.position.set(-L - 0.078, H, 0); add0(cowl);   // osłona wentylatora bez denek; tył zamyka kratka
+  const grill = mesh(new THREE.CircleGeometry(0.09, 40).rotateY(-Math.PI / 2), M.black); grill.position.set(-L - 0.12, H, 0); add0(grill);
+  const cowlRing = mesh(new THREE.RingGeometry(0.08, 0.09, 40).rotateY(Math.PI / 2), M.paintBlue); cowlRing.position.set(-L - 0.036, H, 0); add0(cowlRing);   // przód osłony — szczelina do kadłuba zamknięta
   const tbox = mesh(box(0.1, 0.06, 0.1), M.paintBlue); tbox.position.set(-0.15, H + 0.11, 0); add0(tbox);
   const lid = mesh(box(0.104, 0.008, 0.104), M.paintBlue); lid.position.set(-0.15, H + 0.144, 0); add0(lid);
   const plateN = mesh(box(0.06, 0.0015, 0.035), M.alu); plateN.position.set(-0.22, H + 0.085, 0.045); plateN.rotation.x = 0.9; add0(plateN);
@@ -442,10 +446,10 @@ export function planetary({ zs = 24, zp = 24, n = 3, m = 0.002, w = 0.02, mat = 
   for (let k = 0; k < n; k++) {
     const pl = gear({ z: zp, m, w: w * 0.9, mat: matP, hub: false, bore: Math.min(0.004, m * zp * 0.18), name: 'Satelita' });
     pl.position.set(0, RC * Math.cos(k * TAU / n), RC * Math.sin(k * TAU / n)); carrier.add(pl); planets.push(pl);
-    const pin = mesh(cyl(Math.min(0.004, m * zp * 0.18), w * 2.6, 12), M.steel); pin.position.copy(pl.position); pin.position.x = w * 0.7; carrier.add(pin);
+    const pin = mesh(cyl(Math.min(0.004, m * zp * 0.18) * 0.97, w * 2.6, 12), M.steel); pin.position.copy(pl.position); pin.position.x = w * 0.7; carrier.add(pin);   // luz w otworze satelity — bez wspólnej powierzchni
   }
   for (const x of [w * 1.4, w * 2.1]) { const d = mesh(new THREE.CylinderGeometry(RC + m * zp * 0.35, RC + m * zp * 0.35, w * 0.3, 48).rotateZ(Math.PI / 2), M.alu); d.position.x = x; carrier.add(d); }
-  const out = mesh(cyl(0.0125, 0.08, 24), M.steel); out.position.x = w * 2.2 + 0.04; carrier.add(out);
+  const out = mesh(cyl(0.0125, 0.08, 24), M.steel); out.position.x = w * 2.1 + 0.04; carrier.add(out);   // wał jarzma zaczyna się w środku tarczy
   g.add(carrier);
   const assembly = (zs + zr) / n, clearance = (zs + zp) * Math.sin(Math.PI / n) - (zp + 2);
   const p0 = Math.PI + Math.PI / zp, off = p0 - Math.round(p0 / (TAU / zp)) * (TAU / zp);   // faza korony pod satelitą 0
@@ -470,7 +474,6 @@ export function discBrake({ d = 0.2, t = 0.008, vents = 12 } = {}) {
   g.userData.spin.add(mesh(extrude(ds, t, 0.0005, 64), M.steel));
   const h = mesh(extrude(hub, 0.03, 0.001), M.dark); h.position.x = -0.019; g.userData.spin.add(h);
   const cal = mesh(box(0.05, 0.05, 0.07), M.paintRed); cal.position.set(0, R - 0.015, 0); g.add(cal);
-  const pad = mesh(box(t + 0.012, 0.03, 0.05), M.black); pad.position.set(0, R - 0.015, 0); g.add(pad);
   const mass = STEEL_RHO * Math.PI * R * R * t * 0.9 + STEEL_RHO * Math.PI * (R * 0.32) ** 2 * 0.03;
   Object.assign(g.userData, { d, t, vents, mass, J: 0.5 * mass * R * R * 0.85 });
   return g;

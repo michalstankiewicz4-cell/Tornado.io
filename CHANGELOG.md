@@ -1,5 +1,16 @@
 # Zmiany
 
+## 0.22.1 — 2026-11-25
+- Doktor modeli sprawdza przedmioty laboratorium mechaniki (`mech/…` — każdy przedmiot z katalogu, ustawienia domyślne
+  i warianty skrajne, 37 modeli) i beczkę z laboratorium deformacji (`deform/…`, 6 modeli). Próg „tej samej płaszczyzny”
+  dla przedmiotów w skali milimetrów 0,2 mm (domyślne 1 cm, dobrane do ulic, łączyło ścianki odległe o kilka mm).
+- MechKit — poprawki znalezione przez doktora (ogólne, dla wszystkich rozmiarów): otwór z rowkiem wpustu mieści się pod
+  stopą zęba (małe zębatki) i pod gniazdami rolek (małe koła łańcuchowe — piasta nie wychodzi już na lewą stronę);
+  otwory odciążające dużych zębatek nie nachodzą na siebie; wał bez denek pod fazkami; piasty zachodzą w tarczę zamiast
+  stykać się płaszczyzną; sworznie satelitów z luzem w otworach; kły i gwiazda sprzęgła kłowego, łby śrub sprzęgła
+  kołnierzowego, widełki przegubu Cardana i osłona wentylatora silnika — bez wspólnych płaszczyzn (migotania); usunięty
+  klocek hamulca schowany w zacisku. Laboratorium mechaniki 0.2.1. Wynik: 43 modele, 0 błędów, 0 ostrzeżeń.
+
 ## 0.22.0 — 2026-11-25
 - Laboratorium mechaniki 0.2.0: tryb **Przedmioty** (domyślny) — każdy przedmiot osobno na stole, na statywie z czopem
   wzdłuż osi obrotu (silnik i oprawa łożyska — na blacie). Okno Przedmioty (zębatka walcowa, para zębatek, przekładnia
