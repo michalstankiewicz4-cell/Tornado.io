@@ -1,6 +1,8 @@
 // Laboratorium deformacji: stalowe beczki 200 l (JunkKit, js/models/junkyard/items/barrel.js) jako powłoki DeformKit
 // (js/deform/shell.js) pod stalowymi blokami prasy. Pięć beczek na jednej planszy: pionowo, pochylone o 23°, 45° i 68°
 // (oparte bokiem o betonowe podpory) i bokiem (zablokowana klinami). Suwak opuszcza wszystkie bloki z jedną prędkością.
+// Druga scena: kontener bez dachu z beczkami w dwóch warstwach (stojące, leżące, pochylone — górne spadają i układają
+// się same), jedna prasa na cały kontener, suwak przezroczystości ścian. Beczki odpychają się nawzajem (DeformKit others).
 // Dla AI: DeformationApi.
 import * as THREE from '../../../vendor/three/three.module.js';
 import { createStage, WEATHER } from '../../core/stage.js';
@@ -14,7 +16,7 @@ const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...kids) => { const e = document.createElement(tag); Object.assign(e, props); kids.forEach((k) => e.append(k)); return e; };
 const KEY = 'tornado.deformation.v1';
 let saved = null; try { saved = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { saved = null; }
-const S = { speed: 0, weather: 'fair', sunEl: 38, sunAz: 215, ...(saved || {}) };
+const S = { speed: 0, scene: 'board', alpha: 0.35, weather: 'fair', sunEl: 38, sunAz: 215, ...(saved || {}) };
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* prywatny tryb */ } };
 const status = (t) => { $('status').textContent = t || ''; };
 
@@ -46,9 +48,21 @@ function simBarrel() {
   for (let k = rings; k >= 0; k--) pts.push(new THREE.Vector2(Math.max(1e-4, LID_R * k / rings), HT - LID_Y));
   return new THREE.LatheGeometry(pts, 32).translate(0, -HT / 2, 0);
 }
+// w kontenerze: siatka fizyczna cofnięta o promień styku (beczki stykają się cząstkami na odległość 2 × CR — osadzony
+// model wychodzi z powrotem na prawdziwy obrys, więc beczki dotykają się blachą)
+const CR = 0.025;
+function simBarrelInset() {
+  const pts = [], rings = 3, rows = 16, r = R_WALL - CR, y0 = LID_Y + CR, lr = LID_R - CR;
+  for (let k = 0; k <= rings; k++) pts.push(new THREE.Vector2(Math.max(1e-4, lr * k / rings), y0));
+  pts.push(new THREE.Vector2(r, CR));
+  for (let i = 1; i < rows; i++) pts.push(new THREE.Vector2(r, CR + (HT - 2 * CR) * i / rows));
+  pts.push(new THREE.Vector2(r, HT - CR));
+  for (let k = rings; k >= 0; k--) pts.push(new THREE.Vector2(Math.max(1e-4, lr * k / rings), HT - y0));
+  return new THREE.LatheGeometry(pts, 32).translate(0, -HT / 2, 0);
+}
 
 /* ---------------- plansza ---------------- */
-let rigs = [];
+let rigs = [], presses = [], walls = [];
 // kołyska w kształcie L pochylona razem z beczką: płyta pod dnem (prostopadle do osi) i płyta wzdłuż boku od dołu do
 // nieco ponad środek ciężkości — beczka nie wraca do pionu ani nie zsuwa się, a prasa wgniata ją w kołyskę; → [[half, Matrix4]]
 function cradle(th, a, n, c) {
@@ -72,7 +86,11 @@ function placement(deg) {
 }
 function build() {
   for (const r of rigs) { r.shell.dispose(); }
-  holder.clear(); rigs = [];
+  holder.clear(); rigs = []; presses = []; walls = []; lifting = false;
+  if (S.scene === 'container') buildContainer(); else buildBoard();
+  applyAlpha(); stats();
+}
+function buildBoard() {
   SETS.forEach((set, k) => {
     const x = (k - (SETS.length - 1) / 2) * GAP, { th, a, n, cy } = placement(set.deg);
     const M = new THREE.Matrix4().compose(new THREE.Vector3(x, cy, 0), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -th), new THREE.Vector3(1, 1, 1));
@@ -103,32 +121,99 @@ function build() {
         if (Math.abs(p.x - px) < pressHalf[0] && Math.abs(p.z) < pressHalf[2]) stop = Math.max(stop, p.y + 0.01);
       }
     }
-    const press = { y0: hi + 0.08, y: hi + 0.08, stop, x: px, half: pressHalf };
-    press.box = makeBox(pressHalf, pressMatrix(press), 0.8); press.box.plastic = true;
-    press.mesh = new THREE.Mesh(new THREE.BoxGeometry(pressHalf[0] * 2, pressHalf[1] * 2, pressHalf[2] * 2), steel);
-    press.mesh.castShadow = press.mesh.receiveShadow = true; press.mesh.matrixAutoUpdate = false; press.mesh.matrix.copy(press.box.matrix); holder.add(press.mesh);
-    rigs.push({ set, shell, supports, press, h0: hi });
+    const press = addPress(px, hi + 0.08, stop, pressHalf);
+    rigs.push({ set, shell, supports, press, ground: 0, h0: hi });
   });
-  stats();
+}
+function addPress(x, y0, stop, half) {
+  const press = { y0, y: y0, stop, x, half };
+  press.box = makeBox(half, pressMatrix(press), 0.8); press.box.plastic = true;
+  press.mesh = new THREE.Mesh(new THREE.BoxGeometry(half[0] * 2, half[1] * 2, half[2] * 2), steel);
+  press.mesh.castShadow = press.mesh.receiveShadow = true; press.mesh.matrixAutoUpdate = false; press.mesh.matrix.copy(press.box.matrix); holder.add(press.mesh);
+  presses.push(press);
+  return press;
 }
 function pressMatrix(p) { return new THREE.Matrix4().makeTranslation(p.x, p.y + p.half[1], 0); }
 
+/* ---------------- kontener ---------------- */
+// kontener bez dachu (wnętrze 2,2 × 1,3 m, ściany 1,6 m) na dwóch płozach; dno na wysokości FLOOR. Beczki: dolna
+// warstwa — dwie stojące, leżąca w poprzek, leżąca wzdłuż, stojąca; górna — leżąca na stojących i pochylona nad
+// leżącymi (zaczynają nieco wyżej i spadają, układając się same). Prasa 2,1 × 1,2 m zjeżdża do 8 cm nad dno.
+const CW = 1.1, CD = 0.65, CH = 1.6, FLOOR = 0.14, WALL_T = 0.004;
+const paint = makeMaterial({ ...PRESETS.hull, color: '#2f5d8a', color2: '#1d3a57', tile: 2 }, { res: 512 }).material;
+const BARRELS = [
+  // [x, y nad dnem (środek), z, oś: obrót wokół z (pochylenie), wokół x, wokół y (stopnie)]
+  { label: 'Stojąca 1', p: [-0.78, HT / 2, -0.33], r: [0, 0, 0] },
+  { label: 'Stojąca 2', p: [-0.78, HT / 2, 0.33], r: [0, 0, 0] },
+  { label: 'Leżąca w poprzek', p: [-0.16, R_WALL, 0], r: [0, 90, 0] },
+  { label: 'Leżąca wzdłuż', p: [0.59, R_WALL, -0.33], r: [90, 0, 0] },
+  { label: 'Stojąca 3', p: [0.8, HT / 2, 0.33], r: [0, 0, 0] },
+  { label: 'Na stojących', p: [-0.78, HT + R_WALL + 0.03, 0], r: [0, 90, 8] },
+  { label: 'Pochylona', p: [0.22, R_WALL * 2 + 0.36, 0.05], r: [62, 0, 25] },
+];
+function buildContainer() {
+  // dno i ściany: rysowane cienko (blacha), zderzenia grubymi bryłami za wewnętrzną ścianą
+  const T = 0.2, one = new THREE.Vector3(1, 1, 1), q0 = new THREE.Quaternion();
+  const wall = (cx, cy, cz, hx, hy, hz, vis) => {
+    walls.push(makeBox([hx, hy, hz], new THREE.Matrix4().compose(new THREE.Vector3(cx, cy, cz), q0, one), 0.6));
+    const m = new THREE.Mesh(new THREE.BoxGeometry(...vis.size), vis.mat || paint); m.position.set(...vis.pos); m.receiveShadow = true; m.userData.wall = true; holder.add(m);
+  };
+  const yc = FLOOR + CH / 2;
+  wall(-CW - T, yc, 0, T, CH / 2, CD + 2 * T, { size: [WALL_T, CH, CD * 2 + WALL_T * 2], pos: [-CW - WALL_T / 2, yc, 0] });
+  wall(CW + T, yc, 0, T, CH / 2, CD + 2 * T, { size: [WALL_T, CH, CD * 2 + WALL_T * 2], pos: [CW + WALL_T / 2, yc, 0] });
+  wall(0, yc, -CD - T, CW, CH / 2, T, { size: [CW * 2, CH, WALL_T], pos: [0, yc, -CD - WALL_T / 2] });
+  wall(0, yc, CD + T, CW, CH / 2, T, { size: [CW * 2, CH, WALL_T], pos: [0, yc, CD + WALL_T / 2] });
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(CW * 2 + 0.01, 0.01, CD * 2 + 0.01), paint); floor.position.set(0, FLOOR - 0.005, 0); floor.receiveShadow = true; floor.userData.wall = true; holder.add(floor);
+  for (const sz of [-1, 1]) { const sk = new THREE.Mesh(new THREE.BoxGeometry(CW * 2 + 0.2, FLOOR - 0.01, 0.16), steel); sk.position.set(0, (FLOOR - 0.01) / 2, sz * (CD - 0.15)); sk.castShadow = sk.receiveShadow = true; holder.add(sk); }
+  const press = addPress(0, FLOOR + CH + 0.05, FLOOR + 0.08, [CW - 0.05, 0.2, CD - 0.05]);
+  BARRELS.forEach((b, k) => {
+    const d = Math.PI / 180, q = new THREE.Quaternion().setFromEuler(new THREE.Euler(b.r[1] * d, b.r[2] * d, b.r[0] * d, 'YXZ'));
+    const M = new THREE.Matrix4().compose(new THREE.Vector3(b.p[0], FLOOR + b.p[1] + 0.004, b.p[2]), q, one);
+    const model = barrel.build(0, k % barrel.VARIANTS.length);
+    const sim = simBarrelInset().applyMatrix4(M);
+    const shell = createShell([sim], { mass: 18, radius: CR, worker: true });
+    model.matrixAutoUpdate = false; model.matrix.copy(M); holder.add(model);
+    shell.embed(model); sim.dispose();
+    rigs.push({ set: { label: b.label }, shell, supports: walls, press, ground: FLOOR, h0: shell.bounds()[1] });
+  });
+}
+function applyAlpha() {
+  const a = S.alpha, see = a < 0.999;
+  if (paint.transparent !== see) { paint.transparent = see; paint.needsUpdate = true; }
+  paint.opacity = a; paint.depthWrite = !see;
+  holder.traverse((o) => { if (o.userData.wall) o.castShadow = a > 0.5; });
+}
+
 /* ---------------- krok ---------------- */
-let last = performance.now(), statT = 0, acc = 0;
+let last = performance.now(), statT = 0, acc = 0, lifting = false;
+const LIFT = 0.2;   // podnoszenie pras: 20 cm/s
+const overlap = (a, b, e) => a[0] - e < b[3] && b[0] - e < a[3] && a[1] - e < b[4] && b[1] - e < a[4] && a[2] - e < b[5] && b[2] - e < a[5];
 const H = 1 / 60;   // stały krok fizyki (blacha liczy się tak samo przy każdej liczbie klatek)
 function simStep(h) {
   const v = S.speed / 100;   // cm/s → m/s
-  for (const r of rigs) {
-    const P = r.press;
-    if (v > 0 && P.y > P.stop) {
-      P.y = Math.max(P.stop, P.y - v * h);
+  for (const P of presses) {
+    P.moving = lifting ? P.y < P.y0 : v > 0 && P.y > P.stop;
+    if (P.moving) {
+      P.y = lifting ? Math.min(P.y0, P.y + LIFT * h) : Math.max(P.stop, P.y - v * h);
       P.box.set(pressMatrix(P)); P.mesh.matrix.copy(P.box.matrix);
-      const [, hi] = r.shell.bounds();
-      if (P.y < hi + 0.02) r.shell.wake();
     } else P.box.set(P.box.matrix);   // prasa stoi: poprzednie położenie = obecne (tarcie bez przesunięcia)
-    r.shell.step(h, { ground: 0, boxes: [P.box, ...r.supports] });
   }
+  if (lifting && presses.every((P) => P.y >= P.y0)) { lifting = false; api.speed(0); }   // na górze — stoją, aż suwak ruszy
+  const many = rigs.length > 1 && rigs[0].press === rigs[1].press;   // kontener: beczki stykają się ze sobą
+  const boxes = many ? rigs.map((r) => r.shell.box()) : null, e = CR * 2 + 0.02;
+  rigs.forEach((r, i) => {
+    const P = r.press;
+    if (P.moving && P.y < r.shell.bounds()[1] + 0.02) r.shell.wake();
+    let others = null;
+    if (many) {
+      others = [];
+      rigs.forEach((o, j) => { if (j !== i && overlap(boxes[i], boxes[j], e)) { others.push(o.shell.particles); if (o.shell.awake && !r.shell.awake) r.shell.wake(); } });
+    }
+    // w kontenerze prasa naciska przez inne beczki — plastyczność, gdy zjeżdża i jest już na beczkach
+    r.shell.step(h, { ground: r.ground, boxes: [P.box, ...r.supports], others, yield: many && P.moving && !lifting && P.y < topY() + 0.02 });
+  });
 }
+const topY = () => Math.max(...rigs.map((r) => r.shell.bounds()[1]));
 function loop(now) {
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
   acc += dt; let n = 0;
@@ -146,16 +231,21 @@ function stats() {
   const rows = rigs.map((r) => { const s = r.shell.stats(); return [r.set.label, `${Math.round(s.crush * 100)} % · prasa ${(r.press.y * 100).toFixed(0)} cm`]; });
   $('bStats').replaceChildren(...rows.flatMap(([a, b]) => [el('span', { textContent: a }), el('b', { textContent: b })]));
   const s0 = rigs[0] ? rigs[0].shell.stats() : null;
-  if (window.LabPerf && s0) window.LabPerf.modelRows([['Cząstki na beczkę', s0.particles.toLocaleString('pl')], ['Więzy na beczkę', s0.constraints.toLocaleString('pl')], ['Liczone teraz', rigs.filter((r) => r.shell.awake).length + ' / ' + rigs.length]]);
-  status(S.speed > 0 ? (rigs.every((r) => r.press.y <= r.press.stop) ? 'Prasy na dole — „Od nowa” stawia nowe beczki' : 'Prasy zjeżdżają') : 'Prasy stoją — przesuń suwak prędkości');
+  if (window.LabPerf && s0) window.LabPerf.modelRows([['Beczki', String(rigs.length)], ['Cząstki na beczkę', s0.particles.toLocaleString('pl')], ['Więzy na beczkę', s0.constraints.toLocaleString('pl')], ['Liczone teraz', rigs.filter((r) => r.shell.awake).length + ' / ' + rigs.length]]);
+  status(lifting ? 'Prasy jadą do góry' : S.speed > 0 ? (presses.every((P) => P.y <= P.stop) ? 'Prasy na dole — „Podnieś prasy” albo „Od nowa”' : 'Prasy zjeżdżają') : 'Prasy stoją — przesuń suwak prędkości');
 }
 
 /* ---------------- kamera ---------------- */
 const orbit = { target: new THREE.Vector3(0, 0.6, 0), dist: 13, yaw: 0.35, pitch: 0.32 };
-const CAMS = { Plansza: { yaw: 0.35, pitch: 0.32, dist: 13, t: [0, 0.6, 0] }, Pionowo: { yaw: 0.6, pitch: 0.2, dist: 3.4, t: [-6, 0.5, 0] }, '23°': { yaw: 0.6, pitch: 0.2, dist: 3.4, t: [-3, 0.5, 0] },
+const CAMS_C = { Kontener: { yaw: 0.55, pitch: 0.42, dist: 5.2, t: [0, 0.8, 0] }, 'Z boku': { yaw: 0, pitch: 0.12, dist: 4.6, t: [0, 0.8, 0] }, 'Z góry': { yaw: 0, pitch: 1.35, dist: 4.4, t: [0, 0.6, 0] } };
+const CAMS_B = { Plansza: { yaw: 0.35, pitch: 0.32, dist: 13, t: [0, 0.6, 0] }, Pionowo: { yaw: 0.6, pitch: 0.2, dist: 3.4, t: [-6, 0.5, 0] }, '23°': { yaw: 0.6, pitch: 0.2, dist: 3.4, t: [-3, 0.5, 0] },
   '45°': { yaw: 0.6, pitch: 0.2, dist: 3.4, t: [0, 0.5, 0] }, '68°': { yaw: 0.6, pitch: 0.2, dist: 3.4, t: [3, 0.5, 0] }, Bokiem: { yaw: 0.6, pitch: 0.2, dist: 3.4, t: [6, 0.4, 0] } };
 const setCam = (v) => { Object.assign(orbit, { yaw: v.yaw, pitch: v.pitch, dist: v.dist }); orbit.target.set(...v.t); };
-$('cams').replaceChildren(...Object.entries(CAMS).map(([k, v]) => { const b = el('button', { type: 'button', textContent: k }); b.onclick = () => setCam(v); return b; }));
+function cams() {
+  const C = S.scene === 'container' ? CAMS_C : CAMS_B;
+  $('cams').replaceChildren(...Object.entries(C).map(([k, v]) => { const b = el('button', { type: 'button', textContent: k }); b.onclick = () => setCam(v); return b; }));
+  setCam(Object.values(C)[0]);
+}
 const cv = renderer.domElement; let drag = null;
 cv.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY }; cv.setPointerCapture(e.pointerId); });
 cv.addEventListener('pointermove', (e) => { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag = { x: e.clientX, y: e.clientY }; orbit.yaw -= dx * 0.005; orbit.pitch = Math.max(0.01, Math.min(1.52, orbit.pitch + dy * 0.004)); });
@@ -167,6 +257,19 @@ const fmtSpeed = (v) => (v ? `${v.toFixed(1)} cm/s` : 'stop');
 $('speed').value = S.speed; $('speedV').textContent = fmtSpeed(S.speed);
 $('speed').oninput = () => { S.speed = +$('speed').value; $('speedV').textContent = fmtSpeed(S.speed); save(); };
 $('reset').onclick = () => build();
+$('lift').onclick = () => lift();
+function lift() { lifting = true; rigs.forEach((r) => r.shell.wake()); }
+const fmtAlpha = (a) => `${Math.round(a * 100)} %`;
+$('alpha').value = S.alpha; $('alphaV').textContent = fmtAlpha(S.alpha);
+$('alpha').oninput = () => { S.alpha = +$('alpha').value; $('alphaV').textContent = fmtAlpha(S.alpha); applyAlpha(); save(); };
+function setScene(sc) {
+  S.scene = sc; save();
+  for (const b of document.querySelectorAll('#scenes button')) b.classList.toggle('on', b.dataset.scene === sc);
+  $('alphaBox').hidden = sc !== 'container';
+  $('info').textContent = sc === 'container' ? $('info').dataset.container : $('info').dataset.board;
+  build(); cams();
+}
+for (const b of document.querySelectorAll('#scenes button')) b.onclick = () => setScene(b.dataset.scene);
 $('weather').replaceChildren(...Object.entries(WEATHER).map(([k, w]) => el('option', { value: k, textContent: w.label || k })));
 $('weather').value = S.weather; $('weather').onchange = () => { S.weather = $('weather').value; sky(); save(); };
 for (const k of ['sunEl', 'sunAz']) { $(k).value = S[k]; $(k + 'V').textContent = S[k] + '°'; $(k).oninput = () => { S[k] = +$(k).value; $(k + 'V').textContent = S[k] + '°'; sky(); save(); }; }
@@ -175,11 +278,16 @@ addEventListener('keydown', (e) => {
   if (e.target.closest('input,select,textarea')) return;
   if (e.code === 'KeyH') document.querySelectorAll('[data-window]').forEach((p) => p.classList.toggle('hidden-panel'));
   if (e.code === 'KeyR') build();
+  if (e.code === 'KeyU') lift();
 });
 
-// DeformationApi.speed(cm/s), reset(), state(), run(sekundy) → Promise — kroki prasy i blachy
-window.DeformationApi = {
-  speed(v) { S.speed = v; $('speed').value = v; $('speedV').textContent = fmtSpeed(v); return v; },
+// DeformationApi.speed(cm/s), lift(), scene('board' | 'container'), alpha(0–1), reset(), state(),
+// run(sekundy) → Promise — kroki prasy i blachy
+const api = window.DeformationApi = {
+  speed(v) { S.speed = v; $('speed').value = v; $('speedV').textContent = fmtSpeed(v); save(); return v; },
+  lift() { lift(); },
+  scene(sc) { setScene(sc); return this.state(); },
+  alpha(a) { S.alpha = a; $('alpha').value = a; $('alphaV').textContent = fmtAlpha(a); applyAlpha(); return a; },
   reset() { build(); return this.state(); },
   state: () => rigs.map((r) => ({ set: r.set.label, press: +r.press.y.toFixed(3), stop: +r.press.stop.toFixed(3), ...r.shell.stats(), awake: r.shell.awake })),
   get rigs() { return rigs; },
@@ -188,5 +296,5 @@ window.DeformationApi = {
   view(target = [0, 0.6, 0], dist = 13, yaw = 0.35, pitch = 0.32) { orbit.target.set(...target); Object.assign(orbit, { dist, yaw, pitch }); },
 };
 
-sky(); build(); applyTextures();
+sky(); setScene(S.scene === 'container' ? 'container' : 'board'); applyTextures();
 requestAnimationFrame(loop);

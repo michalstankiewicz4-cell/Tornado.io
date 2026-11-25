@@ -14,7 +14,9 @@
 //   opts: { mass, stretch, bend, yieldStretch, yieldBend, weld, substeps, iterations, friction, radius, gravity }
 //   shell.embed(object3d)             siatki obiektu (w układzie świata) jadą za blachą; zwraca obiekt
 //   shell.step(dt, { ground, boxes }) krok; box z makeBox(half, matrix, friction), box.set(matrix) co klatkę
-//   shell.wake(), shell.awake, shell.bounds() → [ymin, ymax], shell.stats() → { particles, constraints, crush }
+//   shell.wake(), shell.awake, shell.bounds() → [ymin, ymax], shell.box() → [xmin, ymin, zmin, xmax, ymax, zmax],
+//   shell.stats() → { particles, constraints, crush }
+//   step(dt, { …, others: [shell.particles innych powłok], yield }) — zderzenia między powłokami (js/deform/shell-core.js)
 //   opts.worker: true — obliczenia w osobnym wątku (js/deform/shell-worker.js, rdzeń js/deform/shell-core.js): krok
 //     wraca w następnej klatce, wiele powłok liczy się równolegle; shell.settled() → Promise (po wysłanych krokach)
 import * as THREE from '../../vendor/three/three.module.js';
@@ -29,7 +31,7 @@ export function makeBox(half, matrix = new THREE.Matrix4(), friction = 0.6) {
   upd();
   return b;
 }
-const colliders = (C) => ({ ground: C.ground ?? null, boxes: (C.boxes || []).map((b) => b.data()) });
+const colliders = (C) => ({ ground: C.ground ?? null, boxes: (C.boxes || []).map((b) => b.data()), others: C.others || null, yield: !!C.yield });
 
 export function createShell(simGeometries, opts = {}) {
   const geoms = simGeometries.map((g) => ({ pos: Float32Array.from(g.attributes.position.array), idx: g.index ? Uint32Array.from(g.index.array) : null }));
@@ -117,26 +119,26 @@ export function createShell(simGeometries, opts = {}) {
   }
 
   // --- krok: na miejscu albo w wątku (wynik w następnej klatce; kroki zebrane w czasie liczenia idą razem)
-  let worker = null, busy = false, queued = 0, queuedDt = 0, lastC = null, wakeNext = false, waiters = [];
+  let worker = null, busy = false, queued = 0, queuedDt = 0, lastC = null, wakeNext = false, waiters = [], asked = 0, sentTo = 0, done = 0;
   if (opts.worker && typeof Worker !== 'undefined') {
     try {
       worker = new Worker(new URL('./shell-worker.js', import.meta.url), { type: 'module' });
       worker.onmessage = (e) => {
         if (e.data.ready) return;
-        X.set(e.data.X); S.awake = e.data.awake || queued > 0; busy = false; drawEmbeds();
+        X.set(e.data.X); S.awake = e.data.awake || queued > 0; busy = false; done = sentTo; drawEmbeds();
+        waiters = waiters.filter(([n, f]) => (n <= done ? (f(), false) : true));   // kroki zlecone do tej chwili gotowe
         if (queued) send();
-        else { const w = waiters; waiters = []; w.forEach((f) => f()); }
       };
       worker.postMessage({ init: { geoms, opts } });
     } catch { worker = null; }
   }
   function send() {
-    busy = true; const n = queued; queued = 0;
+    busy = true; const n = queued; queued = 0; sentTo = asked;
     worker.postMessage({ step: { dt: queuedDt, n, C: lastC, wake: wakeNext } }); wakeNext = false;
   }
   function step(dt, C = {}) {
     if (!S.awake || dt <= 0) return;
-    if (worker) { queued++; queuedDt = dt; lastC = colliders(C); if (!busy) send(); return; }
+    if (worker) { queued++; asked++; queuedDt = dt; lastC = colliders(C); if (!busy) send(); return; }
     stepShell(S, dt, colliders(C));
     drawEmbeds();
   }
@@ -146,8 +148,9 @@ export function createShell(simGeometries, opts = {}) {
     wake() { S.awake = true; S.still = 0; wakeNext = true; },
     get awake() { return S.awake; },
     get threaded() { return !!worker; },
-    settled() { return !worker || (!busy && !queued) ? Promise.resolve() : new Promise((r) => waiters.push(r)); },
+    settled() { const n = asked; return !worker || done >= n ? Promise.resolve() : new Promise((r) => waiters.push([n, r])); },
     bounds: yr,
+    box() { const b = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity]; for (let i = 0; i < N * 3; i += 3) for (let k = 0; k < 3; k++) { const v = X[i + k]; if (v < b[k]) b[k] = v; if (v > b[k + 3]) b[k + 3] = v; } return b; },
     stats() { const [lo, hi] = yr(); return { particles: N, constraints: S.sA.length + S.bA.length, crush: Math.max(0, 1 - (hi - lo) / h0) }; },
     dispose() { for (const E of embeds) E.g.dispose(); if (worker) worker.terminate(); },
   };

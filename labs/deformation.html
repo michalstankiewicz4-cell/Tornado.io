@@ -20,14 +20,17 @@
 <script src="../ui/shell/loader.js"></script>
 <div id="view"></div>
 <div class="bar">
+  <div class="seg" id="scenes"><button type="button" data-scene="board" title="Pięć beczek pod osobnymi prasami">Plansza</button><button type="button" data-scene="container" title="Kontener z beczkami w dwóch warstwach, jedna prasa">Kontener</button></div>
   <label class="speed" title="Prędkość opuszczania pras (od zera — prasy stoją)">Prasa <input type="range" id="speed" min="0" max="50" step="0.5" aria-label="Prędkość prasy"><output id="speedV"></output></label>
+  <button type="button" id="lift" title="Prasy do góry, 20 cm/s (U)">Podnieś prasy</button>
+  <label class="speed" id="alphaBox" title="Przezroczystość ścian kontenera — widać beczki w środku">Ściany <input type="range" id="alpha" min="0" max="1" step="0.05" aria-label="Przezroczystość ścian kontenera"><output id="alphaV"></output></label>
   <button type="button" id="reset" title="Nowe beczki, prasy do góry (R)">Od nowa</button>
   <span class="sp"></span>
   <span class="dimtxt" id="status"></span>
 </div>
 <aside class="panel" data-std="info">
   <h2 class="stdName">Beczki pod prasą</h2>
-  <p class="stdText">Stalowe beczki 200 l (blacha 1 mm, Ø 572 mm, wys. 880 mm) pod stalowymi blokami prasy: pionowo, pochylone o 23°, 45° i 68° (oparte bokiem o betonowe podpory) i bokiem (zablokowana klinami). Suwak na pasku opuszcza bloki z zadaną prędkością — od zera, gdy prasy stoją.</p>
+  <p class="stdText" id="info" data-board="Stalowe beczki 200 l (blacha 1 mm, Ø 572 mm, wys. 880 mm) pod stalowymi blokami prasy: pionowo, pochylone o 23°, 45° i 68° (oparte bokiem o betonowe podpory) i bokiem (zablokowana klinami). Suwak na pasku opuszcza bloki z zadaną prędkością — od zera, gdy prasy stoją." data-container="Kontener bez dachu (wnętrze 2,2 × 1,3 m, ściany 1,6 m) z siedmioma beczkami w dwóch warstwach: stojące, leżące w poprzek i wzdłuż, górne leżą na dolnych i pochylają się, jak spadły. Jedna prasa na cały kontener zgniata górną warstwę w dolną; suwak Ściany ustawia przezroczystość kontenera.">Stalowe beczki 200 l (blacha 1 mm, Ø 572 mm, wys. 880 mm) pod stalowymi blokami prasy: pionowo, pochylone o 23°, 45° i 68° (oparte bokiem o betonowe podpory) i bokiem (zablokowana klinami). Suwak na pasku opuszcza bloki z zadaną prędkością — od zera, gdy prasy stoją.</p>
   <div class="stats" id="bStats"></div>
   <h3>Jak to liczy</h3>
   <p class="note">Każdy wierzchołek beczki to cząstka. Krawędzie trzymają długość (blacha prawie się nie rozciąga), pary wierzchołków naprzeciw krawędzi trzymają zgięcie (sztywność blachy). Gdy odkształcenie przekroczy granicę plastyczności, nowy kształt zostaje — zgniecenie jest trwałe. Prasa, podpory i grunt odpychają cząstki z tarciem.</p>

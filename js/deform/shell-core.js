@@ -2,7 +2,10 @@
 // Opis metody: js/deform/shell.js.
 //   buildShell(geoms, opts) → stan    geoms: [{ pos: Float32Array (x, y, z…), idx: Uint32Array | null }]
 //   stepShell(stan, dt, C) → stan.awake
-//     C: { ground: y | null, boxes: [{ half: [3], m: [16], inv: [16], prevInv: [16], aabb: [6], friction, plastic }] }
+//     C: { ground: y | null, boxes: [{ half: [3], m: [16], inv: [16], prevInv: [16], aabb: [6], friction, plastic }],
+//          others: [Float32Array (x, y, z…)] — cząstki innych powłok (stan z poprzedniego kroku): odpychanie na odległość
+//            2 × radius, każda strona przesuwa swoje cząstki o połowę wcisku (obie razem — cały),
+//          yield: true — plastyczność także bez docisku prasy (np. gdy prasa naciska przez inne beczki) }
 export const DEFAULTS = { mass: 18, stretch: 1, bend: 0.6, yieldStretch: 0.03, yieldBend: 0.006, weld: 0.002, substeps: 2, iterations: 30, friction: 0.7, radius: 0.004, gravity: 9.81 };
 
 export function buildShell(geoms, opts = {}) {
@@ -91,10 +94,55 @@ function collide(S, C) {
   return pressed;
 }
 
+// siatka haszowana cząstek innych powłok (komórka = odległość styku); stała w czasie kroku
+function othersGrid(S, others) {
+  let n = 0; for (const P of others) n += P.length / 3;
+  if (!n) return null;
+  const D = S.O.radius * 2, inv = 1 / D;
+  let size = 1; while (size < n * 2) size <<= 1;
+  const G = S._grid && S._grid.size === size && S._grid.cap >= n ? S._grid : (S._grid = { size, cap: n, start: new Int32Array(size + 1), ent: new Int32Array(n), P: new Float32Array(n * 3), cell: new Int32Array(n) });
+  if (G.P.length < n * 3) { G.P = new Float32Array(n * 3); G.ent = new Int32Array(n); G.cell = new Int32Array(n); G.cap = n; }
+  const P = G.P, start = G.start, cell = G.cell, ent = G.ent, m = size - 1, bb = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
+  let o = 0; for (const Q of others) { P.set(Q, o); o += Q.length; }
+  start.fill(0);
+  for (let j = 0; j < n; j++) {
+    const x = P[j * 3], y = P[j * 3 + 1], z = P[j * 3 + 2];
+    if (x < bb[0]) bb[0] = x; if (y < bb[1]) bb[1] = y; if (z < bb[2]) bb[2] = z; if (x > bb[3]) bb[3] = x; if (y > bb[4]) bb[4] = y; if (z > bb[5]) bb[5] = z;
+    const c = hash(Math.floor(x * inv), Math.floor(y * inv), Math.floor(z * inv)) & m; cell[j] = c; start[c + 1]++;
+  }
+  for (let c = 0; c < size; c++) start[c + 1] += start[c];
+  const fill = start.slice(0, size);
+  for (let j = 0; j < n; j++) ent[fill[cell[j]]++] = j;
+  G.n = n; G.D = D; G.inv = inv; G.bb = bb;
+  return G;
+}
+const hash = (i, j, k) => (Math.imul(i, 73856093) ^ Math.imul(j, 19349663) ^ Math.imul(k, 83492791)) >>> 0;
+function collideOthers(S, G) {
+  const { X, N } = S, { P, start, ent, D, inv, bb, size } = G, m = size - 1, D2 = D * D;
+  let hit = false;
+  for (let i = 0; i < N; i++) {
+    const p = i * 3, x = X[p], y = X[p + 1], z = X[p + 2];
+    if (x < bb[0] - D || x > bb[3] + D || y < bb[1] - D || y > bb[4] + D || z < bb[2] - D || z > bb[5] + D) continue;
+    const ix = Math.floor(x * inv), iy = Math.floor(y * inv), iz = Math.floor(z * inv);
+    let dx = 0, dy = 0, dz = 0;
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (let c = -1; c <= 1; c++) {
+      const h = hash(ix + a, iy + b, iz + c) & m;
+      for (let e = start[h], E = start[h + 1]; e < E; e++) {
+        const q = ent[e] * 3, ux = x - P[q], uy = y - P[q + 1], uz = z - P[q + 2], d2 = ux * ux + uy * uy + uz * uz;
+        if (d2 >= D2 || d2 < 1e-12) continue;
+        const d = Math.sqrt(d2), k = 0.5 * (D - d) / d; dx += ux * k; dy += uy * k; dz += uz * k;
+      }
+    }
+    if (dx || dy || dz) { X[p] += dx; X[p + 1] += dy; X[p + 2] += dz; hit = true; }
+  }
+  return hit;
+}
+
 export function stepShell(S, dt, C = {}) {
   if (!S.awake || dt <= 0) return S.awake;
   const { O, N, X, PREV, V } = S, sub = O.substeps, h = dt / sub, g = O.gravity * h;
-  let pressed = false;
+  const G = C.others && C.others.length ? othersGrid(S, C.others) : null;
+  let pressed = !!C.yield;
   for (let s = 0; s < sub; s++) {
     for (let i = 0; i < N; i++) {
       const p = i * 3; PREV[p] = X[p]; PREV[p + 1] = X[p + 1]; PREV[p + 2] = X[p + 2];
@@ -105,6 +153,7 @@ export function stepShell(S, dt, C = {}) {
       solve(S, S.sA, S.sB, S.sL, O.stretch);
       solve(S, S.bA, S.bB, S.bL, O.bend);
       if (collide(S, C)) pressed = true;
+      if (G) collideOthers(S, G);
     }
     let mv = 0;
     for (let i = 0; i < N * 3; i++) { const v = (X[i] - PREV[i]) / h; V[i] = v * 0.99; const av = v < 0 ? -v : v; if (av > mv) mv = av; }

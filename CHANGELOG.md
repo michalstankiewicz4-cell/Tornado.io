@@ -1,5 +1,14 @@
 # Zmiany
 
+## 0.19.0 — 2026-11-25
+- Laboratorium deformacji 0.2.0: przycisk **Podnieś prasy** (U) — prasy wracają na górę z prędkością 20 cm/s, beczki
+  zostają zgniecione, suwak wraca na zero. Przełącznik scen **Plansza | Kontener**: kontener bez dachu (wnętrze
+  2,2 × 1,3 m) z siedmioma beczkami w dwóch warstwach (stojące, leżące w poprzek i wzdłuż, górne spadają na dolne
+  i układają się same), jedna prasa na cały kontener, suwak **Ściany** — przezroczystość kontenera.
+- DeformKit: zderzenia między powłokami (`others` w kroku — cząstki sąsiednich beczek z poprzedniego kroku, siatka
+  haszowana), plastyczność także przy nacisku przez inne beczki (`yield`), `shell.box()`; `settled()` czeka tylko na
+  kroki zlecone do chwili wywołania.
+
 ## 0.18.0 — 2026-11-25
 - Laboratorium deformacji 0.1.0 (`labs/deformation.html`, opis `docs/labs/deformation.md`): pięć stalowych beczek
   200 l (pionowo, ~23°, 45°, ~68°, bokiem) w podporach, nad każdą prasa; suwak szybkości zgniatania od zera.
