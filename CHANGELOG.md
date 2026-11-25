@@ -1,5 +1,19 @@
 # Zmiany
 
+## 0.23.0 — 2026-11-25
+- Laboratorium mechaniki 0.3.0: grupa **Sterowanie** — obsługa na modelu zamiast suwaków (klik: dźwignia, przycisk,
+  RUN / STOP; przeciąganie w górę / w dół: pokrętło; kursor „rączka” nad częścią do obsługi), stan na żywo w oknie
+  Element:
+  - **wyłącznik** — krzywkowy obrotowy 0–I, główny (czerwona rączka, żółta tabliczka), dźwigniowy; bieguny, prąd,
+  - **potencjometr** — 1–100 kΩ, liniowy (B) / logarytmiczny (A), skala 0–10 na 270°, napięcie suwaka przy 10 V,
+  - **przycisk 22 mm** — chwilowy / z podtrzymaniem, styk NO / NC, kolory, podświetlenie (świeci przy zamkniętym
+    styku), grzybkowy,
+  - **falownik z pokrętłem** — moc, częstotliwość maks., rampa, bieguny silnika; wyświetlacz Hz, RUN / STOP,
+    częstotliwość narasta po rampie, napięcie U/f i obroty synchroniczne.
+  Porty: energia elektryczna, sygnał cyfrowy, sygnał analogowy 0–10 V, mocowanie. `MechanicsApi.control(nazwa, akcja)`.
+- MechKit: `js/models/mech/controls.js` (ControlKit: obudowa natynkowa, wyłączniki, potencjometr, przycisk, falownik).
+  Doktor: 11 nowych modeli — 0 błędów, 0 ostrzeżeń.
+
 ## 0.22.2 — 2026-11-25
 - Poprawki z przeglądu ChatGPT (odpowiedzi pod każdym punktem w `AI_COLLABORATION.md`):
   - zapisane ustawienia laboratoriów wczytywane ostrożnie — wspólny `js/labs/shared/saved.js` (`loadState`, `pick`,

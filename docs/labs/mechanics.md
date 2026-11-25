@@ -28,6 +28,13 @@ wyliczone dane, ostrzeżenia i porty. Katalog: `js/labs/mechanics/items.js` (`IT
 | Przegub Cardana | kąt łamania, podwójny (układ Z) | — (przełożenie chwilowe na żywo) |
 | Silnik elektryczny | moc 0,18–7,5 kW (wielkość IEC), bieguny, kolor | — |
 | Hamulec tarczowy | średnica, grubość, otwory | — |
+| Wyłącznik | rodzaj (krzywkowy, główny, dźwigniowy), bieguny, prąd | — (stan 0 / I na żywo) |
+| Potencjometr | rezystancja, charakterystyka (B / A), kolor pokrętła | — (położenie, napięcie suwaka) |
+| Przycisk 22 mm | kolor, chwilowy / z podtrzymaniem, styk NO / NC, podświetlenie, grzybkowy | — (styk na żywo) |
+| Falownik z pokrętłem | moc, częstotliwość maks., rampa, bieguny silnika | — (zadana i wyjściowa Hz, U/f, obroty) |
+
+Grupa **Sterowanie** obsługiwana jest na modelu: klik — dźwignia, przycisk, RUN / STOP; przeciąganie w górę / w dół —
+pokrętło (części z `userData.control`, modele w `js/models/mech/controls.js` z `api.press / release / drag / tick`).
 
 ## Maszyna
 
@@ -81,5 +88,5 @@ czerniona, żeliwo, aluminium, farba; akryl i guma jako materiały Three.js.
 
 ## API (`window.MechanicsApi`)
 
-`mode('items' | 'machine')`, `item(id, ustawienia)`, `items()`, `rpm(v)`, `brake(N·m)`, `alpha(0–1)`, `state()`, `elements()`, `select(id)`, `view(cel, odległość, yaw, pitch)`,
+`mode('items' | 'machine')`, `item(id, ustawienia)`, `items()`, `control(nazwa, 'press' | 'release' | dy)`, `rpm(v)`, `brake(N·m)`, `alpha(0–1)`, `state()`, `elements()`, `select(id)`, `view(cel, odległość, yaw, pitch)`,
 `run(sekundy)`, `drive`.

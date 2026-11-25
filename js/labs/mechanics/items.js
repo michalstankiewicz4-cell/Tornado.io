@@ -4,6 +4,7 @@
 import * as THREE from '../../../vendor/three/three.module.js';
 import * as MK from '../../models/mech/mechkit.js';
 import { createDrive } from '../../behaviors/mech/drive.js';
+import * as CK from '../../models/mech/controls.js';
 
 const TAU = Math.PI * 2, X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0);
 const mm = (v, d = 1) => `${(v * 1000).toLocaleString('pl', { maximumFractionDigits: d })} mm`;
@@ -283,6 +284,73 @@ export const ITEMS = [
       const g = MK.discBrake(p), u = g.userData, s = shaftBit(0.3); g.userData.spin.add(s);
       return { group: g, update: spinAll(g), info: [['Masa tarczy', kg(u.mass)], ['Bezwładność', kgcm2(u.J)], ['Zacisk', 'jednotłoczkowy, pływający']],
         ports: [P('shaft', 'Wał (obciążenie)', 'obciążenie'), P('ctl', 'Docisk zacisku', 'sterowanie')] };
+    },
+  },
+  /* ---------------- sterowanie: obsługa na modelu (klik, przeciąganie) ---------------- */
+  {
+    id: 'switch', name: 'Wyłącznik', group: 'Sterowanie',
+    params: [
+      { key: 'kind', label: 'Rodzaj', type: 'select', options: [['cam', 'krzywkowy obrotowy 0–I'], ['main', 'główny (rączka czerwona, tabliczka żółta)'], ['lever', 'dźwigniowy']], def: 'cam' },
+      { key: 'poles', label: 'Bieguny', type: 'select', options: [[1, '1'], [2, '2'], [3, '3'], [4, '3 + N']], def: 3 },
+      { key: 'amps', label: 'Prąd znamionowy', type: 'select', options: [[10, '10 A'], [16, '16 A'], [25, '25 A'], [40, '40 A'], [63, '63 A']], def: 16 },
+    ],
+    build(p) {
+      const g = CK.switchUnit(p), a = g.userData.api;
+      const live = () => [['Stan', a.on ? 'I — załączony (obwód zamknięty)' : '0 — wyłączony (obwód otwarty)'], ['Wyjście', a.on ? `${p.poles > 1 ? '3 × 400 V' : '230 V'} podane dalej` : 'bez napięcia']];
+      return { group: g, controls: true, rest: true, view: { yaw: 0.35, pitch: 0.25 }, update() {}, tick: (dt) => a.tick(dt), api: a, live,
+        info: [['Obsługa', 'kliknij dźwignię albo pokrętło'], ['Bieguny', p.poles === 4 ? '3 + N' : String(p.poles)], ['Prąd znamionowy', `${p.amps} A (AC-21)`], ['Napięcie', '690 V AC maks.'], ['Masa', kg(g.userData.mass)], ...live()],
+        ports: [P('in', 'Zasilanie (L1–L3 / L, N)', 'energia elektryczna'), P('out', 'Wyjście po załączeniu', 'energia elektryczna'), P('state', 'Stan 0 / I', 'sygnał cyfrowy'), P('base', 'Obudowa (mocowanie)', 'mocowanie')] };
+    },
+  },
+  {
+    id: 'pot', name: 'Potencjometr', group: 'Sterowanie',
+    params: [
+      { key: 'ohms', label: 'Rezystancja', type: 'select', options: [[1000, '1 kΩ'], [4700, '4,7 kΩ'], [10000, '10 kΩ'], [47000, '47 kΩ'], [100000, '100 kΩ']], def: 10000 },
+      { key: 'taper', label: 'Charakterystyka', type: 'select', options: [['lin', 'liniowa (B)'], ['log', 'logarytmiczna (A)']], def: 'lin' },
+      { key: 'knob', label: 'Pokrętło', type: 'select', options: [['black', 'czarne'], ['grey', 'szare'], ['red', 'czerwone'], ['blue', 'niebieskie']], def: 'black' },
+    ],
+    build(p) {
+      const g = CK.potentiometer(p), a = g.userData.api, f2 = (v) => v.toLocaleString('pl', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const live = () => { const r = a.ratio(); return [['Położenie', `${f2(a.pos * 10)} / 10 (${Math.round(a.pos * 270)}° z 270°)`], ['Napięcie suwaka (zasilanie 10 V)', `${f2(10 * r)} V`], ['Rezystancja suwak–początek', `${Math.round(p.ohms * r).toLocaleString('pl')} Ω`]]; };
+      return { group: g, controls: true, rest: true, view: { yaw: 0.25, pitch: 0.2 }, update() {}, tick: () => {}, api: a, live,
+        info: [['Obsługa', 'przeciągnij pokrętło w górę / w dół'], ['Rezystancja', `${(p.ohms / 1000).toLocaleString('pl')} kΩ`], ['Charakterystyka', p.taper === 'log' ? 'logarytmiczna (A) — ok. 10 % przy połowie obrotu' : 'liniowa (B)'], ['Moc', '0,5 W'], ...live()],
+        ports: [P('u', 'Zacisk 1 (+10 V)', 'energia elektryczna'), P('gnd', 'Zacisk 3 (masa)', 'energia elektryczna'), P('wiper', 'Zacisk 2 — suwak (0–10 V)', 'sygnał analogowy'), P('base', 'Obudowa (mocowanie)', 'mocowanie')] };
+    },
+  },
+  {
+    id: 'button', name: 'Przycisk', group: 'Sterowanie',
+    params: [
+      { key: 'color', label: 'Kolor', type: 'select', options: Object.entries(CK.BUTTON_COLORS), def: 'green' },
+      { key: 'mode', label: 'Działanie', type: 'select', options: [['momentary', 'chwilowy (sprężyna wraca)'], ['latch', 'z podtrzymaniem (wciśnij — wciśnij)']], def: 'momentary' },
+      { key: 'contact', label: 'Styk', type: 'select', options: [['NO', 'NO — zwierny (13–14)'], ['NC', 'NC — rozwierny (11–12)']], def: 'NO' },
+      { key: 'lit', label: 'Podświetlenie', type: 'check', def: false },
+      { key: 'mushroom', label: 'Grzybkowy', type: 'check', def: false },
+    ],
+    build(p) {
+      const g = CK.pushButton(p), a = g.userData.api;
+      const live = () => [['Wciśnięty', a.pressed ? 'tak' : 'nie'], ['Styk', a.closed ? 'zamknięty — prąd płynie' : 'otwarty'], ['Wyjście (24 V DC)', a.closed ? '24 V' : '0 V']];
+      return { group: g, controls: true, rest: true, view: { yaw: 0.3, pitch: 0.2 }, update() {}, tick: (dt) => a.tick(dt), api: a, live,
+        info: [['Obsługa', p.mode === 'latch' ? 'kliknij — wciska się i zostaje; kliknij znowu — wraca' : 'przytrzymaj przycisk myszy na przycisku'], ['Otwór montażowy', 'Ø 22,5 mm'], ['Styk', p.contact === 'NO' ? 'zwierny 13–14' : 'rozwierny 11–12'], ['Obciążalność styku', '10 A, 24 V DC / 6 A, 230 V AC'], ['Podświetlenie', p.lit ? 'LED 24 V — świeci, gdy styk zamknięty' : 'brak'], ...live()],
+        ports: [P('a', `Zacisk ${p.contact === 'NO' ? '13' : '11'}`, 'sygnał cyfrowy'), P('b', `Zacisk ${p.contact === 'NO' ? '14' : '12'}`, 'sygnał cyfrowy'), ...(p.lit ? [P('lamp', 'Lampka X1–X2', 'energia elektryczna')] : []), P('base', 'Obudowa (mocowanie)', 'mocowanie')] };
+    },
+  },
+  {
+    id: 'vfd', name: 'Falownik z pokrętłem', group: 'Sterowanie',
+    params: [
+      { key: 'kW', label: 'Moc', type: 'select', options: MK.MOTORS.map((m) => [m.kW, `${String(m.kW).replace('.', ',')} kW`]), def: 1.1 },
+      { key: 'fmax', label: 'Częstotliwość maks.', type: 'select', options: [[50, '50 Hz'], [60, '60 Hz'], [87, '87 Hz (silnik w trójkącie)'], [100, '100 Hz']], def: 50 },
+      { key: 'ramp', label: 'Rampa (0 → fmax)', type: 'range', min: 0.5, max: 20, step: 0.5, unit: 's', def: 5 },
+      { key: 'poles', label: 'Silnik — bieguny', type: 'select', options: [[2, '2'], [4, '4'], [6, '6']], def: 4 },
+    ],
+    build(p) {
+      const g = CK.inverter(p), a = g.userData.api, f1 = (v) => v.toLocaleString('pl', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+      const live = () => {
+        const nSync = 120 * a.f / p.poles, U = Math.min(400, 400 * a.f / 50);
+        return [['Stan', a.run ? 'RUN — praca' : 'STOP'], ['Zadana', `${f1(a.set)} Hz`], ['Wyjściowa', `${f1(a.f)} Hz`], ['Napięcie wyjściowe (U/f)', `${Math.round(U)} V`], ['Obroty silnika (synchroniczne)', `${Math.round(nSync)} obr/min`]];
+      };
+      return { group: g, controls: true, rest: true, view: { yaw: 0.3, pitch: 0.15 }, update() {}, tick: (dt) => a.tick(dt), api: a, live,
+        info: [['Obsługa', 'przeciągnij pokrętło; RUN / STOP — kliknij'], ['Moc', `${String(p.kW).replace('.', ',')} kW`], ['Zasilanie', '3 × 400 V, 50 Hz'], ['Rampa', `${f1(p.ramp)} s od 0 do ${p.fmax} Hz`], ['Masa', kg(g.userData.mass)], ...live()],
+        ports: [P('mains', 'Zasilanie L1 L2 L3', 'energia elektryczna'), P('motor', 'Wyjście U V W (silnik)', 'energia elektryczna'), P('ai', 'Wejście analogowe 0–10 V (potencjometr)', 'sygnał analogowy'), P('di', 'Wejścia cyfrowe: start, stop', 'sygnał cyfrowy'), P('base', 'Radiator (mocowanie)', 'mocowanie')] };
     },
   },
 ];

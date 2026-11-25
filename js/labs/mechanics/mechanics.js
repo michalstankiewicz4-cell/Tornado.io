@@ -238,7 +238,7 @@ const selBox = new THREE.BoxHelper(new THREE.Object3D(), 0xf2c14e); selBox.visib
 function loop(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (S.mode === 'machine') { drive.step(dt, { rpm: S.rpm, brake: S.brake }); applyAngles(); }
-  else if (item) { itemTheta += S.spin * TAU / 60 * dt; item.update(itemTheta); }
+  else if (item) { itemTheta += S.spin * TAU / 60 * dt; item.update(itemTheta); if (item.tick) item.tick(dt); }
   moveKeys(dt);
   if ((statT += dt) > 0.2) { statT = 0; stats(); }
   if (sel) selBox.update();
@@ -278,7 +278,6 @@ function showSel() {
     return li;
   }));
 }
-const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
 function pick(e) {
   const r = renderer.domElement.getBoundingClientRect(); ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera);
   const hits = ray.intersectObjects(parts.map((p) => p.group), true);
@@ -296,9 +295,25 @@ function cams() {
   $('cams').replaceChildren(...Object.entries(C).map(([k, v]) => { const b = el('button', { type: 'button', textContent: k }); b.onclick = () => (S.mode === 'machine' ? setCam(v) : frameItem(v)); return b; }));
 }
 const cv = renderer.domElement; let drag = null;
-cv.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY }; cv.setPointerCapture(e.pointerId); });
-cv.addEventListener('pointermove', (e) => { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY; if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 4) drag.moved = true; if (drag.moved) { orbit.yaw -= dx * 0.005; orbit.pitch = Math.max(0.02, Math.min(1.52, orbit.pitch + dy * 0.004)); } });
-cv.addEventListener('pointerup', (e) => { const click = drag && !drag.moved; drag = null; if (click && e.button === 0 && S.mode === 'machine') pick(e); });
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+// sterowanie na modelu (tryb Przedmioty): część z userData.control — klik / przytrzymanie / przeciąganie zamiast obrotu kamery
+let ctl = null;
+function controlAt(e) {
+  if (S.mode === 'machine' || !item || !item.controls) return null;
+  const r = renderer.domElement.getBoundingClientRect(); ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera);
+  const h = ray.intersectObject(item.group, true)[0]; let o = h && h.object; while (o && !o.userData.control) o = o.parent;
+  return o ? o.userData.control : null;
+}
+cv.addEventListener('pointerdown', (e) => {
+  cv.setPointerCapture(e.pointerId);
+  const c = e.button === 0 ? controlAt(e) : null;
+  if (c) { ctl = { name: c, y: e.clientY }; item.api.press(c); itemStats(); return; }
+  drag = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY };
+});
+cv.addEventListener('pointermove', (e) => {
+  if (ctl) { item.api.drag(ctl.name, e.clientY - ctl.y); ctl.y = e.clientY; return; }
+  if (!drag) { cv.classList.toggle('grab', !!controlAt(e)); return; } const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY; if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 4) drag.moved = true; if (drag.moved) { orbit.yaw -= dx * 0.005; orbit.pitch = Math.max(0.02, Math.min(1.52, orbit.pitch + dy * 0.004)); } });
+cv.addEventListener('pointerup', (e) => { if (ctl) { item.api.release(ctl.name); ctl = null; itemStats(); return; } const click = drag && !drag.moved; drag = null; if (click && e.button === 0 && S.mode === 'machine') pick(e); });
 cv.addEventListener('wheel', (e) => { e.preventDefault(); orbit.dist = Math.min(30, Math.max(0.3, orbit.dist * Math.exp(e.deltaY * 0.0011))); }, { passive: false });
 const held = new Set();
 addEventListener('keyup', (e) => held.delete(e.code)); addEventListener('blur', () => held.clear());
@@ -385,12 +400,13 @@ function itemSettings() {
   const sp = el('input', { type: 'range', min: 0, max: 120, step: 1, value: S.spin }), spo = el('output', { textContent: `${S.spin} obr/min` });
   sp.oninput = () => { S.spin = +sp.value; spo.textContent = `${S.spin} obr/min`; save(); };
   const reset = el('button', { type: 'button', textContent: 'Domyślne' }); reset.onclick = () => { delete S.items[def.id]; save(); itemSettings(); buildItem(); };
-  box0.replaceChildren(el('h3', { textContent: def.name }), ...rows, el('h3', { textContent: 'Podgląd' }), el('div', { className: 'row' }, el('span', { textContent: 'Obrót wejścia' }), sp, spo), el('div', { className: 'btns' }, reset));
+  const preview = def.group === 'Sterowanie' ? [el('p', { className: 'note', textContent: 'Obsługa na modelu: klik — dźwignia, przycisk, RUN / STOP; przeciąganie w górę / w dół — pokrętło.' })] : [el('h3', { textContent: 'Podgląd' }), el('div', { className: 'row' }, el('span', { textContent: 'Obrót wejścia' }), sp, spo)];
+  box0.replaceChildren(el('h3', { textContent: def.name }), ...rows, ...preview, el('div', { className: 'btns' }, reset));
 }
 function itemStats() {
   if (!item) return;
   $('selName').textContent = itemDef.name;
-  const rows = [...item.info, ...(item.live ? item.live().slice(1) : [])];
+  const rows = [...item.info, ...(item.live ? item.live() : [])];   // wartości na żywo zastępują te same pola z opisu
   const uniq = []; const seen = new Set(); for (const r of rows) { if (seen.has(r[0])) { uniq[uniq.findIndex((u) => u[0] === r[0])] = r; continue; } seen.add(r[0]); uniq.push(r); }
   $('selProps').replaceChildren(...uniq.flatMap(([a, b]) => [el('span', { textContent: a }), el('b', { textContent: String(b) })]), ...(item.warn || []).map((w) => el('p', { className: 'warn', textContent: '⚠ ' + w })));
   $('selPorts').replaceChildren(...item.ports.map((pt) => el('li', {}, el('b', { textContent: pt.name }), el('span', { textContent: ` · ${pt.kind}` }))));
@@ -430,6 +446,8 @@ window.MechanicsApi = {
   mode(m) { setMode(m); return S.mode; },
   item(id, params = {}) { S.item = id; S.items[id] = { ...(S.items[id] || {}), ...params }; itemList(); itemSettings(); buildItem(); frameItem(); return { name: itemDef.name, info: item.info, warn: item.warn || [], ports: item.ports.map((p) => p.name) }; },
   items: () => ITEMS.map((i) => ({ id: i.id, name: i.name, group: i.group, params: i.params.map((q) => q.key) })),
+  // control(nazwa, 'press' | 'release' | dy) — obsługa części sterującej przedmiotu (jak myszą); zwraca stan na żywo
+  control(name, act = 'press') { if (!item || !item.api) return null; if (act === 'press') item.api.press(name); else if (act === 'release') item.api.release(name); else item.api.drag(name, act); return item.live ? Object.fromEntries(item.live()) : null; },
   rpm(v) { S.rpm = v; $('rpm').value = v; $('rpmV').textContent = v ? `${v} obr/min` : 'stop'; return v; },
   brake(v) { S.brake = v; $('brake').value = v; $('brakeV').textContent = `${v} N·m`; return v; },
   alpha(a) { S.alpha = a; $('alpha').value = a; applyAlpha(); return a; },

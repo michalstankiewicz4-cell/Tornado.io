@@ -71,7 +71,8 @@ const MECH_VARIANTS = {
   sprocket: [{}, { z: 9, type: '06B' }, { z: 60, type: '12A' }], chain: [{}, { z1: 9, z2: 80, type: '12A', a: 0.8 }],
   pulley: [{}, { d: 0.05, profile: 'SPZ' }, { d: 0.4, profile: 'SPB', grooves: 5 }], belt: [{}, { d1: 0.063, d2: 0.4, profile: 'SPB', grooves: 4, a: 0.2 }],
   shaft: [{}, { len: 0.1, d: 0.05, key: false }], bearing: [{}, { d: 0.04, h: 0.6 }], jaw: [{}, { r: 0.12, spider: '64D' }], flange: [{}, { d: 0.2, bolts: 8 }],
-  cardan: [{}, { beta: 0 }, { beta: 45, double: true }], motor: [{}, { kW: 0.18, poles: 2 }, { kW: 7.5, poles: 6, paint: 'paintRed' }], brake: [{}, { d: 0.35, t: 0.02, vents: 24 }],
+  cardan: [{}, { beta: 0 }, { beta: 45, double: true }],
+  switch: [{}, { kind: 'main' }, { kind: 'lever', poles: 1 }], pot: [{}, { taper: 'log', knob: 'red' }], button: [{}, { lit: true, mode: 'latch' }, { mushroom: true, color: 'red', contact: 'NC' }], vfd: [{}, { kW: 7.5 }, { kW: 0.18 }], motor: [{}, { kW: 0.18, poles: 2 }, { kW: 7.5, poles: 6, paint: 'paintRed' }], brake: [{}, { d: 0.35, t: 0.02, vents: 24 }],
 };
 for (const def of ITEMS) (MECH_VARIANTS[def.id] || [{}]).forEach((v, k) => models.push({
   id: `mech/${def.id}${k ? '-' + k : ''}`, label: def.name + (k ? ' (' + Object.entries(v).map(([a, b]) => `${a}=${b}`).join(', ') + ')' : ''), family: 'mech',
