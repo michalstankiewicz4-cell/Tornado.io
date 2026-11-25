@@ -1,5 +1,15 @@
 # Zmiany
 
+## 0.20.3 — 2026-11-25
+- DeformKit: blacha nie przenika już prasy, a górne beczki dolnych. Przyczyna: gdy wątek beczki był zajęty, zaległe
+  kroki liczyły się potem razem z ostatnim położeniem prasy i sąsiadów — prasa przeskakiwała kilka kroków naraz,
+  blacha lądowała w jej środku i wychodziła najbliższą ścianą (także górą). Teraz każdy krok idzie do wątku z własnymi
+  zderzaczami (`steps`), a `shell.pending` mówi, że krok jeszcze się liczy. W żywej pętli było do ~1000 cząstek w prasie,
+  teraz 0.
+- Laboratorium deformacji 0.3.3: nowy krok dopiero, gdy wszystkie beczki skończyły poprzedni (gdy wątki nie nadążają,
+  symulacja zwalnia zamiast się rozjeżdżać). Beczki w kontenerze ustawiane bez wcisku: każda podnoszona, aż jest
+  co najmniej 1 cm ponad stykiem z już postawionymi (pochylona zaczynała wciśnięta w stojącą i miała wgnieciony koniec).
+
 ## 0.20.2 — 2026-11-25
 - DeformKit: zgniecione beczki nie drgają, nie kręcą się i nie pełzną. Przyczyną był konflikt dwóch pamięci kształtu:
   granica trwałego wydłużenia krawędzi (0.20.1) trzymała krawędzie krótsze, niż chciał zapamiętany kształt — stale

@@ -166,14 +166,21 @@ function buildContainer() {
   const floor = new THREE.Mesh(new THREE.BoxGeometry(CW * 2 + 0.01, 0.01, CD * 2 + 0.01), paint); floor.position.set(0, FLOOR - 0.005, 0); floor.receiveShadow = true; floor.userData.wall = true; holder.add(floor);
   for (const sz of [-1, 1]) { const sk = new THREE.Mesh(new THREE.BoxGeometry(CW * 2 + 0.2, FLOOR - 0.01, 0.16), steel); sk.position.set(0, (FLOOR - 0.01) / 2, sz * (CD - 0.15)); sk.castShadow = sk.receiveShadow = true; holder.add(sk); }
   const press = addPress(0, FLOOR + CH + 0.05, FLOOR + 0.08, [CW - 0.015, 0.2, CD - 0.015]);   // szczelina 1,5 cm — węższa niż średnica styku cząstek (5 cm)
+  // ustawianie: beczka podnoszona po 1 cm, aż jej siatka fizyczna jest co najmniej 1 cm ponad stykiem (2 × CR) z już
+  // postawionymi — żadna nie zaczyna wciśnięta w inną (wcisk na starcie wgniatał blachę i mieszał warstwy)
+  const placed = [], clear = 2 * CR + 0.01;
+  const gap = (P) => { let m = Infinity; for (const Q of placed) for (let i = 0; i < P.length; i += 3) for (let j = 0; j < Q.length; j += 3) { const dx = P[i] - Q[j], dy = P[i + 1] - Q[j + 1], dz = P[i + 2] - Q[j + 2], d = dx * dx + dy * dy + dz * dz; if (d < m) m = d; } return Math.sqrt(m); };
   BARRELS.forEach((b, k) => {
     const d = Math.PI / 180, q = new THREE.Quaternion().setFromEuler(new THREE.Euler(b.r[1] * d, b.r[2] * d, b.r[0] * d, 'YXZ'));
-    const M = new THREE.Matrix4().compose(new THREE.Vector3(b.p[0], FLOOR + b.p[1] + 0.004, b.p[2]), q, one);
+    const at = new THREE.Vector3(b.p[0], FLOOR + b.p[1] + 0.004, b.p[2]);
+    let M = new THREE.Matrix4().compose(at, q, one), sim = simBarrelInset().applyMatrix4(M);
+    for (let n = 0; n < 60 && gap(sim.attributes.position.array) < clear; n++) { sim.translate(0, 0.01, 0); at.y += 0.01; }
+    M = new THREE.Matrix4().compose(at, q, one);
+    placed.push(sim.attributes.position.array);
     const model = barrel.build(0, k % barrel.VARIANTS.length);
-    const sim = simBarrelInset().applyMatrix4(M);
     const shell = createShell([sim], { mass: 18, radius: CR, worker: true });
     model.matrixAutoUpdate = false; model.matrix.copy(M); holder.add(model);
-    shell.embed(model); sim.dispose();
+    shell.embed(model);
     rigs.push({ set: { label: b.label }, shell, supports: walls, press, ground: FLOOR, h0: shell.bounds()[1], model });
   });
 }
@@ -218,9 +225,11 @@ function simStep(h) {
 const topY = () => Math.max(...rigs.map((r) => r.shell.bounds()[1]));
 function loop(now) {
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  // krok w zgodzie z wątkami: nowy krok dopiero, gdy wszystkie beczki skończyły poprzedni (prasa i sąsiedzi widziani przez
+  // beczkę są zawsze sprzed jednego kroku); gdy wątki nie nadążają — symulacja zwalnia zamiast się rozjeżdżać
   acc += dt; let n = 0;
-  while (acc >= H && n < 3) { simStep(H); acc -= H; n++; }
-  if (n === 3) acc = 0;   // nie nadąża — zwalnia zamiast się zapętlić
+  while (acc >= H && n < 3 && !rigs.some((r) => r.shell.pending)) { simStep(H); acc -= H; n++; }
+  if (acc > H) acc = H;   // zaległości nie nadrabia
   if ((statT += dt) > 0.25) { statT = 0; stats(); }
   moveKeys(dt);
   const c = Math.cos(orbit.pitch);

@@ -119,26 +119,27 @@ export function createShell(simGeometries, opts = {}) {
   }
 
   // --- krok: na miejscu albo w wątku (wynik w następnej klatce; kroki zebrane w czasie liczenia idą razem)
-  let worker = null, busy = false, queued = 0, queuedDt = 0, lastC = null, wakeNext = false, waiters = [], asked = 0, sentTo = 0, done = 0;
+  let worker = null, busy = false, queue = [], wakeNext = false, waiters = [], asked = 0, sentTo = 0, done = 0;
   if (opts.worker && typeof Worker !== 'undefined') {
     try {
       worker = new Worker(new URL('./shell-worker.js', import.meta.url), { type: 'module' });
       worker.onmessage = (e) => {
         if (e.data.ready) return;
-        X.set(e.data.X); S.awake = e.data.awake || queued > 0; busy = false; done = sentTo; drawEmbeds();
+        X.set(e.data.X); S.awake = e.data.awake || queue.length > 0; busy = false; done = sentTo; drawEmbeds();
         waiters = waiters.filter(([n, f]) => (n <= done ? (f(), false) : true));   // kroki zlecone do tej chwili gotowe
-        if (queued) send();
+        if (queue.length) send();
       };
       worker.postMessage({ init: { geoms, opts } });
     } catch { worker = null; }
   }
   function send() {
-    busy = true; const n = queued; queued = 0; sentTo = asked;
-    worker.postMessage({ step: { dt: queuedDt, n, C: lastC, wake: wakeNext } }); wakeNext = false;
+    // każdy krok ze swoimi zderzaczami (położenie prasy i sąsiadów z chwili zlecenia) — bez przeskoku prasy o kilka kroków
+    busy = true; sentTo = asked; const steps = queue; queue = [];
+    worker.postMessage({ step: { steps, wake: wakeNext } }); wakeNext = false;
   }
   function step(dt, C = {}) {
     if (!S.awake || dt <= 0) return;
-    if (worker) { queued++; asked++; queuedDt = dt; lastC = colliders(C); if (!busy) send(); return; }
+    if (worker) { asked++; queue.push({ dt, C: colliders(C) }); if (!busy) send(); return; }
     stepShell(S, dt, colliders(C));
     drawEmbeds();
   }
@@ -148,6 +149,7 @@ export function createShell(simGeometries, opts = {}) {
     wake() { S.awake = true; S.still = 0; wakeNext = true; },
     get awake() { return S.awake; },
     get threaded() { return !!worker; },
+    get pending() { return busy || queue.length > 0; },   // krok w wątku jeszcze się liczy
     settled() { const n = asked; return !worker || done >= n ? Promise.resolve() : new Promise((r) => waiters.push([n, r])); },
     bounds: yr,
     box() { const b = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity]; for (let i = 0; i < N * 3; i += 3) for (let k = 0; k < 3; k++) { const v = X[i + k]; if (v < b[k]) b[k] = v; if (v > b[k + 3]) b[k + 3] = v; } return b; },

@@ -15,7 +15,8 @@ Kamera: przeciągnij — obrót, kółko — odległość, W A S D — przesuwan
 
 Przełącznik **Plansza | Kontener** na pasku. Kontener bez dachu (wnętrze 2,2 × 1,3 m, ściany 1,6 m, na dwóch płozach)
 z siedmioma beczkami w dwóch warstwach: dwie stojące, leżąca w poprzek, leżąca wzdłuż, stojąca; na górze leżąca na
-stojących i pochylona — zaczynają nieco wyżej, spadają i układają się same. Jedna prasa na cały kontener (szczelina przy
+stojących i pochylona — zaczynają nieco wyżej, spadają i układają się same; każda beczka przy ustawianiu jest podnoszona, aż
+jest co najmniej 1 cm ponad stykiem z już postawionymi. Jedna prasa na cały kontener (szczelina przy
 ścianach 1,5 cm) zjeżdża do 8 cm nad dno. Suwak **Ściany** ustawia przezroczystość kontenera (od 0 — niewidoczne ściany).
 
 Beczki odpychają się cząstkami (DeformKit `others`). Ich siatka fizyczna jest cofnięta o promień styku (2,5 cm), więc
@@ -51,7 +52,9 @@ Bez `createShell` model zostaje sztywny i nic nie kosztuje.
   współrzędne barycentryczne i odsunięcie wzdłuż normalnej).
 - Zderzenia między powłokami: `step(dt, { others: [cząstki sąsiadów] })` — każda powłoka odsuwa swoje cząstki o
   połowę wcisku (stan sąsiadów z poprzedniego kroku, siatka haszowana).
-- `shell-worker.js` — `worker: true`: każda powłoka w swoim wątku, liczą się równolegle; wynik w następnej klatce.
+- `shell-worker.js` — `worker: true`: każda powłoka w swoim wątku, liczą się równolegle; wynik w następnej klatce. Każdy
+  krok idzie do wątku ze swoimi zderzaczami; laboratorium robi nowy krok dopiero, gdy `shell.pending` jest fałszywe we
+  wszystkich beczkach (prasa i sąsiedzi zawsze sprzed jednego kroku, bez przeskoków).
 
 ## API (`window.DeformationApi`)
 
