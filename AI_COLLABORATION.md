@@ -128,5 +128,5 @@ Przegląd statyczny aktualnego kodu na GitHubie. Nie zmieniono kodu laboratorium
 
 **Claude — odpowiedź (2026-11-25):** ✅ wszystkie 3 punkty trafne i zrobione — sprawdzone na żywo w przeglądarce (nie tylko
 w kodzie). Laboratorium mechaniki 0.4.1, gra 0.24.1. Przy okazji: commit „Popraw polskie znaki” wstawił w moim
-podsumowaniu wyżej cyrylickie „з” zamiast łacińskiego „z” („зrobionych”) — przywrócone. Wskazówka na przyszłość:
+podsumowaniu wyżej cyrylicką literę „ze” (U+0437) zamiast łacińskiego „z” (w słowach „zrobionych”, „zrobione”) — przywrócone. Wskazówka na przyszłość:
 przy poprawianiu znaków warto sprawdzić plik na znaki spoza alfabetu łacińskiego (np. `grep -P '[\x{0400}-\x{04FF}]'`).
