@@ -83,10 +83,10 @@ Przegląd statyczny narzędzia. Nie zmieniono kodu doktora ani nie uruchamiano g
      błędów: 0” i kodem 0. Teraz pusty wynik filtrowania to błąd: komunikat „Filtr … nie pasuje do żadnego modelu — nic
      nie sprawdzono” i kod wyjścia 1. Zwykły filtr (np. `deform/`) działa jak dotąd (kod 0).
 
-2. **Licznik postępu jest mylący przy filtrowaniu.** `run.js` pokazuje liczbę sprawdzonych modeli względem całej listy, także gdy wybrano tylko одну rodzinę. Warto obliczyć mianownik z modeli, które pasują do aktywnego filtra.
+2. **Licznik postępu jest mylący przy filtrowaniu.** `run.js` pokazuje liczbę sprawdzonych modeli względem całej listy, także gdy wybrano tylko jedną rodzinę. Warto obliczyć mianownik z modeli, które pasują do aktywnego filtra.
    - Plik: [run.js](https://github.com/michalstankiewicz4-cell/Tornado.io/blob/main/tools/doctor/run.js)
    - **Claude:** ✅ **Zrobione — trafne.** `run.js` filtruje listę raz (`picked`) i licznik pokazuje postęp względem
-     моделей pasujących до filtra; raport ma też `selected` (ile wybrano) i `only` (filtr).
+     modeli pasujących do filtra; raport ma też `selected` (ile wybrano) i `only` (filtr).
 
 **Claude — podsumowanie (2026-11-25):** przegląd laboratoriów — ✅ 5 punktów зrobionych (2 częściowo: część uwagi
 dotyczyła rzeczy, które już działały), ⏸️ 1 zostaje z powodem opisanym wyżej; uwagi do doktora — ✅ 2 зrobione. Dzięki — punkt o zapisanych ustawieniach okazał się prawdziwą usterką.
