@@ -13,6 +13,8 @@
 //     wyniki w następnej klatce; env.windState — stan wiatru wysyłany do wątku (same liczby). Bez wątku albo
 //     z { sync: true } (np. symulacja dla AI) — krok na głównym wątku jak dotąd.
 //   Budynki ukryte (hidden) trafiają na kartę dopiero przy odsłonięciu (pierwsze uszkodzenie, ogień).
+//   opts.chips (domyślnie tak): drobny gruz tylko na karcie (js/destruct/chips.js) przy pękaniu części i rozbiciu
+//     spadającej — do oglądania, poza fizyką.
 //   bodies (Set), buildings, removeBody(b), stats(), clear(), onBreak(fn), onFragment(fn)
 // Body: { p, q, v, w, m, r, A, size, state 'active' | 'sleep' | 'held', kind 'frag' | 'part' | 'item', mat }
 import * as THREE from '../../vendor/three/three.module.js';
@@ -20,6 +22,7 @@ import { fracture } from './patterns.js';
 import { extrude } from './extrude.js';
 import { MATS, tileOf } from './materials.js';
 import { createBatches } from './batches.js';
+import { createChips } from './chips.js';
 import { makeBody, stepBody, wake } from './physics.js';
 import { inside, distTo, bounds, touching, area } from './geom2d.js';
 
@@ -34,6 +37,19 @@ export function createWorld(scene, opts = {}) {
   const listeners = { break: [], frag: [], reveal: [] };
   let maxFrag = opts.maxFragments || 2500, fragCount = 0, simT = 0;
   const env = { ground, wind: opts.wind || null, windGain: 1 };
+  const chips = opts.chips === false ? null : createChips(scene, { ground });
+  // barwa okruchów: średnia z tekstury materiału (szkło jasne, zielonkawe), z odcieniem budynku i zwęgleniem
+  const chipCol = new Map();
+  function chipColor(part) {
+    let c = chipCol.get(part.mat);
+    if (!c) {
+      const D = MATS[part.mat], t = D.tex || {};
+      c = D.glass ? new THREE.Color(0.78, 0.86, 0.88) : t.color ? new THREE.Color(t.color).lerp(new THREE.Color(t.color2 || t.color), 0.5) : new THREE.Color(D.color || 0x8a8580);
+      chipCol.set(part.mat, c);
+    }
+    const tn = tintOf(part); return tn ? c.clone().multiply(tn) : c;
+  }
+  const chipSize = (mat) => (MATS[mat].glass ? 0.035 : MATS[mat].pattern === 'planks' || MATS[mat].pattern === 'beam' ? 0.045 : 0.06);
 
   /* ---------------- siatka przestrzenna części ---------------- */
   function gridAdd(part) {
@@ -184,6 +200,11 @@ export function createWorld(scene, opts = {}) {
       }
     }
     settle(part);
+    if (chips) {   // okruchy z miejsca pęknięcia, w kierunku uderzenia
+      _p.set(hitL[0], hitL[1], 0).applyMatrix4(part.M);
+      const n = clamp(Math.round(part.a * 12 * power * (D.glass ? 2 : 1)), 6, 90);
+      chips.burst(_p, dir.clone().multiplyScalar(vmag * 0.6), { n, color: chipColor(part), size: chipSize(part.mat), spread: 1.5 + 2 * power, radius: 0.25 + 0.5 * power });
+    }
     for (const f of listeners.break) f(part);
   }
   // kawałki pękniętej części, które nie łączą się z podporą, odpadają; część bez kawałków znika
@@ -261,6 +282,7 @@ export function createWorld(scene, opts = {}) {
     const D = MATS[part.mat], power = clamp(speed / 9, 0.3, 1);
     const cells = fracture({ poly: part.poly, pattern: D.pattern, pat: D.pat || {}, seed: part.spec.seed + 7 }, low, power, 3);
     part.state = 'gone';
+    if (chips) chips.burst(b.p, b.v.clone().multiplyScalar(0.2), { n: clamp(Math.round(part.a * 10 * power), 8, 120), color: chipColor(part), size: chipSize(part.mat), spread: 2 * power, up: 2.5 * power, radius: Math.min(1.5, b.r * 0.6) });
     for (const cl of cells) spawnFragment(part, cl.poly, b.v.clone().multiplyScalar(0.25).add(_n.set(Math.random() - 0.5, Math.random() * 0.8, Math.random() - 0.5).multiplyScalar(1.5 * power)), { spin: 0.8 });
   }
   function processQueue() {
@@ -445,6 +467,7 @@ export function createWorld(scene, opts = {}) {
     }
     processQueue();
     if (revealing.size) revealStep();
+    if (chips) chips.update(simT);
     // za dużo odłamków: najstarsze leżące najmniejsze znikają (pył)
     if (fragCount > maxFrag) {
       const sleeping = [...bodies].filter((b) => b.kind === 'frag' && b.state === 'sleep').sort((a, c) => a.vol - c.vol || a.born - c.born);
@@ -479,6 +502,7 @@ export function createWorld(scene, opts = {}) {
     set maxFragments(n) { maxFrag = n; },
     onBreak(f) { listeners.break.push(f); }, onReveal(f) { listeners.reveal.push(f); }, reveal, setChar, onFragment(f) { listeners.frag.push(f); },
     get time() { return simT; },
+    chips,
     get physicsThread() { return !!(phys && phys.ready && !phys.failed); },
   };
 }

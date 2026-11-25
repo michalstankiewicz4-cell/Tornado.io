@@ -31,7 +31,8 @@ zbudowane (szyby, mury, dachówki, stropy). Mechanizm rozpadu (DestructKit) ma p
   dopóki łączą się (wspólną krawędzią) z podporą. Część bez podparcia spada w całości i pęka o ziemię.
 - Rysowanie: jeden BatchedMesh na materiał (bez odrzucania części na CPU — karta rysuje; szkło sortowane), zmiany
   wysyłane na kartę częściowo (`js/render/partial-upload.js`). Fizyka odłamków: `js/destruct/physics.js` (środowisko ląd),
-  w grze w osobnym wątku (`js/destruct/physics-worker.js`, środowisko wątku `js/game/physics-env.js`).
+  w grze w osobnym wątku (`js/destruct/physics-worker.js`, środowisko wątku `js/game/physics-env.js`). Drobny gruz tylko
+  do oglądania liczy karta (`js/destruct/chips.js`), poza fizyką.
 - Budynki miasta w grze: wygląd z CityKit (laboratorium miasta), części do zniszczenia z tych samych danych
   (`js/models/houses/landmark-house.js`) ukryte do pierwszego uszkodzenia (`world.addHouse(…, { hidden: true })`) —
   na kartę trafiają dopiero wtedy, po kawałku.

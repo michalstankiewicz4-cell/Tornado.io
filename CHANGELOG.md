@@ -1,5 +1,12 @@
 # Zmiany
 
+## 0.17.0 — 2026-11-25
+- Drobny gruz na karcie graficznej (`js/destruct/chips.js`): przy pęknięciu części i rozbiciu spadającej sypią się
+  okruchy (cegła, tynk, szkło, drzazgi — barwa z materiału, odcień budynku, zwęglenie). Lot liczy shader (rzut z oporem
+  powietrza, obrót, leżenie na ziemi, zapadanie się pod koniec życia, 5–9 s); procesor zapisuje tylko start. Do 24 tys.
+  okruchów naraz, jedno wywołanie rysowania. Tylko do oglądania — fizyczne odłamki bez zmian (trąba je je, uderzają,
+  palą się). Laboratorium zniszczeń 0.3.2: też z gruzem.
+
 ## 0.16.0 — 2026-11-25
 - Fizyka odłamków w osobnym wątku (Web Worker, `js/destruct/physics-worker.js`): krok brył (te same obliczenia
   `physics.js`) liczy się poza głównym wątkiem, wynik wraca w następnej klatce — to, co w międzyczasie zmienił główny
