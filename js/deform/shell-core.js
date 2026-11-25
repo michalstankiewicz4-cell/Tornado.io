@@ -8,9 +8,12 @@
 //          yield: true — plastyczność także bez docisku prasy (np. gdy prasa naciska przez inne beczki),
 //          pin: { ids: [cząstki], off: [x, y, z…], target: [x, y, z], k } — chwyt: cząstki ciągnięte do target + off }
 // shape: siła utrzymania kształtu na iterację (dopasowanie kształtu spoczynkowego: przesunięcie + obrót, Müller 2005);
-// yieldShape: odchyłka od kształtu (m), do której blacha wraca sprężyście — powyżej, przy docisku, kształt zmienia się na stałe
-// stretchLimit: najdalej o tyle (ułamek) blacha może się trwale wydłużyć lub skrócić w płaszczyźnie — dalej już tylko się gnie
-export const DEFAULTS = { mass: 18, stretch: 1, bend: 0.6, shape: 0.15, yieldShape: 0.004, yieldStretch: 0.03, stretchLimit: 0.1, yieldBend: 0.006, weld: 0.002, substeps: 2, iterations: 30, friction: 0.7, radius: 0.004, gravity: 9.81 };
+// yieldShape: odchyłka od kształtu (m), do której blacha wraca sprężyście — powyżej, przy docisku, kształt zmienia się na stałe;
+// relax: przez tyle sekund po ostatnim docisku kształt spoczynkowy dalej się dopasowuje (blacha sprężynuje do długości
+//   krawędzi z granicą stretchLimit — inaczej obie pamięci kształtu ciągną w przeciwne strony i beczka kręci się, pełznie)
+// stretchLimit: najdalej o tyle (ułamek) blacha może się trwale wydłużyć lub skrócić w płaszczyźnie (0 — bez granicy; granica
+//   kłóci się z utrzymaniem kształtu: krawędzie zostają rozciągnięte, beczka po zgnieceniu drga i pełznie)
+export const DEFAULTS = { mass: 18, stretch: 1, bend: 0.6, shape: 0.15, yieldShape: 0.004, relax: 1, yieldStretch: 0.03, stretchLimit: 0, yieldBend: 0.006, weld: 0.002, substeps: 2, iterations: 30, friction: 0.7, radius: 0.004, gravity: 9.81 };
 
 export function buildShell(geoms, opts = {}) {
   const O = { ...DEFAULTS, ...opts };
@@ -55,7 +58,7 @@ export function buildShell(geoms, opts = {}) {
     O, N, X, PREV: X.slice(), V: new Float32Array(N * 3), W: new Float32Array(N).fill(N / O.mass), T,
     sA: Int32Array.from(SA), sB: Int32Array.from(SB), sL: len(SA, SB), sL0: len(SA, SB), bA: Int32Array.from(BA), bB: Int32Array.from(BB), bL: len(BA, BB),
     REST, q: [0, 0, 0, 1], R: new Float64Array(9), c: [0, 0, 0],
-    awake: true, still: 0,
+    awake: true, still: 0, relax: 0,
   };
 }
 
@@ -96,12 +99,28 @@ function quatMat(q, R) {
 }
 function pullShape(S, k) {
   fitShape(S);
-  const { X, REST, N, R, c } = S;
+  const { X, REST, N, R, c } = S, D = S._D || (S._D = new Float32Array(N * 3));
+  // poprawki do celu; potem usunięty z nich obrót całości (ω = I⁻¹ Σ r × Δ) — przyciąganie do kształtu nie może kręcić
+  // beczką (dla prawie osiowosymetrycznego placka obrót kształtu jest źle określony i dopasowanie się spóźnia)
+  let tx = 0, ty = 0, tz = 0, ixx = 0, iyy = 0, izz = 0, ixy = 0, ixz = 0, iyz = 0;
   for (let i = 0; i < N * 3; i += 3) {
     const rx = REST[i], ry = REST[i + 1], rz = REST[i + 2];
-    X[i] += (R[0] * rx + R[1] * ry + R[2] * rz + c[0] - X[i]) * k;
-    X[i + 1] += (R[3] * rx + R[4] * ry + R[5] * rz + c[1] - X[i + 1]) * k;
-    X[i + 2] += (R[6] * rx + R[7] * ry + R[8] * rz + c[2] - X[i + 2]) * k;
+    const dx = (R[0] * rx + R[1] * ry + R[2] * rz + c[0] - X[i]) * k, dy = (R[3] * rx + R[4] * ry + R[5] * rz + c[1] - X[i + 1]) * k, dz = (R[6] * rx + R[7] * ry + R[8] * rz + c[2] - X[i + 2]) * k;
+    D[i] = dx; D[i + 1] = dy; D[i + 2] = dz;
+    const px = X[i] - c[0], py = X[i + 1] - c[1], pz = X[i + 2] - c[2];
+    tx += py * dz - pz * dy; ty += pz * dx - px * dz; tz += px * dy - py * dx;
+    ixx += py * py + pz * pz; iyy += px * px + pz * pz; izz += px * px + py * py; ixy -= px * py; ixz -= px * pz; iyz -= py * pz;
+  }
+  // ω = I⁻¹ τ (macierz symetryczna 3 × 3)
+  const c00 = iyy * izz - iyz * iyz, c01 = ixz * iyz - ixy * izz, c02 = ixy * iyz - ixz * iyy, det = ixx * c00 + ixy * c01 + ixz * c02;
+  let wx = 0, wy = 0, wz = 0;
+  if (Math.abs(det) > 1e-12) {
+    const c11 = ixx * izz - ixz * ixz, c12 = ixy * ixz - ixx * iyz, c22 = ixx * iyy - ixy * ixy;
+    wx = (c00 * tx + c01 * ty + c02 * tz) / det; wy = (c01 * tx + c11 * ty + c12 * tz) / det; wz = (c02 * tx + c12 * ty + c22 * tz) / det;
+  }
+  for (let i = 0; i < N * 3; i += 3) {
+    const px = X[i] - c[0], py = X[i + 1] - c[1], pz = X[i + 2] - c[2];
+    X[i] += D[i] - (wy * pz - wz * py); X[i + 1] += D[i + 1] - (wz * px - wx * pz); X[i + 2] += D[i + 2] - (wx * py - wy * px);
   }
 }
 // plastyczność kształtu: odchyłka ponad granicę przechodzi do kształtu spoczynkowego (w układzie bryły)
@@ -165,9 +184,12 @@ function collide(S, C) {
       let ax = -1;
       if (ox_ || oy_ || oz_) { let best = Infinity; if (oy_ && py < best) { best = py; ax = 1; } if (ox_ && px < best) { best = px; ax = 0; } if (oz_ && pz < best) { best = pz; ax = 2; } }
       else ax = py <= px && py <= pz ? 1 : px <= pz ? 0 : 2;
+      // prasa (plastic): tarcie tylko na ścianach dolnej i górnej — na bocznych blacha zawinięta na krawędź wisiałaby na
+      // tarciu i jechała z prasą do góry
+      const sf = B.plastic ? 0 : bf;
       if (ax === 1) { ny = Math.sign(oy_ ? qy : ly || 1) * ey; nx += (qx - nx) * bf; nz += (qz - nz) * bf; }
-      else if (ax === 0) { nx = Math.sign(ox_ ? qx : lx || 1) * ex; ny += (qy - ny) * bf; nz += (qz - nz) * bf; }
-      else { nz = Math.sign(oz_ ? qz : lz || 1) * ez; nx += (qx - nx) * bf; ny += (qy - ny) * bf; }
+      else if (ax === 0) { nx = Math.sign(ox_ ? qx : lx || 1) * ex; ny += (qy - ny) * sf; nz += (qz - nz) * sf; }
+      else { nz = Math.sign(oz_ ? qz : lz || 1) * ez; nx += (qx - nx) * sf; ny += (qy - ny) * sf; }
       const m = B.m;
       X[p] = m[0] * nx + m[4] * ny + m[8] * nz + m[12]; X[p + 1] = m[1] * nx + m[5] * ny + m[9] * nz + m[13]; X[p + 2] = m[2] * nx + m[6] * ny + m[10] * nz + m[14];
       if (B.plastic) pressed = true;
@@ -252,7 +274,8 @@ export function stepShell(S, dt, C = {}) {
     S.still = mv < 0.005 ? S.still + h : 0;
   }
   // plastyczność tylko przy docisku prasą (sam ciężar: drobne ugięcie metody nie narasta krok po kroku)
-  if (pressed) { yieldTo(S, S.sA, S.sB, S.sL, O.yieldStretch, S.sL0, O.stretchLimit); yieldTo(S, S.bA, S.bB, S.bL, O.yieldBend); if (O.shape > 0) yieldShape(S, O.yieldShape); }
+  if (pressed) { yieldTo(S, S.sA, S.sB, S.sL, O.yieldStretch, O.stretchLimit ? S.sL0 : null, O.stretchLimit); yieldTo(S, S.bA, S.bB, S.bL, O.yieldBend); if (O.shape > 0) yieldShape(S, O.yieldShape); S.relax = O.relax; }
+  else if (S.relax > 0) { S.relax -= dt; if (O.shape > 0) yieldShape(S, 0.0003); }   // po docisku: kształt spoczynkowy = to, do czego blacha odskoczyła
   if (S.still > 0.5) { S.awake = false; V.fill(0); }   // spoczynek — bez liczenia, aż coś obudzi
   return S.awake;
 }

@@ -1,5 +1,14 @@
 # Zmiany
 
+## 0.20.2 — 2026-11-25
+- DeformKit: zgniecione beczki nie drgają, nie kręcą się i nie pełzną. Przyczyną był konflikt dwóch pamięci kształtu:
+  granica trwałego wydłużenia krawędzi (0.20.1) trzymała krawędzie krótsze, niż chciał zapamiętany kształt — stale
+  rozciągnięte o ok. 30 %, drgały, a tarcie o grunt zamieniało to w ruch. Granica wyłączona (`stretchLimit: 0`, zostaje
+  jako opcja); wyciskaniu w szczelinę zapobiega wyjście z prasy ścianą wejścia i wąska szczelina. Po zejściu z prasy
+  kształt spoczynkowy przez 1 s dopasowuje się do odskoku blachy (`relax`). Przyciąganie do kształtu bez składowej
+  obrotowej (nie może kręcić beczką). Prasa bez tarcia na ścianach bocznych — blacha zawinięta na krawędź nie jedzie
+  już z prasą do góry i nie wisi w powietrzu.
+
 ## 0.20.1 — 2026-11-25
 - DeformKit: blacha nie płynie już jak plastelina — trwałe wydłużenie lub skrócenie krawędzi najwyżej o 10 % długości
   pierwotnej (`stretchLimit`), dalej blacha tylko się gnie. Cząstka wciśnięta w bryłę wychodzi tą ścianą, którą weszła

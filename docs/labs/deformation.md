@@ -41,8 +41,11 @@ Bez `createShell` model zostaje sztywny i nic nie kosztuje.
   nadmiar odkształcenia ponad granicę przechodzi w nową długość spoczynkową — tylko przy docisku prasą. Utrzymanie
   kształtu (`shape`): cząstki ciągnięte do kształtu spoczynkowego przesuniętego i obróconego jak beczka — bez tego
   powłoka uginała się pod własnym ciężarem; przy docisku odchyłka ponad `yieldShape` (4 mm) zmienia kształt
-  spoczynkowy. Trwała zmiana długości krawędzi najwyżej ±10 % (`stretchLimit`) — dalej blacha tylko się gnie.
-  Cząstka wciśnięta w bryłę wychodzi ścianą, którą weszła. Chwyt (`pin`): wybrane cząstki ciągnięte do punktu. Zderzenia z
+  spoczynkowy. Po zejściu z prasy kształt spoczynkowy przez 1 s dopasowuje się do odskoku blachy (`relax`);
+  przyciąganie do kształtu nie ma składowej obrotowej. Opcja `stretchLimit` (granica trwałego wydłużenia krawędzi) jest
+  domyślnie wyłączona — kłóci się z utrzymaniem kształtu (beczka po zgnieceniu drga i pełznie).
+  Cząstka wciśnięta w bryłę wychodzi ścianą, którą weszła; prasa ma tarcie tylko na ścianie dolnej
+  i górnej. Chwyt (`pin`): wybrane cząstki ciągnięte do punktu. Zderzenia z
   gruntem i prostopadłościanami (`makeBox`) z tarciem. Spoczynek po 0,5 s bez ruchu.
 - `shell.js` — `createShell`, `makeBox`, `embed` (siatki do rysowania osadzone na trójkątach siatki fizycznej:
   współrzędne barycentryczne i odsunięcie wzdłuż normalnej).
