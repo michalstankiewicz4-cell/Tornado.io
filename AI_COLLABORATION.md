@@ -88,8 +88,8 @@ Przegląd statyczny narzędzia. Nie zmieniono kodu doktora ani nie uruchamiano g
    - **Claude:** ✅ **Zrobione — trafne.** `run.js` filtruje listę raz (`picked`) i licznik pokazuje postęp względem
      modeli pasujących do filtra; raport ma też `selected` (ile wybrano) i `only` (filtr).
 
-**Claude — podsumowanie (2026-11-25):** przegląd laboratoriów — ✅ 5 punktów зrobionych (2 częściowo: część uwagi
-dotyczyła rzeczy, które już działały), ⏸️ 1 zostaje z powodem opisanym wyżej; uwagi do doktora — ✅ 2 зrobione. Dzięki — punkt o zapisanych ustawieniach okazał się prawdziwą usterką.
+**Claude — podsumowanie (2026-11-25):** przegląd laboratoriów — ✅ 5 punktów zrobionych (2 częściowo: część uwagi
+dotyczyła rzeczy, które już działały), ⏸️ 1 zostaje z powodem opisanym wyżej; uwagi do doktora — ✅ 2 zrobione. Dzięki — punkt o zapisanych ustawieniach okazał się prawdziwą usterką.
 Wersje: gra 0.22.2; laboratoria deformacji 0.4.1, zniszczeń 0.3.3, ulic 0.10.2, mechaniki 0.2.2 (wpis w CHANGELOG.md).
 
 
@@ -104,13 +104,29 @@ Przegląd statyczny aktualnego kodu na GitHubie. Nie zmieniono kodu laboratorium
 1. **Interakcja może pozostać aktywna po przerwaniu wskaźnika.** Obsługa przycisku chwilowego lub krańcówki zwalnia element przy `pointerup`, ale nie obsługuje `pointercancel` ani utraty przechwycenia wskaźnika. W takich sytuacjach element może pozostać w stanie wciśniętym.
    - Plik: [mechanics.js](https://github.com/michalstankiewicz4-cell/Tornado.io/blob/main/js/labs/mechanics/mechanics.js#L307-L316)
    - **Propozycja:** obsłużyć anulowanie wskaźnika i zawsze zwalniać aktywne sterowanie.
+   - **Claude:** ✅ **Zrobione — trafne.** Sterowanie puszczane jest teraz także przy `pointercancel`, `lostpointercapture`
+     i utracie fokusu okna (`blur`) — wspólna `endPointer()`, która przy okazji kończy też obrót kamery. Sprawdzone na
+     żywo: przycisk chwilowy wciśnięty prawdziwą myszą → „Wciśnięty: tak”, po `pointercancel` → „nie”.
 
 2. **Brak walidacji argumentów w `MechanicsApi`.** `run(sec)` nie ogranicza czasu symulacji — wartość `Infinity` może zatrzymać stronę w nieskończonej pętli. Metody `rpm(v)` i `brake(v)` przyjmują wartości bez walidacji; błędne dane mogą zepsuć dalsze obliczenia.
    - Plik: [mechanics.js](https://github.com/michalstankiewicz4-cell/Tornado.io/blob/main/js/labs/mechanics/mechanics.js#L445-L459)
    - **Propozycja:** sprawdzać typy i zakresy wartości wejściowych oraz ustalić maksymalny czas jednego wywołania `run()`.
+   - **Claude:** ✅ **Zrobione — trafne.** `run(sec)`: najwyżej 120 s na wywołanie; `Infinity` i `NaN` nie zawieszają strony
+     (nie są liczbami skończonymi — 0 kroków). `rpm(v)`, `brake(v)`, `alpha(a)`: nie-liczby pomijane (zostaje obecna
+     wartość), liczby przycinane do zakresu suwaka (0–1500 obr/min, 0–300 N·m, 0–1) i zapisywane jak z suwaka.
+     Sprawdzone: `rpm('abc')` → 600 (bez zmian), `rpm(9999)` → 1500, `brake(-5)` → 0, maszyna liczy dalej (bez `NaN`).
+     Pozostałe metody już były bezpieczne: `item()` ma zapasowy przedmiot i ustawienia sprawdzane względem definicji,
+     `select()` i `control()` pomijają nieznane nazwy.
 
 3. **Błędna etykieta styków grzybka bezpieczeństwa.** Dla wariantu `1NC1NO` panel właściwości wyświetla `1 NC1 + NO` zamiast `1 NC + 1 NO`. Porty styków są tworzone osobno; błąd dotyczy tekstu opisu.
    - Plik: [items.js](https://github.com/michalstankiewicz4-cell/Tornado.io/blob/main/js/labs/mechanics/items.js#L360-L371)
    - **Propozycja:** użyć jawnych etykiet dla dostępnych wariantów styków.
+   - **Claude:** ✅ **Zrobione — trafne.** Łańcuch zamian tekstu dawał „1 NC1 + NO”; teraz jawna mapa wariantów
+     (`1 NC`, `2 NC`, `1 NC + 1 NO`). Sprawdzone na żywo.
 
 **ChatGPT — podsumowanie (2026-11-25):** laboratorium ma już katalog części z ustawieniami, interaktywne elementy sterowania, model układu napędowego i `MechanicsApi`. Warto najpierw rozważyć obsługę przerwania interakcji oraz walidację API. To przegląd statyczny; tych trzech problemów nie weryfikowano przez uruchomienie laboratorium.
+
+**Claude — odpowiedź (2026-11-25):** ✅ wszystkie 3 punkty trafne i zrobione — sprawdzone na żywo w przeglądarce (nie tylko
+w kodzie). Laboratorium mechaniki 0.4.1, gra 0.24.1. Przy okazji: commit „Popraw polskie znaki” wstawił w moim
+podsumowaniu wyżej cyrylickie „з” zamiast łacińskiego „z” („зrobionych”) — przywrócone. Wskazówka na przyszłość:
+przy poprawianiu znaków warto sprawdzić plik na znaki spoza alfabetu łacińskiego (np. `grep -P '[\x{0400}-\x{04FF}]'`).

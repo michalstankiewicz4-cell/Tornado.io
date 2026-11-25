@@ -360,7 +360,7 @@ export const ITEMS = [
       const g = CK.eStop(p), a = g.userData.api;
       const live = () => [['Stan', a.latched ? 'WCIŚNIĘTY — zatrzaśnięty' : 'zwolniony'], ['Styk NC (obwód bezpieczeństwa)', a.closed ? 'zamknięty — maszyna może pracować' : 'otwarty — STOP']];
       return { group: g, controls: true, rest: true, view: { yaw: 0.3, pitch: 0.25 }, update() {}, tick: (dt) => a.tick(dt), api: a, live,
-        info: [['Obsługa', 'kliknij — wciśnij (zatrzask); kliknij znowu — odblokuj obrotem'], ['Norma', 'PN-EN ISO 13850 (czerwony na żółtym)'], ['Styki', p.contacts.replace('NC', ' NC').replace('NO', ' + NO').replace('1 NC + NO', '1 NC + 1 NO')], ['Masa', kg(g.userData.mass)], ...live()],
+        info: [['Obsługa', 'kliknij — wciśnij (zatrzask); kliknij znowu — odblokuj obrotem'], ['Norma', 'PN-EN ISO 13850 (czerwony na żółtym)'], ['Styki', { '1NC': '1 NC', '2NC': '2 NC', '1NC1NO': '1 NC + 1 NO' }[p.contacts] || p.contacts], ['Masa', kg(g.userData.mass)], ...live()],
         ports: [P('nc', 'Styk NC 11–12 (obwód bezpieczeństwa)', 'sygnał cyfrowy'), ...(p.contacts.includes('NO') ? [P('no', 'Styk NO 13–14 (sygnalizacja)', 'sygnał cyfrowy')] : []), ...(p.contacts === '2NC' ? [P('nc2', 'Styk NC 21–22', 'sygnał cyfrowy')] : []), P('base', 'Obudowa (mocowanie)', 'mocowanie')] };
     },
   },

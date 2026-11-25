@@ -1,5 +1,11 @@
 # Zmiany
 
+## 0.24.1 — 2026-11-25
+- Laboratorium mechaniki 0.4.1 — poprawki z przeglądu ChatGPT (odpowiedzi w `AI_COLLABORATION.md`): sterowanie puszczane
+  także przy przerwanym geście (`pointercancel`, utrata przechwycenia, okno w tle) — przycisk chwilowy i krańcówka nie
+  zostają wciśnięte; `MechanicsApi.run()` najwyżej 120 s na wywołanie (`Infinity` nie zawiesza strony), `rpm()`,
+  `brake()`, `alpha()` pomijają nie-liczby i przycinają do zakresu; etykieta styków grzybka „1 NC + 1 NO”.
+
 ## 0.24.0 — 2026-11-25
 - Laboratorium mechaniki 0.4.0 — nowe przedmioty, obsługa na modelu i stan na żywo:
   - Sterowanie: **grzybek bezpieczeństwa** (zatrzask, odblokowanie obrotem, styki NC / NO), **lampka sygnalizacyjna**

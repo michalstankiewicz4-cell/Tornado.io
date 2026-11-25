@@ -313,6 +313,9 @@ cv.addEventListener('pointerdown', (e) => {
 cv.addEventListener('pointermove', (e) => {
   if (ctl) { item.api.drag(ctl.name, e.clientY - ctl.y); ctl.y = e.clientY; return; }
   if (!drag) { cv.classList.toggle('grab', !!controlAt(e)); return; } const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY; if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 4) drag.moved = true; if (drag.moved) { orbit.yaw -= dx * 0.005; orbit.pitch = Math.max(0.02, Math.min(1.52, orbit.pitch + dy * 0.004)); } });
+// przerwany gest (pointercancel — np. dotyk, utrata przechwycenia, okno w tle): sterowanie zawsze puszczone
+function endPointer() { if (ctl) { item.api.release(ctl.name); ctl = null; itemStats(); } drag = null; }
+cv.addEventListener('pointercancel', endPointer); cv.addEventListener('lostpointercapture', () => { if (ctl) endPointer(); }); addEventListener('blur', endPointer);
 cv.addEventListener('pointerup', (e) => { if (ctl) { item.api.release(ctl.name); ctl = null; itemStats(); return; } const click = drag && !drag.moved; drag = null; if (click && e.button === 0 && S.mode === 'machine') pick(e); });
 cv.addEventListener('wheel', (e) => { e.preventDefault(); orbit.dist = Math.min(30, Math.max(0.3, orbit.dist * Math.exp(e.deltaY * 0.0011))); }, { passive: false });
 const held = new Set();
@@ -442,6 +445,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyH') document.querySelectorAll('[data-window]').forEach((p) => p.classList.toggle('hidden-panel'));
 });
 
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), RUN_MAX = 120;
 // MechanicsApi.mode('items' | 'machine'), item(id, ustawienia), items(), rpm(v), brake(Nm), alpha(0–1), state(), elements(), select(id), view(…), run(sekundy)
 window.MechanicsApi = {
   mode(m) { setMode(m); return S.mode; },
@@ -449,14 +453,16 @@ window.MechanicsApi = {
   items: () => ITEMS.map((i) => ({ id: i.id, name: i.name, group: i.group, params: i.params.map((q) => q.key) })),
   // control(nazwa, 'press' | 'release' | dy) — obsługa części sterującej przedmiotu (jak myszą); zwraca stan na żywo
   control(name, act = 'press') { if (!item || !item.api) return null; if (act === 'press') item.api.press(name); else if (act === 'release') item.api.release(name); else item.api.drag(name, act); return item.live ? Object.fromEntries(item.live()) : null; },
-  rpm(v) { S.rpm = v; $('rpm').value = v; $('rpmV').textContent = v ? `${v} obr/min` : 'stop'; return v; },
-  brake(v) { S.brake = v; $('brake').value = v; $('brakeV').textContent = `${v} N·m`; return v; },
-  alpha(a) { S.alpha = a; $('alpha').value = a; applyAlpha(); return a; },
+  // liczby spoza zakresu przycinane do zakresu suwaka; nie-liczby pomijane (zostaje obecna wartość)
+  rpm(v) { if (Number.isFinite(v)) { S.rpm = clamp(v, 0, 1500); $('rpm').value = S.rpm; $('rpmV').textContent = S.rpm ? `${S.rpm} obr/min` : 'stop'; save(); } return S.rpm; },
+  brake(v) { if (Number.isFinite(v)) { S.brake = clamp(v, 0, 300); $('brake').value = S.brake; $('brakeV').textContent = `${S.brake} N·m`; save(); } return S.brake; },
+  alpha(a) { if (Number.isFinite(a)) { S.alpha = clamp(a, 0, 1); $('alpha').value = S.alpha; $('alphaV').textContent = `${Math.round(S.alpha * 100)} %`; applyAlpha(); save(); } return S.alpha; },
   state: () => ({ ...drive.state, ok: solved.ok }),
   elements: () => parts.map((e) => ({ id: e.id, name: e.name, rpm: +rpmOf(e.omega).toFixed(2), T: +e.T.toFixed(3), eta: +e.eta.toFixed(4), theta: +e.theta.toFixed(4) })),
   select(id) { const e = parts.find((p) => p.id === id); if (e) select(e); return !!e; },
   view(t = [-1.4, 0.9, 0.2], dist = 9, yaw = 0.25, pitch = 0.38) { orbit.target.set(...t); Object.assign(orbit, { dist, yaw, pitch }); },
-  run(sec = 1) { for (let t = 0; t < sec; t += 1 / 60) drive.step(1 / 60, { rpm: S.rpm, brake: S.brake }); applyAngles(); stats(); return this.state(); },
+  // run: najwyżej RUN_MAX sekund na wywołanie (Infinity / NaN nie zawieszą strony)
+  run(sec = 1) { const n = Math.round(clamp(Number.isFinite(sec) ? sec : 0, 0, RUN_MAX) * 60); for (let i = 0; i < n; i++) drive.step(1 / 60, { rpm: S.rpm, brake: S.brake }); applyAngles(); stats(); return this.state(); },
   drive,
 };
 
