@@ -20,6 +20,7 @@ export const PAGES = {
   ],
   'labs/streets.html': [{ title: ['Streets lab', 'Laboratorium ulic'], keys: [[['Drag', 'Przeciągnij'], 'Orbit the camera', 'Obrót kamery'], H] }],
   'labs/deformation.html': [{ title: ['Deformation lab', 'Laboratorium deformacji'], keys: [[['Drag', 'Przeciągnij'], 'Orbit the camera', 'Obrót kamery'], ['W A S D', 'Move the camera', 'Przesuwanie kamery'], [['Click a drum', 'Kliknij beczkę'], 'Pick it up / drop it', 'Chwyć / puść'], ['R', 'New drums, presses up', 'Nowe beczki, prasy do góry'], ['U', 'Raise the presses', 'Podnieś prasy'], H] }],
+  'labs/mechanics.html': [{ title: ['Mechanics lab', 'Laboratorium mechaniki'], keys: [[['Drag', 'Przeciągnij'], 'Orbit the camera', 'Obrót kamery'], ['W A S D', 'Move the camera', 'Przesuwanie kamery'], [['Click a part', 'Kliknij element'], 'Properties and ports', 'Właściwości i porty'], H] }],
   'labs/destruction.html': [
     { title: ['Destruction lab', 'Laboratorium zniszczeń'], keys: [
       [['Left click', 'Lewy przycisk'], 'Use the tool (hit, throw, tornado) at the point', 'Użyj narzędzia (uderzenie, rzut, trąba) w punkcie'],

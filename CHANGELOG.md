@@ -1,5 +1,17 @@
 # Zmiany
 
+## 0.21.0 — 2026-11-25
+- Laboratorium mechaniki 0.1.0 (`labs/mechanics.html`, opis `docs/labs/mechanics.md`), kategoria 1 — transmisja ruchu:
+  jedna maszyna z elementów połączonych portami — silnik 1,1 kW, sprzęgło kłowe, zębatki 20 : 40, przekładnia
+  dwustopniowa w obudowie z akrylu, łańcuch rolkowy 08A, pas klinowy SPA, sprzęgło kołnierzowe, wał z dwoma przegubami
+  Cardana, przekładnia planetarna i hamulec tarczowy. Suwaki: silnik, hamulec, przezroczystość obudów; kliknięcie
+  elementu — właściwości, prędkość, moment i porty z połączeniami.
+- MechKit (`js/models/mech/`): zębatki o zarysie ewolwentowym, koło koronowe, koła łańcuchowe, łańcuch z ogniw, koła
+  pasowe i pas klinowy, wały, łożyska, sprzęgła, przeguby Cardana, silnik, obudowy z akrylu.
+- Napęd (`js/behaviors/mech/drive.js`): graf elementów z portami, kąty z połączeń (zazębienie, łańcuch, pas, przegub
+  Cardana z geometrii, przekładnia planetarna), wykrywanie zakleszczenia, silnik z poślizgiem, bezwładność zredukowana,
+  hamulec, sprawności.
+
 ## Laboratorium deformacji 0.4.0 — 2026-11-25
 - Pole **Zderzacze** na pasku: bryły zderzeń (prasa — czerwona, podpory i ściany kontenera — żółte), siatka fizyczna
   beczek z cząstkami (wielkość punktu = średnica styku), ramki beczek (po nich wybierani są sąsiedzi do zderzeń)

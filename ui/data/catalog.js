@@ -10,7 +10,8 @@ window.GameLabCatalog =
   "cats": {
     "game": { "name": "Game", "namePl": "Gra" },
     "matter": { "name": "Destruction", "namePl": "Zniszczenia" },
-    "world": { "name": "Streets and routes", "namePl": "Ulice i trasy" }
+    "world": { "name": "Streets and routes", "namePl": "Ulice i trasy" },
+    "mech": { "name": "Mechanics", "namePl": "Mechanika" }
   },
   "labs": [
     {
@@ -42,6 +43,20 @@ window.GameLabCatalog =
       "art": { "bg": ["#2a3038", "#121519"], "svg": "<path d=\"M60 30H140V44H60Z\" fill=\"#7c8388\"/><path d=\"M74 50H126L130 66L120 74L132 84L126 96H74L68 84L80 74L70 66Z\" fill=\"#1f4f8f\"/>" }
     },
     {
+      "file": "labs/mechanics.html",
+      "cat": "mech",
+      "name": "Mechanics lab",
+      "namePl": "Laboratorium mechaniki",
+      "doc": "docs/labs/mechanics.md",
+      "desc": "Motion transmission: one machine built from elements joined by ports — motor, jaw coupling, involute gears, a two-stage gearbox in an acrylic case, roller chain, V-belt, flange coupling, a shaft with two Cardan joints, a planetary gear and a disc brake; speed, direction and torque of every part follow from the connections.",
+      "descPl": "Transmisja ruchu: jedna maszyna z elementów połączonych portami — silnik, sprzęgło kłowe, zębatki o zarysie ewolwentowym, przekładnia dwustopniowa w obudowie z akrylu, łańcuch rolkowy, pas klinowy, sprzęgło kołnierzowe, wał z dwoma przegubami Cardana, przekładnia planetarna i hamulec tarczowy; prędkość, kierunek i moment każdej części wynikają z połączeń.",
+      "kind": "lab",
+      "kit": "MechKit",
+      "phrases": ["mechanika", "zębatki", "przekładnie", "łańcuch", "pas", "sprzęgła"],
+      "saved": ["tornado.mechanics."],
+      "art": { "bg": ["#2e2a22", "#121110"], "svg": "<circle cx=\"78\" cy=\"60\" r=\"26\" fill=\"#c09a4a\"/><circle cx=\"78\" cy=\"60\" r=\"8\" fill=\"#121110\"/><circle cx=\"124\" cy=\"60\" r=\"18\" fill=\"#8e959b\"/><circle cx=\"124\" cy=\"60\" r=\"6\" fill=\"#121110\"/>" }
+    },
+    {
       "file": "labs/streets.html",
       "cat": "world",
       "name": "Streets lab",
@@ -57,5 +72,5 @@ window.GameLabCatalog =
     }
   ],
   "tools": [],
-  "phraseEn": { "zniszczenia": "destruction", "budynki": "buildings", "pękanie": "fracture", "gruz": "rubble", "ulice": "streets", "chodniki": "sidewalks", "drogi": "roads", "skrzyżowania": "crossings", "deformacja": "deformation", "zgniatanie": "crushing", "blacha": "sheet metal", "beczki": "drums" }
+  "phraseEn": { "zniszczenia": "destruction", "budynki": "buildings", "pękanie": "fracture", "gruz": "rubble", "ulice": "streets", "chodniki": "sidewalks", "drogi": "roads", "skrzyżowania": "crossings", "deformacja": "deformation", "zgniatanie": "crushing", "blacha": "sheet metal", "beczki": "drums", "mechanika": "mechanics", "zębatki": "gears", "przekładnie": "gearboxes", "łańcuch": "chain", "pas": "belt", "sprzęgła": "couplings" }
 }/*END*/;
