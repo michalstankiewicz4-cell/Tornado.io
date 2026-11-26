@@ -72,7 +72,7 @@ const motorG = at(MK.motor(), -6.0, BED_TOP + 0.03, 0);
 { const riser = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.03, 0.22), M.iron); riser.position.set(-6.16, BED_TOP + 0.015, 0); riser.castShadow = riser.receiveShadow = true; root.add(riser); }
 const eMotor = element('motor', 'Silnik indukcyjny 1,1 kW', 'motor', motorG, { J: motorG.userData.J, frame: { o: new THREE.Vector3(-6.0, Y0, 0), axis: X.clone(), ref: Y.clone() },
   props: [['Moc znamionowa', '1,1 kW'], ['Obroty znamionowe', '1450 obr/min (4 bieguny, 50 Hz)'], ['Moment krytyczny', '18 N·m'], ['Zasilanie', 'falownik — prędkość z suwaka'], ['Masa', '15,5 kg'], ['Bezwładność wirnika', Jtxt(motorG.userData.J)]], ports: [P('out', 'Wał wyjściowy Ø 24')] });
-const jaw = MK.jawCoupling(); const jawG = new THREE.Group(); jawG.userData.spin = new THREE.Group(); jawG.add(jawG.userData.spin);
+const jaw = MK.jawCoupling(); const jawG = new THREE.Group(); jawG.userData.spin = new THREE.Group(); jawG.add(jawG.userData.spin); jawG.userData.phys = jaw.phys;
 jawG.userData.spin.add(jaw.a, jaw.spider, jaw.b); at(jawG, -5.92, Y0, 0); jawG.name = 'Sprzęgło kłowe';
 const eJaw = element('jaw', 'Sprzęgło kłowe z gwiazdą', 'coupling', jawG, { J: jaw.J, props: [['Rodzaj', 'kłowe, podatne'], ['Gwiazda', 'poliuretan 92 Sh A (czerwona)'], ['Piasty', 'aluminium'], ['Kompensuje', 'niewspółosiowość do 0,2 mm, 1°'], ['Masa', `${jaw.mass} kg`]], ports: [P('a', 'Piasta A'), P('b', 'Piasta B')] });
 const eS1 = shaftEl('s1', -5.885, -4.95, Y0, 0, 'Wał 1');
@@ -123,7 +123,7 @@ const eS6 = shaftEl('s6', -1.08, -0.008, Y0, 0.12, 'Wał 6');
 block(-0.78, Y0, 0.12); block(-0.28, Y0, 0.12);
 
 // 5. sprzęgło kołnierzowe, wał przegubowy z dwoma przegubami Cardana (układ Z: wały 7 i 9 równoległe)
-const fl = MK.flangeCoupling(); const flG = new THREE.Group(); flG.userData.spin = new THREE.Group(); flG.add(flG.userData.spin);
+const fl = MK.flangeCoupling(); const flG = new THREE.Group(); flG.userData.spin = new THREE.Group(); flG.add(flG.userData.spin); flG.userData.phys = fl.phys;
 flG.userData.spin.add(fl.a, fl.b, fl.bolts); at(flG, 0.03, Y0, 0.12); flG.name = 'Sprzęgło kołnierzowe';
 const eFl = element('fl', 'Sprzęgło kołnierzowe', 'coupling', flG, { J: fl.J, props: [['Rodzaj', 'sztywne, kołnierzowe'], ['Śruby', '6 × M8, klasa 8.8'], ['Materiał', 'żeliwo'], ['Masa', `${fl.mass} kg`]], ports: [P('a', 'Kołnierz A'), P('b', 'Kołnierz B')] });
 const eS7 = shaftEl('s7', 0.068, 1.05, Y0, 0.12, 'Wał 7');
@@ -200,26 +200,23 @@ C('s3', 'b', 'g5', 'bore', 'shaft'); C('g5', 'mesh', 'g6', 'mesh', 'mesh', { za:
 C('s4', 'b', 'c1', 'bore', 'shaft'); C('c1', 'chain', 'c2', 'chain', 'chain', { za: 18, zb: 27, phase: chainPath.seat.phase2 }); C('c2', 'bore', 's5', 'a', 'shaft');
 C('s5', 'b', 'pu1', 'bore', 'shaft'); C('pu1', 'belt', 'pu2', 'belt', 'belt', { za: 0.16, zb: 0.08 }); C('pu2', 'bore', 's6', 'a', 'shaft');
 C('s6', 'b', 'fl', 'a', 'coupling'); C('fl', 'b', 's7', 'a', 'coupling');
-C('s7', 'b', 's8', 'a', 'ujoint', { pinA: Y.clone(), pinB: new THREE.Vector3(0, 0, 1).applyQuaternion(Q8) });
-C('s8', 'b', 's9', 'a', 'ujoint', { pinA: new THREE.Vector3(0, 0, 1).applyQuaternion(Q8), pinB: Y.clone() });
-C('s9', 'b', 'sun', 'bore', 'shaft'); C('sun', 'mesh', 'car', 'sun', 'planetary', { zs: ZS, zr: ZR }); C('car', 'carrier', 's10', 'a', 'shaft');
+C('s7', 'b', 's8', 'a', 'ujoint', { pinA: Y.clone(), pinB: new THREE.Vector3(0, 0, 1).applyQuaternion(Q8), eta: cross1.userData.phys.eta });
+C('s8', 'b', 's9', 'a', 'ujoint', { pinA: new THREE.Vector3(0, 0, 1).applyQuaternion(Q8), pinB: Y.clone(), eta: cross2.userData.phys.eta });
+C('s9', 'b', 'sun', 'bore', 'shaft'); C('sun', 'mesh', 'car', 'sun', 'planetary', { zs: ZS, zr: ZR, eta: ring.userData.phys.eta }); C('car', 'carrier', 's10', 'a', 'shaft');
 C('s10', 'b', 'disc', 'shaft', 'shaft');
 const solved = drive.solve('motor', 'disc');
 if (!solved.ok) console.warn('Napęd zakleszczony', solved.conflicts);
 if (solved.unreached.length) console.warn('Elementy bez połączenia', solved.unreached.map((e) => e.name));
 // faza korony: wrąb korony naprzeciw zęba satelity 0 (punkt styku na zewnątrz satelity, kąt 0)
-{
-  const p0 = Math.PI + Math.PI / ZPL;   // kąt satelity 0 w układzie jarzma przy kątach 0 (wzór zazębienia ze słonecznym, ψ = 0)
-  const off = p0 - Math.round(p0 / (TAU / ZPL)) * (TAU / ZPL);
-  ring.userData.spin.rotation.x = off * ZPL / ZR;   // wrąb korony naprzeciw zęba satelity (bez dodatkowej pół podziałki — wykryte bryłami zderzeń)
-}
+const PLANET = MK.planetPhase(ZS, ZPL, ZR, 3);   // ten sam wzór co w MechKit.planetary
+ring.userData.spin.rotation.x = PLANET.ring;
 
 /* ---------------- obrazowanie kątów ---------------- */
 function applyAngles() {
   for (const e of parts) if (e.spin) e.spin.rotation.x = e.theta;
   // satelity: obrót względem jarzma z zazębienia ze słonecznym (Willis), położenie z jarzmem
   const ts = eSun.theta - eCar.theta;
-  planets.forEach((pl, k) => { const psi = k * TAU / 3; pl.userData.spin.rotation.x = -(ZS / ZPL) * (ts - psi) + psi + Math.PI + Math.PI / ZPL; });
+  planets.forEach((pl, k) => { pl.userData.spin.rotation.x = PLANET.planet(k, ts); });
   // łańcuch i pas
   chain.userData.update(eC1.theta * 18 / TAU);
   belt.userData.update(ePu1.theta * 0.08);
@@ -386,7 +383,9 @@ const ELEC = (() => {
   lay('W7', back(S3.group), back(reg.group, -0.035), { cores: 4, mm2: 0.5, color: 'grey', name: 'W7 — praca / kierunek 4×0,5 (24 V DC)' });
   for (const [a, b] of [[S0, S1], [S1, S2], [S2, H1]]) lay(`J${a.name}`, back(a.group, 0.02), back(b.group, -0.02), { cores: 2, mm2: 1, color: 'grey', name: 'mostek w kasecie 2×1' });
   // lista połączeń (schemat)
-  const c = createCircuit(), Rw = (k) => cables[k].userData.R, UF = 400 / Math.sqrt(3);   // napięcie fazowe 230,9 V
+  // dane elektryczne z urządzeń (userData.elec — ControlKit.ELEC, MechKit.MOTOR_ELEC); tu tylko schemat połączeń
+  const eX = X0.group.userData.elec, eK = K1.group.userData.elec, eH = H1.group.userData.elec, eV = reg.group.userData.elec, eM = motorG.userData.elec;
+  const c = createCircuit(), Rw = (k) => cables[k].userData.R, UF = eX.Uph;   // napięcie fazowe (400 / √3 = 230,9 V)
   c.source('X0', { L1: [UF, 0], L2: [UF, -120], L3: [UF, 120], N: [0, 0], PE: [0, 0] }, () => X0.api.on);
   for (const [f, t] of [['L1', '1'], ['L2', '3'], ['L3', '5'], ['N', 'N1'], ['PE', 'PE']]) c.wire(`X0:${f}`, `Q1:${t}`, { R: Rw('W1'), name: 'W1' });
   for (const [a, b] of [['1', '2'], ['3', '4'], ['5', '6']]) c.contact(`Q1:${a}`, `Q1:${b}`, () => Q1.api.on, 'Q1');
@@ -400,31 +399,31 @@ const ELEC = (() => {
   c.wire('S0:12', 'S1:11', { name: 'mostek' }).wire('S1:12', 'S2:13', { name: 'mostek' }).wire('S2:14', 'H1:X1', { name: 'mostek' });
   c.contact('S0:11', 'S0:12', () => S0.api.closed, 'S0').contact('S1:11', 'S1:12', () => S1.api.closed, 'S1').contact('S2:13', 'S2:14', () => S2.api.closed, 'S2');
   // sterowanie falownikiem 24 V DC (zasilacz wewnętrzny falownika, działa przy zasilonym falowniku): +24 V → S3 → DI1 / DI2
-  c.source('VFD24', { P: [24, 0], COM: [0, 0] }, () => reg.api.powered);
+  c.source('VFD24', { P: [eV.supply, 0], COM: [0, 0] }, () => reg.api.powered);
   c.wire('VFD24:P', 'VFD:+24', { name: 'falownik +24 V' }).wire('VFD24:COM', 'VFD:COM', { name: 'falownik COM' });
   c.wire('VFD:+24', 'S3:C', { R: Rw('W7'), name: 'W7 żyła 1' }).wire('S3:13', 'VFD:DI1', { R: Rw('W7'), name: 'W7 żyła 2' }).wire('S3:23', 'VFD:DI2', { R: Rw('W7'), name: 'W7 żyła 3' });
   c.contact('S3:C', 'S3:13', () => S3.api.pos === 'I', 'S3 I').contact('S3:C', 'S3:23', () => S3.api.pos === 'II', 'S3 II');
-  c.load('DI1', ['VFD:DI1', 'VFD:COM'], { Un: 24 }).load('DI2', ['VFD:DI2', 'VFD:COM'], { Un: 24 });
-  c.load('K1', ['K1:A1', 'K1:A2'], { Un: 230 }).load('H1', ['H1:X1', 'H1:X2'], { Un: 230 }).load('VFD', ['VFD:L1', 'VFD:L2', 'VFD:L3'], { Un: 400 });
+  c.load('DI1', ['VFD:DI1', 'VFD:COM'], { Un: eV.supply }).load('DI2', ['VFD:DI2', 'VFD:COM'], { Un: eV.supply });
+  c.load('K1', ['K1:A1', 'K1:A2'], { Un: eK.coilU }).load('H1', ['H1:X1', 'H1:X2'], { Un: eH.U }).load('VFD', ['VFD:L1', 'VFD:L2', 'VFD:L3'], { Un: eV.Uin });
   const st = { kOn: false, kT: 0, r: null, uK: 0, uH: 0, uV: 0, Pin: 0, I: 0, Im: 0, Uout: 0, Pel: 0, dU: 0 };
-  const In = 1100 / (Math.sqrt(3) * 400 * 0.84 * 0.77), Rline = Rw('W1') + Rw('W2') + Rw('W3');
+  const In = eM.In, Rline = Rw('W1') + Rw('W2') + Rw('W3');
   // co klatkę: obwód → stycznik (zadziała przy ≥ 85 % Un po 20 ms, odpada < 60 % Un), lampka, zasilanie falownika
   function tick(dt) {
     const r = c.solve(); st.r = r; st.uK = r.U('K1'); st.uH = r.U('H1'); st.uV = r.U('VFD');
-    if (!st.kOn) { st.kT = st.uK >= 0.85 * 230 ? st.kT + dt : 0; if (st.kT >= 0.02) st.kOn = true; } else if (st.uK < 0.6 * 230) { st.kOn = false; st.kT = 0; }
-    K1.api.coil(st.kOn); H1.api.power(st.uH / 230);
-    const was = reg.api.powered; reg.api.power(st.uV >= 0.85 * 400); reg.api.ai(10 * R1.api.ratio());
+    if (!st.kOn) { st.kT = st.uK >= eK.pullIn * eK.coilU ? st.kT + dt : 0; if (st.kT >= eK.tClose) st.kOn = true; } else if (st.uK < eK.dropOut * eK.coilU) { st.kOn = false; st.kT = 0; }
+    K1.api.coil(st.kOn); H1.api.power(st.uH / eH.U);
+    const was = reg.api.powered; reg.api.power(st.uV >= 0.85 * eV.Uin); reg.api.ai(eV.aiMax * R1.api.ratio());
     const r2 = was === reg.api.powered ? r : c.solve();   // zasilanie falownika się zmieniło — jego 24 V też
-    st.uDI1 = r2.U('DI1'); st.uDI2 = r2.U('DI2'); reg.api.inputs(st.uDI1 >= 15, st.uDI2 >= 15);   // wejście aktywne ≥ 15 V (IEC 61131-2, typ 1)
+    st.uDI1 = r2.U('DI1'); st.uDI2 = r2.U('DI2'); reg.api.inputs(st.uDI1 >= eV.diOn, st.uDI2 >= eV.diOn);   // wejście aktywne ≥ 15 V (IEC 61131-2, typ 1)
     for (const d of [X0, Q1, K1, S0, S1, S2, H1, R1, S3]) d.api.tick(dt);
   }
-  // moce i prądy z momentu silnika (sprawność silnika 84 %, falownika 97 %, cos φ silnika 0,77, wejścia falownika 0,95)
+  // moce i prądy z momentu silnika (sprawność i cos φ silnika, sprawność, pobór jałowy i cos φ wejścia falownika — z danych urządzeń)
   function power(Tm, omega, on) {
-    const Pm = Tm * omega, Pel = on ? (Pm >= 0 ? Pm / 0.84 : Pm * 0.84) + 55 * Math.min(1, Math.abs(reg.api.f) / 50) : 0;
-    st.Pel = Pel; st.Pin = reg.api.powered ? 15 + Math.max(0, Pel) / 0.97 : 0;
-    st.I = st.uV > 1 ? st.Pin / (Math.sqrt(3) * st.uV * 0.95) : 0;
-    const Tn = motorG.userData.Tn || 7.4, k0 = 0.6; st.Im = on ? In * Math.sqrt(k0 * k0 + (1 - k0 * k0) * Math.min(4, (Tm / Tn) ** 2)) : 0;
-    st.Uout = on ? Math.min(400, 400 * Math.abs(reg.api.f) / 50) : 0; st.dU = Math.sqrt(3) * st.I * Rline;
+    const Pm = Tm * omega, Pel = on ? (Pm >= 0 ? Pm / eM.eta : Pm * eM.eta) + eM.p0 * eM.kW * 1000 * Math.min(1, Math.abs(reg.api.f) / eM.f) : 0;
+    st.Pel = Pel; st.Pin = reg.api.powered ? eV.standby + Math.max(0, Pel) / eV.eta : 0;
+    st.I = st.uV > 1 ? st.Pin / (Math.sqrt(3) * st.uV * eV.pfIn) : 0;
+    const Tn = motorG.userData.Tn || 7.4, k0 = eM.k0; st.Im = on ? In * Math.sqrt(k0 * k0 + (1 - k0 * k0) * Math.min(4, (Tm / Tn) ** 2)) : 0;
+    st.Uout = on ? Math.min(eM.U, eM.U * Math.abs(reg.api.f) / eM.f) : 0; st.dU = Math.sqrt(3) * st.I * Rline;
   }
   return { X0, Q1, K1, S0, S1, S2, H1, R1, S3, devices: [reg, X0, Q1, K1, S0, S1, S2, H1, R1, S3], circuit: c, cables, st, tick, power, In, Rline };
 })();
@@ -438,38 +437,38 @@ function BACKLASH(e) {
   const ua = e.a.group && e.a.group.userData, ub = e.b.group && e.b.group.userData;
   if (!isGear(ua) || !isGear(ub) || !e.a.spin || !e.b.spin) return 0;
   const map = planeMap(e.a.spin, e.b.spin);
-  if (!map.parallel) return 0.08 * ub.m / ub.rp;   // osie nierównoległe — bez brył płaskich
+  if (!map.parallel) return (ua.phys.luz + ub.phys.luz) / ub.rp;   // osie nierównoległe — bez brył płaskich
   const z = meshZone({ hullsA: MK.toothHulls(ua.z, ua.m, { alpha: ua.alpha }), hullsB: MK.toothHulls(ub.z, ub.m, { alpha: ub.alpha }), za: ua.z, zb: ub.z, map, rel: e.rel });
   ZONES.set(`${ua.z}:${ub.z}`, { z, ua, ub });
   if (z.pen) console.warn(`Zazębienie ${ua.z} : ${ub.z}: zęby przenikają się w ${z.pen} z ${z.samples} położeń nominalnych`);
-  return z.pen ? 0.08 * ub.m / ub.rp : z;
+  return z.pen ? (ua.phys.luz + ub.phys.luz) / ub.rp : z;
 }
 // punkt 2 — sztywności skrętne połączeń (N·m/rad kąta koła b) i tłumienie ζ:
 //   wał: G·J_p / L (stal G = 80 GPa, J_p = π d⁴ / 32); gwiazda sprzęgła kłowego — wg twardości (katalog, wielkość 19);
 //   zazębienie: sztywność zęba c ≈ 20 N/(mm·µm) × szerokość, sprowadzona na koło zasadnicze (k = c·b·r_b²);
 //   łańcuch i pas: sztywność cięgna EA / L (łańcuch 08A ≈ 2 MN, pas SPA ≈ 40 kN na pas) × r²
-const G_STEEL = 80e9, SPIDER_K = { '92A': 1300, '98A': 2300, '64D': 4500 };
+// dane z części (userData.phys — MechKit.PHYS); tu tylko geometria połączenia (szerokość wspólna, odległość osi, promienie)
 function STIFF(e) {
-  const ua = e.a.group && e.a.group.userData, ub = e.b.group && e.b.group.userData;
-  if (e.type === 'shaft' && e.a.type === 'shaft' && ua.len) { const d = ua.r * 2; return { k: G_STEEL * Math.PI * d ** 4 / 32 / ua.len, zeta: 0.02, name: `${e.a.name} (Ø ${Math.round(d * 1000)}, ${Math.round(ua.len * 1000)} mm)` }; }
-  if (e.type === 'coupling' && e.a.id === 'jaw') return { k: SPIDER_K['92A'], zeta: 0.07, name: 'Gwiazda sprzęgła kłowego 92 Sh A' };
-  if (e.type === 'coupling') return { k: 1.5e5, zeta: 0.02, name: e.a.name };
-  if (e.type === 'mesh') { const b = Math.min(ua.w, ub.w), rb = ub.rp * Math.cos(20 * Math.PI / 180); return { k: 2e10 * b * rb * rb, zeta: 0.05, name: `Zazębienie ${ua.z} : ${ub.z}` }; }
-  if (e.type === 'chain') return { k: 2e6 / CH.D * CH.R2 * CH.R2, zeta: 0.03, name: 'Łańcuch 08A' };
-  if (e.type === 'belt') return { k: 4e4 / Math.hypot(YS5 - Y0, 0) * 0.04 * 0.04, zeta: 0.08, name: 'Pas klinowy SPA' };
-  if (e.type === 'ujoint') return { k: 2e5, zeta: 0.02, name: 'Przegub Cardana' };
-  if (e.type === 'planetary') return { k: 3e5, zeta: 0.03, name: 'Przekładnia planetarna' };
+  const ua = e.a.group && e.a.group.userData, ub = e.b.group && e.b.group.userData, pa = ua && ua.phys, pb = ub && ub.phys;
+  if (e.type === 'shaft' && e.a.type === 'shaft' && pa && pa.k) { const d = ua.r * 2; return { k: pa.k, zeta: pa.zeta, name: `${e.a.name} (Ø ${Math.round(d * 1000)}, ${Math.round(ua.len * 1000)} mm)` }; }
+  if (e.type === 'coupling' && e.a.id === 'jaw' && pa) return { k: pa.k, zeta: pa.zeta, name: `Gwiazda sprzęgła kłowego ${pa.spider.replace('A', ' Sh A').replace('D', ' Sh D')}` };
+  if (e.type === 'coupling') return pa && pa.k ? { k: pa.k, zeta: pa.zeta, name: e.a.name } : null;   // sztywność ma połączenie wychodzące ze sprzęgła; wejście (piasta na wale) — sztywno
+  if (e.type === 'mesh' && pb) { const b = Math.min(ua.w, ub.w), rb = ub.rb || ub.rp * Math.cos(20 * Math.PI / 180); return { k: pb.c * b * rb * rb, zeta: pb.zeta, name: `Zazębienie ${ua.z} : ${ub.z}` }; }
+  if (e.type === 'chain') { const q = chain.userData.phys; return { k: q.EA / CH.D * CH.R2 * CH.R2, zeta: q.zeta, name: 'Łańcuch 08A' }; }
+  if (e.type === 'belt') { const q = belt.userData.phys, r = ub.rp || 0.04; return { k: q.EA / Math.hypot(YS5 - Y0, 0) * r * r, zeta: q.zeta, name: 'Pas klinowy SPA' }; }
+  if (e.type === 'ujoint') { const q = cross1.userData.phys; return { k: q.k, zeta: q.zeta, name: 'Przegub Cardana' }; }
+  if (e.type === 'planetary') { const q = ring.userData.phys; return { k: q.k, zeta: q.zeta, name: 'Przekładnia planetarna' }; }
   return null;   // wpust (koło na wale) — sztywno
 }
 // punkt 3 — pas klinowy: moment graniczny na małym kole (Euler–Eytelwein): F1/F2 = e^(μ'θ), μ' = μ / sin(β/2) (rowek 36°),
 // F1 + F2 = 2·F0 (napięcie wstępne) → T_maks = 2·F0·r·(e^(μ'θ) − 1)/(e^(μ'θ) + 1); ślizg — tarcie kinetyczne 0,85 T_maks;
 // pełzanie sprężyste do 1,5 % przy T_maks. Łańcuch — efekt wielokąta: prędkość cięgna v = ω·R·cos φ, φ ∈ [−π/z, π/z]
-const BELT_F0 = 300, BELT_MU = 0.3, BELT_WRAP = Math.PI - 2 * Math.asin((0.08 - 0.04) / Math.hypot(YS5 - Y0, 0));
-const BELT_MUE = BELT_MU / Math.sin(18 * Math.PI / 180), BELT_E = Math.exp(BELT_MUE * BELT_WRAP), BELT_TMAX = 2 * BELT_F0 * 0.04 * (BELT_E - 1) / (BELT_E + 1);
+const BP = belt.userData.phys, BELT_F0 = BP.F0, BELT_MU = BP.mu, BELT_WRAP = Math.PI - 2 * Math.asin((0.08 - 0.04) / Math.hypot(YS5 - Y0, 0));
+const BELT_MUE = BELT_MU / Math.sin(BP.groove / 2 * Math.PI / 180), BELT_E = Math.exp(BELT_MUE * BELT_WRAP), BELT_TMAX = 2 * BELT_F0 * 0.04 * (BELT_E - 1) / (BELT_E + 1);
 function polygon(z) { const p = TAU / z, s2 = 2 * Math.sin(p / 2); return (t) => { const n = Math.floor(t / p), u = t - n * p; return n * p + p * (Math.sin(u - p / 2) + Math.sin(p / 2)) / s2; }; }
 const MODIFY = (e) => { if (e.type !== 'chain') return null; const G = polygon(18), k = 18 / 27, r0 = e.rel; return (ta, tb) => r0(ta, tb) + k * (G(ta) - ta); };
-const BELT = (e) => (e.type === 'belt' ? { Tmax: BELT_TMAX, kinetic: 0.85, creep: 0.015 } : null);
-const phys = createPhysics(drive, { motorId: 'motor', brakeId: 'disc', backlash: BACKLASH, stiffness: STIFF, modify: MODIFY, belt: BELT });
+const BELT = (e) => (e.type === 'belt' ? { Tmax: BELT_TMAX, kinetic: BP.kinetic, creep: BP.creep } : null);
+const phys = createPhysics(drive, { motorId: 'motor', brakeId: 'disc', backlash: BACKLASH, stiffness: STIFF, modify: MODIFY, belt: BELT, bearing: MK.PHYS.bearing.drag });
 function physStats() {
   const st = phys.state, f1 = (v) => fmt(v, 1), a = reg.api;
   const rows = [['Regulator', `${a.run ? 'RUN' : 'STOP'} · ${a.dir > 0 ? 'FWD' : 'REV'} · ${f1(Math.abs(a.f))} Hz (zadana ${f1(a.set)} Hz)`], ['Silnik', `${dirOf(st.omega)} ${fmt(Math.abs(rpmOf(st.omega)))} obr/min (synchr. ${fmt(Math.abs(30 * a.f))})`], ['Moment silnika', `${f1(st.Tm)} N·m`],
@@ -479,8 +478,8 @@ function physStats() {
     rows.push(['Zasilanie X0', `${E.X0.api.on ? 'WŁ' : 'WYŁ'} · 3 × 400/230 V, 50 Hz (TN-S)${es.r && es.r.shorts.length ? ` · ZWARCIE: ${es.r.shorts.join(', ')}` : ''}`]);
     rows.push(['Wyłącznik główny Q1', E.Q1.api.on ? 'I (załączony)' : '0 (wyłączony)']);
     rows.push(['Sterowanie 230 V', `S0 grzybek ${E.S0.api.latched ? 'WCIŚNIĘTY (styk otwarty)' : onoff(true)} · S1 STOP ${onoff(E.S1.api.closed)} · S2 START ${onoff(E.S2.api.closed)}`]);
-    rows.push(['Stycznik K1', `${E.K1.api.on ? 'załączony' : 'wyłączony'}${E.K1.api.test ? ' (test ręczny)' : ''} · cewka ${fmt(es.uK)} V (zadziała ≥ 196 V, odpada < 138 V) · podtrzymanie 13-14 ${onoff(E.K1.api.on)}`]);
-    rows.push(['Lampka H1', `${es.uH > 0.5 * 230 ? 'świeci' : 'zgaszona'} (${fmt(es.uH)} V)`]);
+    rows.push(['Stycznik K1', `${E.K1.api.on ? 'załączony' : 'wyłączony'}${E.K1.api.test ? ' (test ręczny)' : ''} · cewka ${fmt(es.uK)} V (zadziała ≥ ${fmt(E.K1.group.userData.elec.pullIn * E.K1.group.userData.elec.coilU)} V, odpada < ${fmt(E.K1.group.userData.elec.dropOut * E.K1.group.userData.elec.coilU)} V) · podtrzymanie 13-14 ${onoff(E.K1.api.on)}`]);
+    rows.push(['Lampka H1', `${es.uH > E.H1.group.userData.elec.on * E.H1.group.userData.elec.U ? 'świeci' : 'zgaszona'} (${fmt(es.uH)} V)`]);
     rows.push(['Falownik — zasilanie', reg.api.powered ? `${fmt(es.uV)} V · pobór ${fmt(es.Pin)} W · ${fmt(es.I, 2)} A na fazę` : `bez zasilania (${fmt(es.uV)} V) — silnik wybiega`]);
     rows.push(['Praca / kierunek (S3 → DI)', `S3 w położeniu ${E.S3.api.pos} · DI1 (w przód) ${fmt(es.uDI1 || 0)} V, DI2 (wstecz) ${fmt(es.uDI2 || 0)} V · ${reg.api.run ? (reg.api.dir > 0 ? 'praca w przód' : 'praca wstecz') : !reg.api.armed && (reg.api.di[0] || reg.api.di[1]) ? 'BLOKADA — przestaw S3 na 0 (ochrona przed samoczynnym startem)' : 'stop'}`]);
     rows.push(['Zadawanie (R1 → AI)', `${fmt(reg.api.ain, 2)} V → ${fmt(reg.api.set, 1)} Hz (potencjometr 10 kΩ liniowy, 0–10 V = 0–50 Hz)`]);
@@ -495,13 +494,13 @@ function physStats() {
   // poślizg pasa mierzony jak na prawdziwym napędzie: s = 1 − ω₂ / (ω₁·d₁/d₂) (średnie prędkości z klatki) — pełzanie
   // sprężyste i poślizg całkowity (pas chwyta i zrywa się co kilkadziesiąt ms) w jednej liczbie
   for (const c of phys.edges) if (c.belt) {
-    const w1 = c.e.a.omega, w2 = c.e.b.omega, sl = Math.abs(w1) > 0.05 ? 1 - w2 / (w1 * 0.16 / 0.08) : 0, full = sl > 0.05;
+    const w1 = c.e.a.omega, w2 = c.e.b.omega, sl = Math.abs(w1) > 1 ? 1 - w2 / (w1 * 0.16 / 0.08) : 0, full = sl > 0.05;
     rows.push(['Pas — poślizg', `${full ? 'POŚLIZG ' : ''}${fmt(sl * 100, 2)} %${full ? ' — pas ślizga się w rowku (moment graniczny przekroczony)' : ' — pełzanie sprężyste'} · moment ${fmt(Math.abs(c.T), 1)} N·m, graniczny ${fmt(c.belt.Tmax, 1)} N·m (napięcie 2 × ${BELT_F0} N, opasanie ${Math.round(BELT_WRAP * 180 / Math.PI)}°)`]);
   }
   for (const c of phys.edges) if (c.e.type === 'chain') rows.push(['Łańcuch — efekt wielokąta', `prędkość koła biernego waha się o ±${fmt((1 - Math.cos(Math.PI / 18)) * 50, 2)} % (z = 18)${Math.abs(c.e.a.omega) > 0.5 ? ` · teraz ${fmt(c.e.b.omega / c.e.a.omega * 27 / 18 * 100 - 100, 2)} %` : ''}`]);
   for (const c of phys.edges) if (c.dead) {
     const ga = c.e.a.group.userData, gb = c.e.b.group.userData, Z = ZONES.get(`${ga.z}:${gb.z}`), mm = (x) => fmt(x * gb.rp * 1000, 3);
-    const zone = Z ? `z brył zębów ${mm(c.hi - c.lo)} mm (wzdłuż przyporu ${mm(Z.z.width.min)}–${mm(Z.z.width.max)})` : `${fmt(0.08 * gb.m * 1000, 2)} mm`;
+    const zone = Z ? `z brył zębów ${mm(c.hi - c.lo)} mm (wzdłuż przyporu ${mm(Z.z.width.min)}–${mm(Z.z.width.max)})` : `${fmt((ga.phys.luz + gb.phys.luz) * 1000, 2)} mm`;
     rows.push([`Luz ${ga.z} : ${gb.z}`, `${zone} · ${c.contact > 0 ? 'przylega flanką przednią' : c.contact < 0 ? 'przylega flanką tylną' : 'w luzie — zęby się nie dotykają'}`]);
   }
   // bryły zderzeń bez wiązania (co 0,5 s): satelity, rolki łańcucha; zahaczenia części obrotowych (raz, przy starcie)

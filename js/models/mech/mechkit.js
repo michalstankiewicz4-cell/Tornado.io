@@ -17,6 +17,36 @@ const TAU = Math.PI * 2, ALPHA = 20 * Math.PI / 180;
 
 /* ---------------- materiały ---------------- */
 let MATS = null;
+// ---------------- właściwości fizyczne części (userData.phys) ----------------
+// Każda część niesie swoje dane fizyczne — laboratorium / gra tylko je czyta (fizyka: js/behaviors/mech/physics.js):
+//   eta  — sprawność połączenia, które ta część tworzy (zazębienie, łańcuch, pas, przegub, przekładnia)
+//   k    — sztywność skrętna, N·m/rad (albo dane, z których się ją liczy: G, EA, c), zeta — tłumienie względne
+//   luz  — pocienienie zęba na kole podziałowym (m), z którego razem z drugim kołem wychodzi luz obwodowy
+export const G_STEEL = 80e9;   // moduł Kirchhoffa stali, Pa
+export const G_MAT = { steel: G_STEEL, iron: 45e9, brass: 37e9, alu: 26e9 };   // moduł Kirchhoffa wg materiału wału, Pa
+export const PHYS = {
+  mesh: { c: 2e10, zeta: 0.05, eta: 0.98, thin: 0.04 },   // zazębienie walcowe: k = c·b·r_b² (b — szerokość wspólna); ząb cieńszy o thin·m
+  shaft: { G: G_STEEL, zeta: 0.02 },                      // wał: k = G·π·d⁴ / (32·L), G wg materiału (G_MAT)
+  spider: { '92A': 1300, '98A': 2300, '64D': 4500 },      // gwiazda sprzęgła kłowego (poliuretan), N·m/rad wg twardości
+  jaw: { zeta: 0.07, eta: 0.995 },
+  flange: { k: 1.5e5, zeta: 0.02, eta: 0.995 },
+  chain: { EA: 2e6, zeta: 0.03, eta: 0.97 },              // łańcuch 08A: sztywność cięgna EA (N) → k = EA / D · R₂²
+  belt: { EA: 4e4, zeta: 0.08, eta: 0.95, F0: 300, mu: 0.3, groove: 36, kinetic: 0.85, creep: 0.015 },   // pas klinowy: napięcie wstępne F0 (N) w cięgnie, μ, kąt rowka (°), tarcie kinetyczne / statyczne, pełzanie przy granicy
+  ujoint: { k: 2e5, zeta: 0.02, eta: 0.99 },              // przegub Cardana (krzyżak w łożyskach igiełkowych)
+  planetary: { k: 3e5, zeta: 0.03, eta: 0.97 },           // przekładnia planetarna (zestaw: słoneczne, satelity, korona)
+  bearing: { drag: 0.0004 },                              // łożysko toczne: opór lepki, N·m·s/rad
+};
+// silnik — dane elektryczne (userData.elec): sprawność, cos φ, prąd znamionowy z mocy, prąd biegu jałowego (ułamek In),
+// straty jałowe (ułamek mocy), napięcie i częstotliwość znamionowa
+export const MOTOR_ELEC = { eta: 0.84, cosPhi: 0.77, U: 400, f: 50, k0: 0.6, p0: 0.05 };
+// faza w przekładni planetarnej (ψ_k = k·2π/n): kąt satelity k w jarzmie dla kąta względnego słonecznego `rel`
+// i obrót korony, przy którym wrąb korony stoi naprzeciw zęba satelity 0 (zęby się nie przenikają — sprawdzone
+// bryłami zderzeń, js/behaviors/mech/contact.js)
+export function planetPhase(zs, zp, zr, n) {
+  const p0 = Math.PI + Math.PI / zp, off = p0 - Math.round(p0 / (TAU / zp)) * (TAU / zp);
+  return { ring: off * zp / zr, planet: (k, rel) => { const psi = k * TAU / n; return -(zs / zp) * (rel - psi) + psi + Math.PI + Math.PI / zp; } };
+}
+
 export function materials() {
   if (MATS) return MATS;
   const mk = (def) => makeMaterial(def, { res: 512 }).material;
@@ -173,7 +203,7 @@ export function gear({ z = 20, m = 0.004, w = 0.04, bore = 0.0125, mat = 'gear',
     for (const s of [-1, 1]) { const h = mesh(extrude(hg, hubLen + 0.001, 0.0008), M[mat]); h.position.x = s * (w + hubLen - 0.001) / 2; g.userData.spin.add(h); }   // piasta zachodzi 0,5 mm w tarczę — bez wspólnej płaszczyzny
   }
   const area = Math.PI * (o.rp * o.rp - bore * bore), rho = RHO[mat] || STEEL_RHO, mass = rho * area * w * (holes ? 0.78 : 1);
-  Object.assign(g.userData, { z, m, alpha: alpha * Math.PI / 180, rp: o.rp, ra: o.ra, rf: o.rf, rb: o.rb, w, mass, J: 0.5 * mass * (o.rp * o.rp * 0.9 + bore * bore), material: mat, hubLen, holes });
+  Object.assign(g.userData, { phys: { ...PHYS.mesh, luz: PHYS.mesh.thin * m }, z, m, alpha: alpha * Math.PI / 180, rp: o.rp, ra: o.ra, rf: o.rf, rb: o.rb, w, mass, J: 0.5 * mass * (o.rp * o.rp * 0.9 + bore * bore), material: mat, hubLen, holes });
   return g;
 }
 // koło koronowe: otwór o zarysie „wrębów” (głowa korony = stopa zęba koła zewnętrznego)
@@ -184,7 +214,7 @@ export function ringGear({ z = 72, m = 0.002, w = 0.03, rim = 0.012, mat = 'bras
   const g = newPart(name || `Koło koronowe z = ${z}`);
   g.userData.spin.add(mesh(extrude(shape, w, 0.0005, 96), M[mat]));
   const mass = (RHO[mat] || STEEL_RHO) * Math.PI * (R * R - o.rp * o.rp) * w;
-  Object.assign(g.userData, { z, m, rp: o.rp, R, ra: o.ra, rf: o.rf, w, internal: true, mass, J: 0.5 * mass * (R * R + o.rp * o.rp) });
+  Object.assign(g.userData, { phys: { ...PHYS.planetary, luz: PHYS.mesh.thin * m }, z, m, rp: o.rp, R, ra: o.ra, rf: o.rf, w, internal: true, mass, J: 0.5 * mass * (R * R + o.rp * o.rp) });
   return g;
 }
 
@@ -225,7 +255,7 @@ export function sprocket({ z = 18, p = 0.0127, d1 = 0.00792, w = 0.0072, bore = 
   const hubR = Math.max(bore * 1.45, Math.min(R - rs - 0.002, bore * 2.2)), hs = new THREE.Shape(); hs.absarc(0, 0, hubR, 0, TAU, false); hs.holes.push(boreHole(bore));
   const hub = mesh(extrude(hs, 0.023, 0.0008), M[mat]); hub.position.x = -(w + 0.021) / 2; g.userData.spin.add(hub);   // zachodzi 1 mm w tarczę
   const mass = STEEL_RHO * Math.PI * R * R * w + STEEL_RHO * Math.PI * hubR * hubR * 0.022;
-  Object.assign(g.userData, { z, p, d1, R, rs, w, sprocket: true, mass, J: 0.5 * mass * R * R * 0.8 });
+  Object.assign(g.userData, { phys: { ...PHYS.chain }, z, p, d1, R, rs, w, sprocket: true, mass, J: 0.5 * mass * R * R * 0.8 });
   return g;
 }
 
@@ -252,7 +282,7 @@ export function pulley({ d = 0.16, profile = 'SPA', grooves = 1, bore = 0.0125, 
     }
   }
   const rho = RHO[mat] || IRON_RHO, mass = rho * (Math.PI * (ro * ro - rimIn * rimIn) * w + Math.PI * (rimIn * rimIn - hubR * hubR) * web * 0.6 + Math.PI * hubR * hubR * w * 1.5);
-  Object.assign(g.userData, { d, rp, w, profile, grooves, mass, J: 0.5 * mass * (ro * ro + rimIn * rimIn) * 0.85, spokes });
+  Object.assign(g.userData, { phys: { ...PHYS.belt }, d, rp, w, profile, grooves, mass, J: 0.5 * mass * (ro * ro + rimIn * rimIn) * 0.85, spokes });
   return g;
 }
 
@@ -334,7 +364,7 @@ export function chainLoop(path, N, { p = 0.0127, d1 = 0.00792, x = 0, type = '08
   const mass = N * 0.0094 * k * k;   // 08A: ok. 0,7 kg/m (masa rośnie z kwadratem podziałki)
   // środki rolek w układzie łańcucha (x, y, z) dla fazy u0 — do brył zderzeń rolek z zębami kół
   const rollers = (u0) => { const out = []; for (let k = 0; k < N; k++) { const a = path.at(u0 + (path.seat ? path.seat.u : 0) + k); out.push([x, a.y, a.z]); } return out; };
-  g.userData = { N, p, d1, mass, update, rollers };
+  g.userData = { phys: { ...PHYS.chain }, N, p, d1, mass, update, rollers };
   return g;
 }
 
@@ -360,7 +390,7 @@ export function beltLoop(path, { x = 0, label = 'SPA 1250 Lw', profile = 'SPA', 
   }
   const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setIndex(idx); geo.computeVertexNormals();
   const m = mesh(geo, mat); m.name = `Pas klinowy ${label}`;
-  m.userData = { L: path.L, mass: path.L * grooves * (profile === 'SPZ' ? 0.074 : profile === 'SPB' ? 0.195 : 0.123), update: (s) => { tex.offset.x = -s / period; } };
+  m.userData = { phys: { ...PHYS.belt }, L: path.L, mass: path.L * grooves * (profile === 'SPZ' ? 0.074 : profile === 'SPB' ? 0.195 : 0.123), update: (s) => { tex.offset.x = -s / period; } };
   return m;
 }
 
@@ -371,7 +401,7 @@ export function shaft({ len = 1, r = 0.0125, mat = 'steel', key: keyway = true, 
   if (keyway) { const key = mesh(box(len * 0.92, 0.0018, r * 0.5), M.dark); key.position.set(len / 2, r - 0.0006, 0); g.userData.spin.add(key); }   // rowek wpustu — widać obrót
   for (const e of [0, len]) { const ch = mesh(cyl(r, 0.002, 32, r * 0.86), M[mat]); ch.position.x = e ? len - 0.001 : 0.001; if (!e) ch.rotation.y = Math.PI; g.userData.spin.add(ch); }   // fazka 0,14 r na końcach
   const mass = (RHO[mat] || STEEL_RHO) * Math.PI * r * r * len;
-  Object.assign(g.userData, { len, r, mass, J: 0.5 * mass * r * r });
+  Object.assign(g.userData, { phys: { ...PHYS.shaft, G: G_MAT[mat] || G_STEEL, k: (G_MAT[mat] || G_STEEL) * Math.PI * (2 * r) ** 4 / 32 / len }, len, r, mass, J: 0.5 * mass * r * r });
   return g;
 }
 // oprawa łożyska stojąca (UCP) na podstawie: oś na wysokości h nad podstawą
@@ -394,7 +424,7 @@ export function pillowBlock({ h = 0.12, r = 0.0125, name = 'Łożysko w oprawie 
     for (const s of [-1, 1]) { const rib = mesh(box(0.006, 0.08, 0.07), M.paintGrey); rib.position.set(0, 0.052, s * 0.065); g.add(rib); }
   } else if (base > 0.002) { const ped = mesh(box(0.05, base, 0.19), M.iron); ped.position.y = base / 2; g.add(ped); }
   for (const z of [-0.064, 0.064]) { const b = mesh(new THREE.CylinderGeometry(0.0085, 0.0085, 0.008, 6), M.dark); b.position.set(0, 0.02, z); top.add(b); }
-  g.userData = { h, r, k, mass: 0.8 * k * k * k + (base > 0 ? IRON_RHO * 0.05 * 0.19 * base * 0.4 : 0) };
+  g.userData = { phys: { ...PHYS.bearing }, h, r, k, mass: 0.8 * k * k * k + (base > 0 ? IRON_RHO * 0.05 * 0.19 * base * 0.4 : 0) };
   return g;
 }
 
@@ -421,7 +451,9 @@ export function jawCoupling({ r = 0.032, bore = 0.0125, spider: hard = '92A' } =
   const ring = new THREE.Shape(); ring.absarc(0, 0, bore * 2, 0, TAU, false); ring.holes.push(circlePath(bore * 1.15));
   spider.add(mesh(extrude(ring, 0.0164, 0.0006), polyM));   // pierścień cieńszy od ramion — bez wspólnych płaszczyzn
   const mass = ALU_RHO * Math.PI * r * r * 0.08 * 0.9;
-  return { a: mk(-1), b: mk(1), spider, mass, J: 0.5 * mass * r * r };
+  const phys = { ...PHYS.jaw, k: PHYS.spider[hard] || PHYS.spider['92A'], spider: hard };
+  spider.userData.phys = phys;
+  return { a: mk(-1), b: mk(1), spider, phys, mass, J: 0.5 * mass * r * r };
 }
 // sprzęgło kołnierzowe sztywne: dwie tarcze z piastami i 6 śrub
 export function flangeCoupling({ r = 0.055, bore = 0.0125, bolts: nb = 6 } = {}) {
@@ -439,7 +471,7 @@ export function flangeCoupling({ r = 0.055, bore = 0.0125, bolts: nb = 6 } = {})
     for (const s of [-1, 1]) { const hx = mesh(new THREE.CylinderGeometry(0.0075, 0.0075, 0.006, 6).rotateZ(Math.PI / 2), M.dark); hx.position.set(s * 0.0172, y, z); bolts.add(hx); }   // łeb wchodzi 0,3 mm w kołnierz
   }
   const mass = IRON_RHO * (Math.PI * r * r * 0.028 + Math.PI * (bore * 2.4) ** 2 * 0.06);
-  return { a: mk(-1), b: mk(1), bolts, mass, J: 0.5 * mass * r * r * 0.8 };
+  return { a: mk(-1), b: mk(1), bolts, phys: { ...PHYS.flange }, mass, J: 0.5 * mass * r * r * 0.8 };
 }
 // widełki przegubu Cardana na końcu wału: piasta wzdłuż +x i dwa ramiona z oczkami; sworznie wzdłuż lokalnego y (oś krzyżaka)
 export function yoke({ r = 0.026, reach = 0.05, name = 'Widełki przegubu' } = {}) {
@@ -461,6 +493,7 @@ export function cross({ r = 0.026 } = {}) {
     const c = mesh(new THREE.CylinderGeometry(0.0055, 0.0055, r * 2, 12), M.steel); if (ax === 'z') c.rotation.x = Math.PI / 2; g.add(c);
     for (const s of [-1, 1]) { const cup = mesh(new THREE.CylinderGeometry(0.0085, 0.0085, 0.009, 16), M.dark); cup.position[ax] = s * (r - 0.002); if (ax === 'z') cup.rotation.x = Math.PI / 2; g.add(cup); }
   }
+  g.userData.phys = { ...PHYS.ujoint };
   return g;
 }
 
@@ -497,7 +530,7 @@ export function motor({ kW = 1.1, poles = 4, paint = 'paintBlue', name } = {}) {
   g.userData.spin.position.y = spec.H;
   if (paint !== 'paintBlue') body0.traverse((o) => { if (o.material === M.paintBlue) o.material = M[paint] || M.paintBlue; });
   const nSync = 6000 / poles, nRated = nSync * (1 - 0.034 - 0.02 / Math.sqrt(spec.kW));
-  Object.assign(g.userData, { H: spec.H, mass: spec.mass, J: spec.J * (poles >= 6 ? 1.6 : poles <= 2 ? 0.55 : 1), spec, poles, nSync, nRated, Tn: spec.kW * 1000 / (nRated * TAU / 60), shaftD: sr * 2, shaftL: sl });
+  Object.assign(g.userData, { elec: { ...MOTOR_ELEC, kW: spec.kW, In: spec.kW * 1000 / (Math.sqrt(3) * MOTOR_ELEC.U * MOTOR_ELEC.eta * MOTOR_ELEC.cosPhi) }, H: spec.H, mass: spec.mass, J: spec.J * (poles >= 6 ? 1.6 : poles <= 2 ? 0.55 : 1), spec, poles, nSync, nRated, Tn: spec.kW * 1000 / (nRated * TAU / 60), shaftD: sr * 2, shaftL: sl });
   return g;
 }
 
@@ -544,16 +577,16 @@ export function planetary({ zs = 24, zp = 24, n = 3, m = 0.002, w = 0.02, mat = 
   const out = mesh(cyl(0.0125, 0.08, 24), M.steel); out.position.x = w * 2.1 + 0.04; carrier.add(out);   // wał jarzma zaczyna się w środku tarczy
   g.add(carrier);
   const assembly = (zs + zr) / n, clearance = (zs + zp) * Math.sin(Math.PI / n) - (zp + 2);
-  const p0 = Math.PI + Math.PI / zp, off = p0 - Math.round(p0 / (TAU / zp)) * (TAU / zp);   // faza korony pod satelitą 0
-  ring.userData.spin.rotation.x = off * zp / zr;   // wrąb korony (ząb zarysu otworu) naprzeciw zęba satelity najbliższego punktowi styku
+  const ph = planetPhase(zs, zp, zr, n);
+  ring.userData.spin.rotation.x = ph.ring;   // wrąb korony naprzeciw zęba satelity najbliższego punktowi styku
   function update(ts) {
     const tc = ts * zs / (zs + zr), rel = ts - tc;
     g.userData.spin.rotation.x = ts; carrier.rotation.x = tc;
-    planets.forEach((pl, k) => { const psi = k * TAU / n; pl.userData.spin.rotation.x = -(zs / zp) * (rel - psi) + psi + Math.PI + Math.PI / zp; });
+    planets.forEach((pl, k) => { pl.userData.spin.rotation.x = ph.planet(k, rel); });
     return { tc };
   }
   const mass = sun.userData.mass + ring.userData.mass + planets.reduce((a, p) => a + p.userData.mass, 0) + 0.3;
-  Object.assign(g.userData, { zs, zp, zr, n, m, ratio: 1 + zr / zs, assemblyOk: Number.isInteger(assembly), assembly, clearanceOk: clearance > 0, RC, R: ring.userData.R, mass, update, carrier, ring, sun });
+  Object.assign(g.userData, { phys: { ...PHYS.planetary }, zs, zp, zr, n, m, ratio: 1 + zr / zs, assemblyOk: Number.isInteger(assembly), assembly, clearanceOk: clearance > 0, RC, R: ring.userData.R, mass, update, carrier, ring, sun });
   return g;
 }
 
@@ -574,4 +607,4 @@ export function discBrake({ d = 0.2, t = 0.008, vents = 12 } = {}) {
   return g;
 }
 
-export const MechKit = { materials, gear, ringGear, sprocket, pulley, loopPath, chainDistance, chainLoop, beltLoop, shaft, pillowBlock, jawCoupling, flangeCoupling, yoke, cross, motor, housing, tubeHousing, involuteOutline, toothHulls, convexParts, sprocketOutline, sprocketHulls, ringHulls, planetary, discBrake };
+export const MechKit = { materials, gear, ringGear, sprocket, pulley, loopPath, chainDistance, chainLoop, beltLoop, shaft, pillowBlock, jawCoupling, flangeCoupling, yoke, cross, motor, housing, tubeHousing, involuteOutline, toothHulls, convexParts, sprocketOutline, sprocketHulls, ringHulls, planetary, discBrake, planetPhase, PHYS, MOTOR_ELEC, G_STEEL, G_MAT };

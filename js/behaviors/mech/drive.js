@@ -50,9 +50,16 @@ export function createDrive() {
     throw new Error('Nieznane połączenie ' + type);
   }
 
+  // sprawność z części, która tworzy połączenie (userData.phys.eta modelu: zębatka, koło łańcuchowe / pasowe, sprzęgło);
+  // wał (wpust) — 1, przegub i przekładnia planetarna — z opts.eta (dane krzyżaka / korony), inaczej EFF
+  function physEta(type, A, B) {
+    if (type === 'shaft' || type === 'ujoint' || type === 'planetary') return undefined;
+    const pa = A && A.group && A.group.userData.phys, pb = B && B.group && B.group.userData.phys;
+    return (pa && pa.eta) ?? (pb && pb.eta);
+  }
   function connect(a, pa, b, pb, type, opts = {}) {
     const A = els.get(a), B = els.get(b);
-    const e = { a: A, b: B, pa, pb, type, opts, eta: opts.eta ?? EFF[type] ?? 1 };
+    const e = { a: A, b: B, pa, pb, type, opts, eta: opts.eta ?? physEta(type, A, B) ?? EFF[type] ?? 1 };
     e.rel = relation(type, A, B, opts);
     edges.push(e);
     return e;

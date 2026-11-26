@@ -9,6 +9,17 @@ const TAU = Math.PI * 2;
 const mesh = (g, m, shadow = true) => { const o = new THREE.Mesh(g, m); o.castShadow = shadow; o.receiveShadow = true; return o; };
 const plastic = (color, rough = 0.45) => new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: 0 });
 let P = null;
+// ---------------- właściwości elektryczne (userData.elec) ----------------
+// Każde urządzenie niesie swoje dane elektryczne — obwód (js/behaviors/mech/circuit.js) i laboratorium tylko je czytają.
+// contacts: styki z numerami zacisków wg EN 60947 ('13-14': 'NO' — zwierny, '11-12': 'NC' — rozwierny,
+// przy przełączniku — położenie, w którym styk jest zamknięty)
+const parseVolts = (v) => { const m = /^(\d+(?:[.,]\d+)?)\s*(AC|DC)?/i.exec(String(v)); return { U: m ? parseFloat(m[1].replace(',', '.')) : 230, kind: m && m[2] ? m[2].toUpperCase() : 'AC' }; };
+export const ELEC = {
+  contactor: { pullIn: 0.85, dropOut: 0.6, tClose: 0.02, VA: { inrush: 70, hold: 8 } },   // cewka: zadziała ≥ 85 % Un po 20 ms, odpada < 60 % Un (EN 60947-4-1)
+  inverter: { eta: 0.97, standby: 15, pfIn: 0.95, Uin: 400, supply: 24, diOn: 15, aiMax: 10, boot: 0.5 },   // sprawność, pobór jałowy (W), cos φ wejścia; 24 V DC na wejścia DI (aktywne ≥ 15 V, IEC 61131-2 typ 1), AI 0–10 V, rozruch (s)
+  lamp: { P: 1, on: 0.5 },                                                                    // lampka LED: moc (W), świeci od 50 % Un
+};
+
 export function plastics() {
   if (P) return P;
   P = {
@@ -78,7 +89,7 @@ export function switchUnit({ kind = 'cam', poles = 3, amps = 16 } = {}) {
     press(c) { if (c === 'toggle') on = !on; }, release() {}, drag() {},
     tick(dt) { const t = target(); ang += (t - ang) * Math.min(1, dt * 18); g.userData.anim(ang); },
   };
-  Object.assign(g.userData, { kind, poles, amps, mass: main ? 0.62 : 0.35, api });
+  Object.assign(g.userData, { elec: { poles, In: amps, contacts: Object.fromEntries([['1-2', 'I'], ['3-4', 'I'], ['5-6', 'I'], ['7-8', 'I']].slice(0, poles)) }, kind, poles, amps, mass: main ? 0.62 : 0.35, api });
   return g;
 }
 
@@ -110,7 +121,7 @@ export function potentiometer({ ohms = 10000, taper = 'lin', knob = 'black' } = 
   apply();
   const ratio = () => (taper === 'log' ? (Math.pow(10, 2 * pos) - 1) / 99 : pos);   // log: ok. 10 % przy połowie (krzywa A)
   const api = { get pos() { return pos; }, set pos(v) { pos = Math.max(0, Math.min(1, v)); apply(); }, ratio, press() {}, release() {}, drag(c, dy) { if (c === 'knob') { pos = Math.max(0, Math.min(1, pos - dy / 300)); apply(); } }, tick() {} };
-  Object.assign(g.userData, { ohms, taper, mass: 0.22, api });
+  Object.assign(g.userData, { elec: { R: ohms, taper, terminals: ['1', '2 (suwak)', '3'] }, ohms, taper, mass: 0.22, api });
   return g;
 }
 
@@ -140,7 +151,7 @@ export function pushButton({ color = 'green', mode = 'momentary', contact = 'NO'
     release() { down = false; }, drag() {},
     tick(dt) { const t = down ? 0.0035 : mode === 'latch' && latched ? 0.002 : 0; depth += (t - depth) * Math.min(1, dt * 30); cap.position.z = -depth; if (lit) capMat.emissiveIntensity = closed() ? 1.6 : 0; },
   };
-  Object.assign(g.userData, { color, mode, contact, lit, mass: 0.12, api });
+  Object.assign(g.userData, { elec: { contacts: contact === 'NC' ? { '11-12': 'NC' } : { '13-14': 'NO' } }, color, mode, contact, lit, mass: 0.12, api });
   return g;
 }
 
@@ -198,7 +209,7 @@ export function inverter({ kW = 1.1, fmax = 50, ramp = 5 } = {}) {
     control(m) { ctrl = m === 'terminal' ? 'terminal' : 'panel'; armed = false; last = ''; },
     inputs(a, b) { di1 = !!a; di2 = !!b; },
     // power(v): utrata zasilania — wyjście wyłączone od razu (silnik wybiega), po powrocie STOP (nowe polecenie RUN)
-    power(v) { v = !!v; if (v === powered) return; powered = v; armed = false; boot = v ? 0.5 : 0; if (!v) { run = false; f = 0; } last = ''; draw(); },
+    power(v) { v = !!v; if (v === powered) return; powered = v; armed = false; boot = v ? ELEC.inverter.boot : 0; if (!v) { run = false; f = 0; } last = ''; draw(); },
     reference(r) { ref = r === 'ai' ? 'ai' : 'panel'; last = ''; }, ai(v) { ain = Math.max(0, Math.min(10, v)); },
     press(c) { if (!powered) return; const term = ctrl === 'terminal'; if (c === 'run' && !term) run = true; if (c === 'stop') { run = false; armed = false; } if (c === 'dir' && !term) dir = -dir; if (c === 'run' || c === 'stop' || c === 'dir') { const b = c === 'run' ? bRun : c === 'stop' ? bStop : bDir; b.position.z = 0.002; setTimeout(() => { b.position.z = 0.0035; }, 160); } },
     release() {}, drag(c, dy) { if (c === 'knob') { set = Math.max(0, Math.min(1, set - dy / 300)); apply(); } },
@@ -214,7 +225,7 @@ export function inverter({ kW = 1.1, fmax = 50, ramp = 5 } = {}) {
       const s = f.toFixed(1) + run + dir + ref + ctrl + armed + di1 + di2; if (s !== last) { last = s; draw(); }
     },
   };
-  Object.assign(g.userData, { kW, fmax, ramp, mass: 1.4 * k * k * k, api });
+  Object.assign(g.userData, { elec: { ...ELEC.inverter, kW, fmax }, kW, fmax, ramp, mass: 1.4 * k * k * k, api });
   return g;
 }
 
@@ -240,7 +251,7 @@ export function eStop({ contacts = '1NC' } = {}) {
     release() {}, drag() {},
     tick(dt) { const t = latched ? 0.005 : 0; depth += (t - depth) * Math.min(1, dt * 25); cap.position.z = -depth; twist = Math.max(0, twist - dt * 1.5); cap.rotation.z = -Math.sin(twist * Math.PI / 0.6) * 0.5; },
   };
-  Object.assign(g.userData, { contacts, mass: 0.2, api });
+  Object.assign(g.userData, { elec: { contacts: contacts === '2NC' ? { '11-12': 'NC', '21-22': 'NC' } : contacts === '1NC1NO' ? { '11-12': 'NC', '23-24': 'NO' } : { '11-12': 'NC' } }, contacts, mass: 0.2, api });
   return g;
 }
 
@@ -259,7 +270,7 @@ export function pilotLamp({ color = 'green', volts = '24DC' } = {}) {
   let pw = 0;
   const api = { get on() { return on || pw > 0.5; }, power(v) { pw = v; }, press(c) { if (c === 'lamp') on = !on; }, release() {}, drag() {},
     tick(dt) { glow += ((on ? 1 : Math.min(1, pw * pw)) - glow) * Math.min(1, dt * 20); lm.emissiveIntensity = 2.2 * glow; light.intensity = 0.25 * glow; } };
-  Object.assign(g.userData, { color, volts, mass: 0.06, api });
+  Object.assign(g.userData, { elec: { ...ELEC.lamp, ...parseVolts(volts) }, color, volts, mass: 0.06, api });
   return g;
 }
 
@@ -290,7 +301,7 @@ export function selector({ positions = 'I-0-II', spring = false, handle = 'short
     release() { down = false; if (spring) idx = three ? 1 : 0; }, drag() {},
     tick(dt) { ang += (P[idx][1] - ang) * Math.min(1, dt * 18); kn.rotation.z = ang; },
   };
-  Object.assign(g.userData, { positions, spring, mass: 0.08, api });
+  Object.assign(g.userData, { elec: { contacts: three ? { '13-14': 'I', '23-24': 'II' } : { '13-14': 'I' } }, positions, spring, mass: 0.08, api });
   return g;
 }
 
@@ -338,7 +349,7 @@ export function contactor({ amps = 12, coil = '230AC', aux = '1NO' } = {}) {
   // coil(v) — stan kotwicy z obwodu (cewka zasilona); klik w okienko — ręczne wciśnięcie kotwicy (test)
   const api = { get on() { return coilOn || test; }, get test() { return test; }, coil(v) { coilOn = !!v; }, press(c) { if (c === 'test') test = !test; }, release() {}, drag() {},
     tick(dt) { a += ((coilOn || test ? 1 : 0) - a) * Math.min(1, dt * 30); ind.position.y = 0.058 - 0.006 * a; } };
-  Object.assign(g.userData, { amps, coil, aux, mass: amps > 18 ? 0.55 : 0.36, api });
+  Object.assign(g.userData, { elec: { ...ELEC.contactor, coilU: parseVolts(coil).U, coilKind: parseVolts(coil).kind, In: amps, contacts: { '1-2': 'NO', '3-4': 'NO', '5-6': 'NO', ...(aux === '1NC' ? { '21-22': 'NC' } : { '13-14': 'NO' }) } }, amps, coil, aux, mass: amps > 18 ? 0.55 : 0.36, api });
   return g;
 }
 
@@ -433,8 +444,8 @@ export function powerSource({ kind = 'AC', volts = 230, phases = 1, hz = 50, amp
   draw();
   const api = { get on() { return on; }, press(c) { if (c === 'power') { on = !on; draw(); } }, release() {}, drag() {},
     tick(dt) { t += dt; rocker.rotation.x = on ? -0.25 : 0.25; if (ac && on && Math.floor(t * 15) !== last) { last = Math.floor(t * 15); draw(); } } };
-  Object.assign(g.userData, { kind, volts, phases, hz, amps, mass: 2.5, api });
+  Object.assign(g.userData, { elec: { U: volts, f: kind === 'AC' ? hz : 0, phases, In: amps, system: kind === 'AC' && phases === 3 ? 'TN-S' : kind, Uph: kind === 'AC' && phases === 3 ? volts / Math.sqrt(3) : volts }, kind, volts, phases, hz, amps, mass: 2.5, api });
   return g;
 }
 
-export const ControlKit = { enclosure, switchUnit, potentiometer, pushButton, inverter, eStop, pilotLamp, selector, limitSwitch, contactor, wire, cable, powerSource, plastics, BUTTON_COLORS, WIRE_COLORS };
+export const ControlKit = { enclosure, switchUnit, potentiometer, pushButton, inverter, eStop, pilotLamp, selector, limitSwitch, contactor, wire, cable, powerSource, plastics, BUTTON_COLORS, WIRE_COLORS, ELEC };

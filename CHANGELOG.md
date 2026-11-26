@@ -1,5 +1,16 @@
 # Zmiany
 
+## 0.26.2 — 2026-11-26
+- Dane fizyczne i elektryczne przypisane do części (przygotowanie do przeniesienia do GameLaboratory):
+  - MechKit: `userData.phys` (tabela `PHYS`: sztywność, tłumienie, sprawność, luz zęba, łańcuch, pas z napięciem
+    i tarciem, przegub, przekładnia planetarna, łożysko), sztywność wału wg materiału (`G_MAT`), silnik
+    `userData.elec` (`MOTOR_ELEC`), wspólna faza przekładni planetarnej `planetPhase()`.
+  - ControlKit: `userData.elec` (tabela `ELEC`: stycznik, falownik, lampka; styki z numerami zacisków, źródło,
+    wyłącznik, potencjometr).
+  - `drive.js`: sprawność połączenia z danych części. Laboratorium mechaniki 0.11.1 i podgląd przedmiotów czytają
+    dane z części — w laboratorium zostały tylko geometria połączeń i schemat instalacji (wyniki bez zmian:
+    przełożenie 1 : 30, luz z brył, sprężystości). Poprawka: wejście sprzęgła kłowego (piasta na wale silnika) sztywne.
+
 ## 0.26.1 — 2026-11-26
 - Laboratorium mechaniki 0.11.0 — praca i kierunek obrotów z kasety zamiast przycisków na falowniku: przełącznik S3
   I-0-II → wejścia cyfrowe falownika DI1 (w przód) / DI2 (wstecz), zasilane z jego 24 V DC (kabel W7 4×0,5, wejście
