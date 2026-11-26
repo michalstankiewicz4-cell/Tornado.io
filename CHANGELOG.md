@@ -1,5 +1,19 @@
 # Zmiany
 
+## 0.25.0 — 2026-11-26
+- Laboratorium mechaniki 0.5.0: trzeci tryb **Fizyka** — ta sama maszyna liczona fizycznie (`js/behaviors/mech/physics.js`):
+  każda część ma własny kąt i prędkość, połączenia z napędu (te same porty) są wiązaniami XPBD na kątach; silnik daje
+  moment wirnikowi, hamulec — tarczy, reszta rusza przez wiązania. Momenty w połączeniach z mnożników wiązań.
+  Przełożenia zgodne z kinematyką (wyjście 1 : 30).
+  - Punkt 1 — **luz w zazębieniu** z geometrii zębów (0,08·m na kole podziałowym: 0,32 mm dla modułu 4, 0,24 mm dla 3):
+    wiązanie z martwą strefą; przy zmianie kierunku napędzane koło stoi, aż ząb przejdzie luz i przyłoży się drugą
+    flanką. Stan każdego zazębienia w oknie Opis („przylega flanką przednią / tylną”, „w luzie”).
+  - **Regulator prędkości przy silniku** — falownik z pokrętłem, RUN / STOP i **FWD / REV** (zmiana kierunku obrotu:
+    częstotliwość przechodzi przez zero po rampie), obsługa na modelu; suwak prędkości na pasku znika w tym trybie.
+  - Pole **Hitboksy** (Maszyna i Fizyka): bryły zderzeń z geometrii — walce wzdłuż osi części obrotowych (obracają się
+    z nimi) i prostopadłościany części nieruchomych.
+- ControlKit: falownik z przyciskiem FWD / REV (częstotliwość ze znakiem). `MechanicsApi.regulator()`, `ratios()`.
+
 ## 0.24.1 — 2026-11-25
 - Laboratorium mechaniki 0.4.1 — poprawki z przeglądu ChatGPT (odpowiedzi w `AI_COLLABORATION.md`): sterowanie puszczane
   także przy przerwanym geście (`pointercancel`, utrata przechwycenia, okno w tle) — przycisk chwilowy i krańcówka nie

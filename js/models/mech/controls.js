@@ -145,8 +145,8 @@ export function pushButton({ color = 'green', mode = 'momentary', contact = 'NO'
 }
 
 /* ---------------- falownik z panelem ---------------- */
-// przemiennik częstotliwości: radiator, panel z wyświetlaczem (Hz), pokrętło zadawania, RUN / STOP; częstotliwość
-// narasta i opada po rampie (czas od 0 do fmax)
+// przemiennik częstotliwości: radiator, panel z wyświetlaczem (Hz), pokrętło zadawania, RUN / STOP, FWD / REV (kierunek);
+// częstotliwość narasta i opada po rampie (czas od 0 do fmax), przy zmianie kierunku przechodzi przez zero po rampie
 export function inverter({ kW = 1.1, fmax = 50, ramp = 5 } = {}) {
   const Pm = plastics(), M = materials(), g = new THREE.Group(), k = Math.cbrt(Math.max(0.37, kW) / 1.1);
   const W = 0.1 * k, H = 0.17 * k, D = 0.13 * k;
@@ -163,7 +163,7 @@ export function inverter({ kW = 1.1, fmax = 50, ramp = 5 } = {}) {
   const btn = (col, x, label) => {
     const b = mesh(new THREE.CylinderGeometry(0.0055 * k + 0.002, 0.0055 * k + 0.002, 0.003, 24).rotateX(Math.PI / 2), Pm[col]); b.position.set(x, -ph * 0.28, 0.0035); b.userData.control = label; panel.add(b); return b;
   };
-  const bRun = btn('green', -pw * 0.3, 'run'), bStop = btn('red', pw * 0.3, 'stop');
+  const bRun = btn('green', -pw * 0.3, 'run'), bStop = btn('red', pw * 0.3, 'stop'), bDir = btn('yellow', 0, 'dir'); bDir.position.y = -ph * 0.44;
   const kn = new THREE.Group(); kn.position.set(0, -ph * 0.22, 0.002); panel.add(kn);
   const kb = mesh(new THREE.CylinderGeometry(0.009 * k + 0.002, 0.0095 * k + 0.002, 0.008, 32).rotateX(Math.PI / 2), Pm.dark); kb.position.z = 0.004; kn.add(kb);
   const kl = mesh(new THREE.BoxGeometry(0.0014, 0.006 * k + 0.002, 0.0006), Pm.white); kl.position.set(0, 0.004 * k + 0.001, 0.0083); kn.add(kl);
@@ -171,25 +171,25 @@ export function inverter({ kW = 1.1, fmax = 50, ramp = 5 } = {}) {
   const label = canvasTex(256, 64, (c, w, h) => { c.fillStyle = '#16181a'; c.fillRect(0, 0, w, h); c.fillStyle = '#c8cccf'; c.font = 'bold 22px sans-serif'; c.textAlign = 'center'; c.fillText(`${String(kW).replace('.', ',')} kW  3 × 400 V`, w / 2, 40); });
   const lab = mesh(new THREE.PlaneGeometry(W * 0.7, W * 0.7 / 4), new THREE.MeshStandardMaterial({ map: label.t, roughness: 0.6 })); lab.position.set(0, H * 0.2, fz + 0.0005); g.add(lab);
   const term = mesh(new THREE.BoxGeometry(W * 0.9, H * 0.12, 0.006), Pm.dark); term.position.set(0, H * 0.07, fz); g.add(term);
-  let set = 0.6, f = 0, run = false;
+  let set = 0.6, f = 0, run = false, dir = 1;   // f ze znakiem: + przód (FWD), − wstecz (REV)
   const draw = () => {
     const c = disp.c.getContext('2d'); c.fillStyle = '#0b1a10'; c.fillRect(0, 0, 256, 96);
     c.fillStyle = run ? '#5dff8a' : '#2f8a4a'; c.font = 'bold 60px monospace'; c.textAlign = 'right'; c.textBaseline = 'middle';
-    c.fillText(f.toFixed(1), 196, 50); c.font = 'bold 26px monospace'; c.fillText('Hz', 248, 62);
-    c.font = '18px monospace'; c.textAlign = 'left'; c.fillText(run ? 'RUN' : 'STOP', 8, 20);
+    c.fillText(Math.abs(f).toFixed(1), 196, 50); c.font = 'bold 26px monospace'; c.fillText('Hz', 248, 62);
+    c.font = '18px monospace'; c.textAlign = 'left'; c.fillText(run ? 'RUN' : 'STOP', 8, 20); c.fillText(dir > 0 ? 'FWD' : 'REV', 8, 88);
     disp.t.needsUpdate = true;
   };
   const apply = () => { kn.rotation.z = -(-135 + 270 * set) * Math.PI / 180; };
   apply(); draw();
   let last = '';
   const api = {
-    get f() { return f; }, get set() { return set * fmax; }, get run() { return run; },
-    press(c) { if (c === 'run') run = true; if (c === 'stop') run = false; if (c === 'run' || c === 'stop') { const b = c === 'run' ? bRun : bStop; b.position.z = 0.002; setTimeout(() => { b.position.z = 0.0035; }, 160); } },
+    get f() { return f; }, get set() { return set * fmax; }, get run() { return run; }, get dir() { return dir; },
+    press(c) { if (c === 'run') run = true; if (c === 'stop') run = false; if (c === 'dir') dir = -dir; if (c === 'run' || c === 'stop' || c === 'dir') { const b = c === 'run' ? bRun : c === 'stop' ? bStop : bDir; b.position.z = 0.002; setTimeout(() => { b.position.z = 0.0035; }, 160); } },
     release() {}, drag(c, dy) { if (c === 'knob') { set = Math.max(0, Math.min(1, set - dy / 300)); apply(); } },
     tick(dt) {
-      const target = run ? set * fmax : 0, step = fmax / Math.max(0.1, ramp) * dt;
+      const target = run ? dir * set * fmax : 0, step = fmax / Math.max(0.1, ramp) * dt;
       f = Math.abs(target - f) <= step ? target : f + Math.sign(target - f) * step;
-      const s = f.toFixed(1) + run; if (s !== last) { last = s; draw(); }
+      const s = f.toFixed(1) + run + dir; if (s !== last) { last = s; draw(); }
     },
   };
   Object.assign(g.userData, { kW, fmax, ramp, mass: 1.4 * k * k * k, api });

@@ -346,11 +346,11 @@ export const ITEMS = [
       const g = CK.inverter(p), a = g.userData.api, f1 = (v) => v.toLocaleString('pl', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
       const live = () => {
         const nSync = 120 * a.f / p.poles, U = Math.min(400, 400 * a.f / 50);
-        return [['Stan', a.run ? 'RUN — praca' : 'STOP'], ['Zadana', `${f1(a.set)} Hz`], ['Wyjściowa', `${f1(a.f)} Hz`], ['Napięcie wyjściowe (U/f)', `${Math.round(U)} V`], ['Obroty silnika (synchroniczne)', `${Math.round(nSync)} obr/min`]];
+        return [['Stan', a.run ? 'RUN — praca' : 'STOP'], ['Kierunek', a.dir > 0 ? 'FWD — w przód' : 'REV — wstecz'], ['Zadana', `${f1(a.set)} Hz`], ['Wyjściowa', `${f1(a.f)} Hz`], ['Napięcie wyjściowe (U/f)', `${Math.round(Math.abs(U))} V`], ['Obroty silnika (synchroniczne)', `${Math.round(nSync)} obr/min`]];
       };
       return { group: g, controls: true, rest: true, view: { yaw: 0.3, pitch: 0.15 }, update() {}, tick: (dt) => a.tick(dt), api: a, live,
-        info: [['Obsługa', 'przeciągnij pokrętło; RUN / STOP — kliknij'], ['Moc', `${String(p.kW).replace('.', ',')} kW`], ['Zasilanie', '3 × 400 V, 50 Hz'], ['Rampa', `${f1(p.ramp)} s od 0 do ${p.fmax} Hz`], ['Masa', kg(g.userData.mass)], ...live()],
-        ports: [P('mains', 'Zasilanie L1 L2 L3', 'energia elektryczna'), P('motor', 'Wyjście U V W (silnik)', 'energia elektryczna'), P('ai', 'Wejście analogowe 0–10 V (potencjometr)', 'sygnał analogowy'), P('di', 'Wejścia cyfrowe: start, stop', 'sygnał cyfrowy'), P('base', 'Radiator (mocowanie)', 'mocowanie')] };
+        info: [['Obsługa', 'przeciągnij pokrętło; RUN / STOP i żółty FWD / REV (kierunek) — kliknij'], ['Moc', `${String(p.kW).replace('.', ',')} kW`], ['Zasilanie', '3 × 400 V, 50 Hz'], ['Rampa', `${f1(p.ramp)} s od 0 do ${p.fmax} Hz`], ['Masa', kg(g.userData.mass)], ...live()],
+        ports: [P('mains', 'Zasilanie L1 L2 L3', 'energia elektryczna'), P('motor', 'Wyjście U V W (silnik)', 'energia elektryczna'), P('ai', 'Wejście analogowe 0–10 V (potencjometr)', 'sygnał analogowy'), P('di', 'Wejścia cyfrowe: start, stop, kierunek', 'sygnał cyfrowy'), P('base', 'Radiator (mocowanie)', 'mocowanie')] };
     },
   },
   {

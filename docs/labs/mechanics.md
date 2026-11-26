@@ -44,6 +44,22 @@ wyliczone dane, ostrzeżenia i porty. Katalog: `js/labs/mechanics/items.js` (`IT
 Grupa **Sterowanie** obsługiwana jest na modelu: klik — dźwignia, przycisk, RUN / STOP; przeciąganie w górę / w dół —
 pokrętło (części z `userData.control`, modele w `js/models/mech/controls.js` z `api.press / release / drag / tick`).
 
+## Fizyka
+
+Trzeci tryb: ta sama maszyna liczona fizycznie (`js/behaviors/mech/physics.js`). Każda część ma własny kąt i prędkość;
+połączenia (te same co w napędzie kinematycznym) są wiązaniami XPBD na kątach (C = θb − f(θa)), rozwiązywanymi tam
+i z powrotem po drzewie połączeń, 48 podkroków na klatkę. Silnik (poślizg, moment krytyczny 18 N·m) napędza wirnik,
+hamulec (tarcie suche) — tarczę, łożyska mają opór lepki. Prędkość zadaje **regulator przy silniku** (falownik:
+pokrętło, RUN / STOP, FWD / REV, rampa 4 s): ω_syn = 4π f / p (silnik 4-biegunowy).
+
+Punkty fizyki (dochodzą po kolei):
+
+1. ✅ Luz w zazębieniu — z geometrii zębów (0,08·m), wiązanie z martwą strefą ±luz/2; zmiana kierunku przechodzi luz.
+2. Sprężystość połączeń (skręcanie wałów, gwiazda sprzęgła kłowego).
+3. Poślizg pasa, nierówny bieg łańcucha.
+4. Bryły zderzeń (na razie podgląd: pole **Hitboksy** — walce i prostopadłościany z geometrii).
+5. Obwód elektryczny.
+
 ## Maszyna
 
 Jedna maszyna na żeliwnym łożu, złożona z elementów połączonych portami:
