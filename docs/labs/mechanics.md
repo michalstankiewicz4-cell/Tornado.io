@@ -73,6 +73,19 @@ Punkty fizyki (dochodzą po kolei):
    ±luz/2: luz 20 : 40 — 0,34–0,36 mm wzdłuż przyporu, 16 : 48 i 24 : 40 — 0,25–0,26 mm (nieco więcej niż 0,08·m, bo
    flanki to łamane wpisane w ewolwentę); położenia nominalne bez przenikania. Pole **Hitboksy**: zębatki — bryły
    zębów, walec stóp i walce piast; inne części obrotowe — walce; nieruchome — prostopadłościany.
+   - Koła łańcuchowe: zarys wg ISO 606 (gniazdo r_i, kąt osadzenia 140° − 90°/z, bok r_e = 0,008·d₁·(z² + 180),
+     głowa d_a — środek tolerancji), ząb niewypukły podzielony na części wypukłe (`MechKit.convexParts`, strzyżenie
+     uszu + Hertel–Mehlhorn); rolki łańcucha — walce. Ogniwa leżą w gniazdach (`loopPath().seat`: przesunięcie ogniw
+     i faza koła 2). Kontrola na żywo: rolki w pobliżu koła a zęby (SAT) — bez przenikania.
+   - Przekładnia planetarna: zęby wewnętrzne korony (`MechKit.ringHulls`, części wypukłe); kontrola na żywo — luz
+     każdego satelity ze słonecznym i z koroną (obrót satelity do dotyku w obie strony): ok. ±0,08 mm.
+   - Zahaczenia części obrotowych o nieruchome (obudowy, łożyska, podpory, łoże, zacisk): część obrotowa zakreśla
+     bryłę obrotową (obrys promieniowy co 1 mm z krawędzi trójkątów), trójkąty części nieruchomych przecinane
+     płaszczyznami — jedna kontrola przy starcie obejmuje każdy kąt; zahaczające podświetlone na czerwono.
+   - Co kontrole znalazły i poprawiono (w generatorach): korona przekładni planetarnej obrócona o pół podziałki
+     (zęby satelitów w zębach korony), ogniwa łańcucha między gniazdami (0,63 podziałki), rolki schodzące z koła
+     wchodzące w zęby (stary zarys bez boku r_e), zacisk hamulca jako pełny klocek przez tarczę i wspornik zacisku
+     przechodzący przez tarczę (teraz zacisk okracza tarczę: dwie obudowy klocków i mostek; wspornik obok).
 5. Obwód elektryczny.
 
 ## Maszyna

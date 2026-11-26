@@ -123,7 +123,7 @@ export const ITEMS = [
       const path = MK.loopPath({ y: -D.D / 2, z: 0, r: D.R1, k: p.z1 / TAU }, { y: D.D / 2, z: 0, r: D.R2, k: p.z2 / TAU }, C.p);
       s1.userData.spin.children.forEach((c) => { c.rotation.x = path.a1; }); s2.userData.spin.children.forEach((c) => { c.rotation.x = path.a2 - path.U2 * TAU / p.z2; });
       const ch = MK.chainLoop(path, D.N, { p: C.p, d1: C.d1, type: p.type }); g.add(ch);
-      return { group: g, view: { yaw: 1.25, pitch: 0.2 }, update: (t) => { s1.userData.spin.rotation.x = t; s2.userData.spin.rotation.x = t * p.z1 / p.z2; ch.userData.update(t * p.z1 / TAU); },
+      return { group: g, view: { yaw: 1.25, pitch: 0.2 }, update: (t) => { s1.userData.spin.rotation.x = t; s2.userData.spin.rotation.x = t * p.z1 / p.z2 + path.seat.phase2; ch.userData.update(t * p.z1 / TAU); },
         info: [['Przełożenie', `i = ${p.z2}/${p.z1} = ${(p.z2 / p.z1).toLocaleString('pl', { maximumFractionDigits: 3 })}`], ['Kierunek', 'ten sam'], ['Liczba ogniw', `${D.N} (parzysta — bez ogniwa przejściowego)`], ['Odległość osi (dobrana)', mm(D.D)], ['Długość łańcucha', mm(D.N * C.p, 0)], ['Masa łańcucha', kg(ch.userData.mass)]],
         ports: [P('in', 'Wał koła czynnego (wejście)'), P('out', 'Wał koła biernego (wyjście)')] };
     },

@@ -91,6 +91,68 @@ export function toothHulls(z, m, { alpha = ALPHA, backlash = 0.04 } = {}) {
   return out;
 }
 
+// podział wielokąta prostego na wypukłe (strzyżenie uszu + scalanie Hertela–Mehlhorna) — bryły zderzeń zębów,
+// których zarys nie jest wypukły (koło łańcuchowe, zęby wewnętrzne koła koronowego); punkty [x, y]
+export function convexParts(poly) {
+  let P = poly.slice(); const area = P.reduce((a, p, i) => { const q = P[(i + 1) % P.length]; return a + p[0] * q[1] - q[0] * p[1]; }, 0);
+  if (area < 0) P.reverse();
+  const cr = (a, b, c) => (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]);
+  const inTri = (p, a, b, c) => cr(a, b, p) > 0 && cr(b, c, p) > 0 && cr(c, a, p) > 0;
+  const idx = P.map((_, i) => i), tris = [];
+  let guard = 0;
+  while (idx.length > 3 && guard++ < 10000) {
+    let cut = false;
+    for (let k = 0; k < idx.length; k++) {
+      const i0 = idx[(k + idx.length - 1) % idx.length], i1 = idx[k], i2 = idx[(k + 1) % idx.length];
+      if (cr(P[i0], P[i1], P[i2]) <= 1e-18) continue;
+      if (idx.some((j) => j !== i0 && j !== i1 && j !== i2 && inTri(P[j], P[i0], P[i1], P[i2]))) continue;
+      tris.push([i0, i1, i2]); idx.splice(k, 1); cut = true; break;
+    }
+    if (!cut) { const k = idx.findIndex((_, k) => cr(P[idx[(k + idx.length - 1) % idx.length]], P[idx[k]], P[idx[(k + 1) % idx.length]]) <= 1e-18); idx.splice(k < 0 ? 0 : k, 1); }   // punkt współliniowy
+  }
+  if (idx.length === 3) tris.push(idx.slice());
+  const parts = tris.slice(), convex = (q) => q.every((_, i) => cr(P[q[i]], P[q[(i + 1) % q.length]], P[q[(i + 2) % q.length]]) >= -1e-15);
+  for (let merged = true; merged;) {
+    merged = false;
+    outer: for (let a = 0; a < parts.length; a++) for (let b = a + 1; b < parts.length; b++) {
+      const A = parts[a], B = parts[b];
+      for (let i = 0; i < A.length; i++) {
+        const u = A[i], v = A[(i + 1) % A.length], j = B.indexOf(v);
+        if (j < 0 || B[(j + 1) % B.length] !== u) continue;   // wspólna przekątna u–v (w B przeciwnie)
+        const q = [...A.slice(0, i + 1)];
+        for (let k = (j + 2) % B.length; k !== j; k = (k + 1) % B.length) q.push(B[k]);
+        q.push(...A.slice(i + 1));
+        if (!convex(q)) continue;
+        parts[a] = q; parts.splice(b, 1); merged = true; break outer;
+      }
+    }
+  }
+  return parts.map((q) => q.map((i) => P[i]));
+}
+// koło łańcuchowe: ząb między gniazdami rolek k i k + 1 (zamknięty cięciwą przez dna gniazd), części wypukłe
+export function sprocketHulls(z, p, d1) {
+  const o = sprocketOutline(z, p, d1), n = SPROCKET_SAMPLES, out = [];
+  for (let k = 0; k < z; k++) {
+    const poly = []; for (let i = 0; i <= n; i++) { const q = o.pts[(k * n + i) % o.pts.length]; poly.push([q.x, q.y]); }
+    out.push({ parts: convexParts(poly), ang: (k + 0.5) * TAU / z });
+  }
+  return out;
+}
+// koło koronowe: ząb wewnętrzny = wrąb zarysu otworu między jego „zębami” i oraz i + 1, domknięty na zewnątrz
+// (promień głowy wrębu + 0,5·m — dalej jest wieniec); części wypukłe
+export function ringHulls(z, m) {
+  const o = involuteOutline(z, m, { add: 1.25, ded: 1, backlash: -0.04 }), n = o.pts.length, pz = TAU / z, Ro = o.ra + 0.5 * m, out = [];
+  const wrap = (a) => { a %= TAU; return a < 0 ? a + TAU : a; };
+  for (let i = 0; i < z; i++) {
+    const c = i * pz, poly = [];
+    for (let j = 0; j < 2 * n / z + 2; j++) { const q = o.pts[(i * n / z + j) % n], d = wrap(Math.atan2(q.y, q.x) - c + 1e-9) - 1e-9; if (d >= -1e-9 && d <= pz + 1e-9 && !(j > n / z && d < pz / 2)) poly.push([q.x, q.y]); }
+    const a0 = Math.atan2(poly[0][1], poly[0][0]), a1 = Math.atan2(poly[poly.length - 1][1], poly[poly.length - 1][0]);
+    poly.push([Ro * Math.cos(a1), Ro * Math.sin(a1)], [Ro * Math.cos(a0), Ro * Math.sin(a0)]);
+    out.push({ parts: convexParts(poly), ang: c + pz / 2 });
+  }
+  return out;
+}
+
 /* ---------------- zębatka ---------------- */
 export function gear({ z = 20, m = 0.004, w = 0.04, bore = 0.0125, mat = 'gear', hub = true, holes: lighten = true, alpha = 20, name } = {}) {
   const M = materials(), o = involuteOutline(z, m, { alpha: alpha * Math.PI / 180 }), shape = new THREE.Shape(o.pts);
@@ -122,23 +184,40 @@ export function ringGear({ z = 72, m = 0.002, w = 0.03, rim = 0.012, mat = 'bras
   const g = newPart(name || `Koło koronowe z = ${z}`);
   g.userData.spin.add(mesh(extrude(shape, w, 0.0005, 96), M[mat]));
   const mass = (RHO[mat] || STEEL_RHO) * Math.PI * (R * R - o.rp * o.rp) * w;
-  Object.assign(g.userData, { z, m, rp: o.rp, R, w, mass, J: 0.5 * mass * (R * R + o.rp * o.rp) });
+  Object.assign(g.userData, { z, m, rp: o.rp, R, ra: o.ra, rf: o.rf, w, internal: true, mass, J: 0.5 * mass * (R * R + o.rp * o.rp) });
   return g;
 }
 
 /* ---------------- koło łańcuchowe ---------------- */
 // zarys z gniazdami rolek: promień gniazda 0,505·d₁ + 0,069 mm, głowa zęba do ok. D/2 + 0,3·d₁ (ISO 606)
+// zarys wg ISO 606 (z łuków, na każdą podziałkę): gniazdo rolki — łuk r_i = 0,505·d₁ + 0,069 mm wokół punktu
+// podziałowego, kąt osadzenia α = 140° − 90°/z (ISO: min.); bok zęba — łuk r_e = 0,008·d₁·(z² + 180) styczny do
+// gniazda (środek na prostej przez koniec gniazda i punkt podziałowy — bok się „otwiera”, rolka schodzi z koła);
+// głowa po kole d_a (środek tolerancji ISO). Punkty równo po łukach — cięciwy wchodzą w gniazdo o setne części mm.
+export const SPROCKET_SEAT = 6, SPROCKET_FLANK = 6, SPROCKET_TIP = 3, SPROCKET_SAMPLES = 2 * SPROCKET_SEAT + 2 * SPROCKET_FLANK + SPROCKET_TIP + 1;
+export function sprocketOutline(z, p, d1) {
+  const R = p / (2 * Math.sin(Math.PI / z)), rs = 0.505 * d1 + 0.000069, re = 0.008 * d1 * (z * z + 180);   // wzór ISO liniowy w d₁ — jednostki dowolne
+  const da = 2 * R + 0.5 * ((1.25 * p - d1) + (p * (1 - 1.6 / z) - d1)), ra = da / 2, pz = TAU / z, alpha = (140 - 90 / z) * Math.PI / 180;
+  // połowa zęba k od strony gniazda k (kąt rośnie): gniazdo od dna, bok do koła głów (albo do osi zęba)
+  const ux = 1, uy = 0, C = [R, 0], seat = (b) => [C[0] - rs * Math.cos(b), C[1] + rs * Math.sin(b)];
+  const E = seat(alpha / 2), F = [E[0] + (C[0] - E[0]) * re / rs, E[1] + (C[1] - E[1]) * re / rs];
+  const rot = (g) => { const c = Math.cos(g), s_ = Math.sin(g), x = E[0] - F[0], y = E[1] - F[1]; return [F[0] + x * c - y * s_, F[1] + x * s_ + y * c]; };
+  const sg = Math.hypot(...rot(1e-4).map((v, i) => v - seat(alpha / 2 + 1e-4 * re / rs)[i])) < Math.hypot(...rot(-1e-4).map((v, i) => v - seat(alpha / 2 + 1e-4 * re / rs)[i])) ? 1 : -1;
+  const ok = (g) => { const q = rot(sg * g); return Math.hypot(q[0], q[1]) < ra && Math.atan2(q[1], q[0]) < pz / 2; };
+  let lo = 0, hi = 1; while (ok(hi)) hi *= 2;
+  for (let i = 0; i < 60; i++) { const m = (lo + hi) / 2; if (ok(m)) lo = m; else hi = m; }
+  const half = [];
+  for (let i = 0; i <= SPROCKET_SEAT; i++) half.push(seat(alpha / 2 * i / SPROCKET_SEAT));
+  for (let i = 1; i <= SPROCKET_FLANK; i++) half.push(rot(sg * lo * i / SPROCKET_FLANK));
+  const aT = Math.atan2(half[half.length - 1][1], half[half.length - 1][0]), rT = Math.hypot(...half[half.length - 1]);
+  const tip = []; for (let i = 1; i <= SPROCKET_TIP; i++) { const a = aT + (pz - 2 * aT) * i / (SPROCKET_TIP + 1); tip.push([rT * Math.cos(a), rT * Math.sin(a)]); }
+  const mirror = ([x, y]) => { const c = Math.cos(pz), s_ = Math.sin(pz); return [x * c + y * s_, x * s_ - y * c]; };   // odbicie względem osi zęba (kąt pz/2)
+  const block = [...half, ...tip, ...half.slice(1).reverse().map(mirror)], pts = [];
+  for (let k = 0; k < z; k++) { const c = Math.cos(k * pz), s_ = Math.sin(k * pz); for (const [x, y] of block) pts.push(new THREE.Vector2(x * c - y * s_, x * s_ + y * c)); }
+  return { pts, R, rs, ra: rT, re, alpha };
+}
 export function sprocket({ z = 18, p = 0.0127, d1 = 0.00792, w = 0.0072, bore = 0.0125, mat = 'dark', name } = {}) {
-  const M = materials(), R = p / (2 * Math.sin(Math.PI / z)), rs = 0.505 * d1 + 0.000069, ra = R + 0.3 * d1, n = z * 28, pts = [];
-  for (let i = 0; i < n; i++) {
-    const a = i * TAU / n, ux = Math.cos(a), uy = Math.sin(a);
-    let r = ra;
-    for (let k = 0; k < z; k++) {   // przecięcie promienia z kołem gniazda — wchodzi w gniazdo
-      const cx = R * Math.cos(k * TAU / z), cy = R * Math.sin(k * TAU / z), b = ux * cx + uy * cy, c = cx * cx + cy * cy - rs * rs, disc = b * b - c;
-      if (disc > 0 && b > 0) { const s1 = b - Math.sqrt(disc); if (s1 < r) r = s1; }
-    }
-    pts.push(new THREE.Vector2(r * ux, r * uy));
-  }
+  const M = materials(), { pts, R, rs } = sprocketOutline(z, p, d1);
   bore = Math.min(bore, (R - rs - 0.002) / 1.35);   // otwór z wpustem pod gniazdami rolek
   const shape = new THREE.Shape(pts); shape.holes.push(boreHole(bore));
   const g = newPart(name || `Koło łańcuchowe z = ${z}`);
@@ -146,7 +225,7 @@ export function sprocket({ z = 18, p = 0.0127, d1 = 0.00792, w = 0.0072, bore = 
   const hubR = Math.max(bore * 1.45, Math.min(R - rs - 0.002, bore * 2.2)), hs = new THREE.Shape(); hs.absarc(0, 0, hubR, 0, TAU, false); hs.holes.push(boreHole(bore));
   const hub = mesh(extrude(hs, 0.023, 0.0008), M[mat]); hub.position.x = -(w + 0.021) / 2; g.userData.spin.add(hub);   // zachodzi 1 mm w tarczę
   const mass = STEEL_RHO * Math.PI * R * R * w + STEEL_RHO * Math.PI * hubR * hubR * 0.022;
-  Object.assign(g.userData, { z, p, R, w, mass, J: 0.5 * mass * R * R * 0.8 });
+  Object.assign(g.userData, { z, p, d1, R, rs, w, sprocket: true, mass, J: 0.5 * mass * R * R * 0.8 });
   return g;
 }
 
@@ -205,7 +284,10 @@ export function loopPath(c1, c2, unit) {
       return { y: s.p0[0] + ty * f, z: s.p0[1] + tz * f, ty: ty / l, tz: tz / l };
     }
   }
-  return { L, at, a1: a1s, a2: a2s, U2: segs[2].u0 };
+  // osadzenie ogniw w gniazdach (k = z / 2π, unit = podziałka): przesunięcie u, przy którym ogniwo 0 leży w gnieździe 0
+  // koła 1 (θ = 0), i faza koła 2 (θ₂ = θ₁·z₁/z₂ + phase2), przy której jego gniazda trafiają w ogniwa
+  const seatU = (((-a1s * c1.k) % 1) + 1) % 1, p2 = 1 / c2.k, phase2 = ((((a2s + (seatU - segs[2].u0) / c2.k) % p2) + p2) % p2);
+  return { L, at, a1: a1s, a2: a2s, U2: segs[2].u0, seat: { u: seatU, phase2 } };
 }
 // odległość osi dobrana tak, by łańcuch miał całkowitą, parzystą liczbę ogniw (kierunek dir od koła 1)
 export function chainDistance(z1, z2, p, approx) {
@@ -236,7 +318,7 @@ export function chainLoop(path, N, { p = 0.0127, d1 = 0.00792, x = 0, type = '08
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), pos = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), basis = new THREE.Matrix4();
   const OFF_IN = 0.0047 * k, OFF_OUT = 0.0067 * k;   // odsunięcie płytek od środka (połowa szerokości wewnętrznej + płytka)
   function update(u0) {
-    const P = []; for (let k = 0; k <= N; k++) P.push(path.at(u0 + k));
+    const s0 = path.seat ? path.seat.u : 0, P = []; for (let k = 0; k <= N; k++) P.push(path.at(u0 + s0 + k));
     for (let k = 0; k < N; k++) {
       const a = P[k], b = P[k + 1], ty = b.y - a.y, tz = b.z - a.z, l = Math.hypot(ty, tz) || 1;
       // układ płytki: lokalne y świata = kierunek ogniwa, z = normalna drogi, x = grubość
@@ -250,7 +332,9 @@ export function chainLoop(path, N, { p = 0.0127, d1 = 0.00792, x = 0, type = '08
   }
   update(0);
   const mass = N * 0.0094 * k * k;   // 08A: ok. 0,7 kg/m (masa rośnie z kwadratem podziałki)
-  g.userData = { N, p, mass, update };
+  // środki rolek w układzie łańcucha (x, y, z) dla fazy u0 — do brył zderzeń rolek z zębami kół
+  const rollers = (u0) => { const out = []; for (let k = 0; k < N; k++) { const a = path.at(u0 + (path.seat ? path.seat.u : 0) + k); out.push([x, a.y, a.z]); } return out; };
+  g.userData = { N, p, d1, mass, update, rollers };
   return g;
 }
 
@@ -461,7 +545,7 @@ export function planetary({ zs = 24, zp = 24, n = 3, m = 0.002, w = 0.02, mat = 
   g.add(carrier);
   const assembly = (zs + zr) / n, clearance = (zs + zp) * Math.sin(Math.PI / n) - (zp + 2);
   const p0 = Math.PI + Math.PI / zp, off = p0 - Math.round(p0 / (TAU / zp)) * (TAU / zp);   // faza korony pod satelitą 0
-  ring.userData.spin.rotation.x = off * zp / zr + Math.PI / zr;
+  ring.userData.spin.rotation.x = off * zp / zr;   // wrąb korony (ząb zarysu otworu) naprzeciw zęba satelity najbliższego punktowi styku
   function update(ts) {
     const tc = ts * zs / (zs + zr), rel = ts - tc;
     g.userData.spin.rotation.x = ts; carrier.rotation.x = tc;
@@ -481,10 +565,13 @@ export function discBrake({ d = 0.2, t = 0.008, vents = 12 } = {}) {
   const hub = new THREE.Shape(); hub.absarc(0, 0, R * 0.32, 0, TAU, false); hub.holes.push(boreHole(0.0125));
   g.userData.spin.add(mesh(extrude(ds, t, 0.0005, 64), M.steel));
   const h = mesh(extrude(hub, 0.03, 0.001), M.dark); h.position.x = -0.019; g.userData.spin.add(h);
-  const cal = mesh(box(0.05, 0.05, 0.07), M.paintRed); cal.position.set(0, R - 0.015, 0); g.add(cal);
+  // zacisk pływający okracza tarczę: dwie obudowy klocków po bokach (luz 1 mm do tarczy) i mostek nad krawędzią (2 mm)
+  const gap = 0.001, ht = 0.018, cx = t / 2 + gap + ht / 2;
+  for (const sx of [-1, 1]) { const c = mesh(box(ht, 0.05, 0.07), M.paintRed); c.position.set(sx * cx, R - 0.015, 0); g.add(c); }
+  const bridge = mesh(box(2 * (cx + ht / 2), 0.012, 0.07), M.paintRed); bridge.position.set(0, R + 0.002 + 0.006, 0); g.add(bridge);
   const mass = STEEL_RHO * Math.PI * R * R * t * 0.9 + STEEL_RHO * Math.PI * (R * 0.32) ** 2 * 0.03;
   Object.assign(g.userData, { d, t, vents, mass, J: 0.5 * mass * R * R * 0.85 });
   return g;
 }
 
-export const MechKit = { materials, gear, ringGear, sprocket, pulley, loopPath, chainDistance, chainLoop, beltLoop, shaft, pillowBlock, jawCoupling, flangeCoupling, yoke, cross, motor, housing, tubeHousing, involuteOutline, toothHulls, planetary, discBrake };
+export const MechKit = { materials, gear, ringGear, sprocket, pulley, loopPath, chainDistance, chainLoop, beltLoop, shaft, pillowBlock, jawCoupling, flangeCoupling, yoke, cross, motor, housing, tubeHousing, involuteOutline, toothHulls, convexParts, sprocketOutline, sprocketHulls, ringHulls, planetary, discBrake };

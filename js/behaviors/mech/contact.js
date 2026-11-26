@@ -9,9 +9,10 @@
 //   const z = meshZone({ hullsA, hullsB, za, zb, map, rel, samples })
 //   z.zone(θa, out) → out.lo, out.hi (C = θb − rel(θa) w [lo, hi] — zęby się nie dotykają)
 //   z.hit(θa, θb) → czy bryły zębów się przenikają;  z.pen — ile próbek nominalnych już się przenikało (0 = dobrze)
+//   const c = contactPair({ hullsA, hullsB, za, zb, map }) — samo zderzenie i odstęp (gap) dla par bez wiązania
+//   (satelity przekładni planetarnej ze słonecznym i koroną)
 
 const TAU = Math.PI * 2;
-const wrap = (a) => a - TAU * Math.round(a / TAU);
 
 // macierz płaszczyzny: punkt (u, v) koła b (lokalne y, z części wirującej przy θ = 0) → (y, z) w układzie koła a
 export function planeMap(spinA, spinB) {
@@ -33,50 +34,63 @@ function separated(P, np, Q, nq) {   // oś rozdzielająca wśród normalnych kr
 }
 const overlap = (P, np, Q, nq) => !separated(P, np, Q, nq) && !separated(Q, nq, P, np);
 
-export function meshZone({ hullsA, hullsB, za, zb, map, rel, samples = 48 }) {
-  const { a00, a01, a10, a11, tx, ty } = map, det = a00 * a11 - a01 * a10;
-  // kierunek do drugiej osi: od a w układzie a, od b w układzie b (odwrotność części liniowej)
-  const psiA = Math.atan2(ty, tx), psiB = Math.atan2((-a10 * -tx + a00 * -ty) / det, (a11 * -tx - a01 * -ty) / det);
-  const flat = (h) => Float64Array.from(h.flat()), HA = hullsA.map(flat), HB = hullsB.map(flat);
-  const rA = Math.max(...hullsA.flat().map((p) => Math.hypot(p[0], p[1]))), rB = Math.max(...hullsB.flat().map((p) => Math.hypot(p[0], p[1])));
-  const near = 2;   // zęby w pobliżu linii środków: ±2 podziałki z każdej strony
-  const bufA = HA.map((h) => new Float64Array(h.length)), bufB = HB.map((h) => new Float64Array(h.length));
-  const pickA = [], pickB = [];
-  function place(ta, tb) {
-    pickA.length = 0; pickB.length = 0;
-    const ca = Math.cos(ta), sa = Math.sin(ta), cb = Math.cos(tb), sb = Math.sin(tb);
-    for (let i = 0; i < za; i++) {
-      if (Math.abs(wrap(i * TAU / za + ta - psiA)) > (near + 0.5) * TAU / za) continue;
-      const s = HA[i], d = bufA[i];
-      for (let k = 0; k < s.length; k += 2) { d[k] = s[k] * ca - s[k + 1] * sa; d[k + 1] = s[k] * sa + s[k + 1] * ca; }
-      pickA.push(d);
-    }
-    for (let j = 0; j < zb; j++) {
-      if (Math.abs(wrap(j * TAU / zb + tb - psiB)) > (near + 0.5) * TAU / zb) continue;
-      const s = HB[j], d = bufB[j];
-      for (let k = 0; k < s.length; k += 2) { const u = s[k] * cb - s[k + 1] * sb, v = s[k] * sb + s[k + 1] * cb; d[k] = a00 * u + a01 * v + tx; d[k + 1] = a10 * u + a11 * v + ty; }
-      pickB.push(d);
-    }
-  }
+// para kół (zęby jako części wypukłe): hit(θa, θb) — czy bryły się przenikają; gap(θa, θb0, ±1) — o ile można
+// obrócić koło b od θb0 w danym kierunku do pierwszego dotyku (rad). Zęby: wielokąt [[x, y]…] (wypukły, środek
+// i·2π/z) albo { parts: [wielokąty wypukłe], ang }. Wybór par: zęby a blisko osi b, zęby b, których okrąg
+// opisany zachodzi na okrąg zęba a — działa i dla zazębienia zewnętrznego, i wewnętrznego (koło koronowe).
+function teeth(h, z) {
+  return h.map((t, i) => {
+    const parts = (Array.isArray(t) ? [t] : t.parts).map((q) => Float64Array.from(q.flat())), all = parts.flatMap((q) => Array.from(q));
+    let cx = 0, cy = 0; for (let k = 0; k < all.length; k += 2) { cx += all[k]; cy += all[k + 1]; } cx /= all.length / 2; cy /= all.length / 2;
+    let r = 0, ro = 0; for (let k = 0; k < all.length; k += 2) { r = Math.max(r, Math.hypot(all[k] - cx, all[k + 1] - cy)); ro = Math.max(ro, Math.hypot(all[k], all[k + 1])); }
+    return { parts, buf: parts.map((q) => new Float64Array(q.length)), cx, cy, r, ro, wx: 0, wy: 0, placed: false };
+  });
+}
+export function contactPair({ hullsA, hullsB, za, zb, map }) {
+  const { a00, a01, a10, a11, tx, ty } = map;
+  const TA = teeth(hullsA, za), TB = teeth(hullsB, zb), roB = Math.max(...TB.map((t) => t.ro)), rtA = Math.max(...TA.map((t) => t.r));
+  const pickA = [];
   function hit(ta, tb) {
-    place(ta, tb);
-    for (const P of pickA) for (const Q of pickB) if (overlap(P, P.length, Q, Q.length)) return true;
+    const ca = Math.cos(ta), sa = Math.sin(ta), cb = Math.cos(tb), sb = Math.sin(tb);
+    pickA.length = 0;
+    for (const t of TA) {
+      t.wx = t.cx * ca - t.cy * sa; t.wy = t.cx * sa + t.cy * ca;
+      if (Math.hypot(t.wx - tx, t.wy - ty) > roB + t.r) continue;
+      t.parts.forEach((q, n) => { const d = t.buf[n]; for (let k = 0; k < q.length; k += 2) { d[k] = q[k] * ca - q[k + 1] * sa; d[k + 1] = q[k] * sa + q[k + 1] * ca; } });
+      pickA.push(t);
+    }
+    if (!pickA.length) return false;
+    for (const t of TB) {
+      const u = t.cx * cb - t.cy * sb, v = t.cx * sb + t.cy * cb; t.wx = a00 * u + a01 * v + tx; t.wy = a10 * u + a11 * v + ty; t.placed = false;
+      for (const s of pickA) {
+        if (Math.hypot(s.wx - t.wx, s.wy - t.wy) > s.r + t.r) continue;
+        if (!t.placed) { t.parts.forEach((q, n) => { const d = t.buf[n]; for (let k = 0; k < q.length; k += 2) { const x = q[k] * cb - q[k + 1] * sb, y = q[k] * sb + q[k + 1] * cb; d[k] = a00 * x + a01 * y + tx; d[k + 1] = a10 * x + a11 * y + ty; } }); t.placed = true; }
+        for (const P of s.buf) for (const Q of t.buf) if (overlap(P, P.length, Q, Q.length)) return true;
+      }
+    }
     return false;
   }
-  // strefa swobody z brył: od położenia nominalnego krok po kroku w przód / w tył, potem połowienie przedziału
-  const period = TAU / za, pitchB = TAU / zb, lo = new Float64Array(samples), hi = new Float64Array(samples);
-  let pen = 0;
-  const edge = (ta, tb0, s) => {
+  const pitchB = TAU / zb;
+  function gap(ta, tb0, s) {   // krok po kroku, potem połowienie przedziału do ~10⁻⁸ rad
     const step = pitchB / 64; let a = 0, b = 0;
     for (let d = step; d <= pitchB; d += step) { if (hit(ta, tb0 + s * d)) { b = d; break; } a = d; }
-    if (!b) return s * pitchB;   // nie dotknął w całej podziałce (koła rozsunięte)
+    if (!b) return s * pitchB;   // nie dotknął w całej podziałce
     for (let k = 0; k < 26; k++) { const m = (a + b) / 2; if (hit(ta, tb0 + s * m)) b = m; else a = m; }
     return s * a;
-  };
+  }
+  return { hit, gap, parts: TA.reduce((n, t) => n + t.parts.length, 0) + TB.reduce((n, t) => n + t.parts.length, 0), rtA };
+}
+
+export function meshZone({ hullsA, hullsB, za, zb, map, rel, samples = 48 }) {
+  const pair = contactPair({ hullsA, hullsB, za, zb, map }), { hit, gap } = pair;
+  const { tx, ty } = map;
+  // strefa swobody z brył: od położenia nominalnego w przód / w tył do dotyku zębów
+  const period = TAU / za, lo = new Float64Array(samples), hi = new Float64Array(samples);
+  let pen = 0;
   for (let k = 0; k < samples; k++) {
     const ta = k * period / samples, tb0 = rel(ta, 0);
     if (hit(ta, tb0)) { pen++; lo[k] = hi[k] = 0; continue; }
-    hi[k] = edge(ta, tb0, 1); lo[k] = edge(ta, tb0, -1);
+    hi[k] = gap(ta, tb0, 1); lo[k] = gap(ta, tb0, -1);
   }
   const stat = (arr) => ({ min: Math.min(...arr), max: Math.max(...arr) });
   const width = Array.from(hi, (h, k) => h - lo[k]);
@@ -86,5 +100,5 @@ export function meshZone({ hullsA, hullsB, za, zb, map, rel, samples = 48 }) {
     out.lo = lo[i] + (lo[j] - lo[i]) * u; out.hi = hi[i] + (hi[j] - hi[i]) * u;
     return out;
   }
-  return { zone, hit, lo, hi, pen, samples, width: { ...stat(width), mean: width.reduce((a, b) => a + b, 0) / samples }, hi0: stat(hi), lo0: stat(lo), center: Math.hypot(tx, ty), rA, rB };
+  return { zone, hit, lo, hi, pen, samples, parts: pair.parts, width: { ...stat(width), mean: width.reduce((a, b) => a + b, 0) / samples }, hi0: stat(hi), lo0: stat(lo), center: Math.hypot(tx, ty) };
 }

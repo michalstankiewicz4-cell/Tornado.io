@@ -10,7 +10,7 @@ import { createStage, WEATHER } from '../../core/stage.js';
 import * as MK from '../../models/mech/mechkit.js';
 import { createDrive, KIND_NAME } from '../../behaviors/mech/drive.js';
 import { createPhysics } from '../../behaviors/mech/physics.js';
-import { meshZone, planeMap } from '../../behaviors/mech/contact.js';
+import { meshZone, planeMap, contactPair } from '../../behaviors/mech/contact.js';
 import * as CK from '../../models/mech/controls.js';
 import { ITEMS } from './items.js';
 import { loadState, valid } from '../shared/saved.js';
@@ -165,14 +165,11 @@ const eCar = element('car', 'Przekładnia planetarna (jarzmo)', 'planetary', car
 const eS10 = shaftEl('s10', XP + 0.048, 3.48, Y0, ZP, 'Wał wyjściowy');
 block(2.62, Y0, ZP); block(3.22, Y0, ZP);
 // hamulec tarczowy i tarcza z podziałką
-const disc = new THREE.Group(); disc.userData.spin = new THREE.Group(); disc.add(disc.userData.spin); disc.position.set(2.92, Y0, ZP); root.add(disc);
-{
-  const ds = new THREE.Shape(); ds.absarc(0, 0, 0.1, 0, TAU, false); ds.holes.push(new THREE.Path().absarc(0, 0, 0.0125, 0, TAU, true));
-  for (let k = 0; k < 12; k++) ds.holes.push(new THREE.Path().absarc(0.072 * Math.cos(k * TAU / 12), 0.072 * Math.sin(k * TAU / 12), 0.006, 0, TAU, true));
-  const dg = new THREE.ExtrudeGeometry(ds, { depth: 0.008, bevelEnabled: false, curveSegments: 48 }); dg.translate(0, 0, -0.004).applyMatrix4(new THREE.Matrix4().set(0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1));
-  const dm = new THREE.Mesh(dg, M.steel); dm.castShadow = dm.receiveShadow = true; disc.userData.spin.add(dm);
-  const cal = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.07), M.paintRed); cal.position.set(2.92, Y0 + 0.085, ZP); cal.castShadow = true; root.add(cal);
-  const brk = new THREE.Mesh(new THREE.BoxGeometry(0.03, Y0 + 0.06 - BED_TOP, 0.03), M.dark); brk.position.set(2.92, BED_TOP + (Y0 + 0.06 - BED_TOP) / 2, ZP + 0.07); brk.castShadow = true; root.add(brk);
+const disc = MK.discBrake({ d: 0.2, t: 0.008, vents: 12 }); disc.position.set(2.92, Y0, ZP); root.add(disc);
+{ // wspornik zacisku z łoża: słupek obok tarczy (od strony +x, poza jej grubością i promieniem wału) i ramię pod obudowę klocka
+  const px = 2.92 + 0.03, top = Y0 + 0.06;
+  const brk = new THREE.Mesh(new THREE.BoxGeometry(0.03, top - BED_TOP, 0.03), M.dark); brk.position.set(px, BED_TOP + (top - BED_TOP) / 2, ZP + 0.07); brk.castShadow = true; root.add(brk);
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.012, 0.065), M.dark); arm.position.set(px, top - 0.006, ZP + 0.0525); arm.castShadow = true; root.add(arm);
 }
 const eDisc = element('disc', 'Hamulec tarczowy', 'brake', disc, { J: 0.5 * 2.4 * 0.01,
   props: [['Tarcza', 'Ø 200 × 8 mm, stal, otwory wentylacyjne'], ['Zacisk', 'jednotłoczkowy, pływający'], ['Moment hamowania', 'z suwaka „Hamulec”'], ['Masa', '2,4 kg']], ports: [P('shaft', 'Wał (obciążenie)', 'obciążenie')] });
@@ -198,7 +195,8 @@ C('motor', 'out', 'jaw', 'a', 'coupling'); C('jaw', 'b', 's1', 'a', 'coupling');
 C('s1', 'b', 'g1', 'bore', 'shaft'); C('g1', 'mesh', 'g2', 'mesh', 'mesh', { za: 20, zb: 40 }); C('g2', 'bore', 's2', 'a', 'shaft');
 C('s2', 'b', 'g3', 'bore', 'shaft'); C('g3', 'mesh', 'g4', 'mesh', 'mesh', { za: 16, zb: 48 }); C('g4', 'bore', 's3', 'a', 'shaft');
 C('s3', 'b', 'g5', 'bore', 'shaft'); C('g5', 'mesh', 'g6', 'mesh', 'mesh', { za: 24, zb: 40 }); C('g6', 'bore', 's4', 'a', 'shaft');
-C('s4', 'b', 'c1', 'bore', 'shaft'); C('c1', 'chain', 'c2', 'chain', 'chain', { za: 18, zb: 27 }); C('c2', 'bore', 's5', 'a', 'shaft');
+// łańcuch: faza koła 2 z drogi łańcucha (gniazda pod rolkami)
+C('s4', 'b', 'c1', 'bore', 'shaft'); C('c1', 'chain', 'c2', 'chain', 'chain', { za: 18, zb: 27, phase: chainPath.seat.phase2 }); C('c2', 'bore', 's5', 'a', 'shaft');
 C('s5', 'b', 'pu1', 'bore', 'shaft'); C('pu1', 'belt', 'pu2', 'belt', 'belt', { za: 0.16, zb: 0.08 }); C('pu2', 'bore', 's6', 'a', 'shaft');
 C('s6', 'b', 'fl', 'a', 'coupling'); C('fl', 'b', 's7', 'a', 'coupling');
 C('s7', 'b', 's8', 'a', 'ujoint', { pinA: Y.clone(), pinB: new THREE.Vector3(0, 0, 1).applyQuaternion(Q8) });
@@ -212,7 +210,7 @@ if (solved.unreached.length) console.warn('Elementy bez połączenia', solved.un
 {
   const p0 = Math.PI + Math.PI / ZPL;   // kąt satelity 0 w układzie jarzma przy kątach 0 (wzór zazębienia ze słonecznym, ψ = 0)
   const off = p0 - Math.round(p0 / (TAU / ZPL)) * (TAU / ZPL);
-  ring.userData.spin.rotation.x = off * ZPL / ZR + Math.PI / ZR;
+  ring.userData.spin.rotation.x = off * ZPL / ZR;   // wrąb korony naprzeciw zęba satelity (bez dodatkowej pół podziałki — wykryte bryłami zderzeń)
 }
 
 /* ---------------- obrazowanie kątów ---------------- */
@@ -340,7 +338,7 @@ function moveKeys(dt) {
 const reg = (() => { const g = CK.inverter({ kW: 1.1, fmax: 50, ramp: 4 }); g.position.set(-6.3, BED_TOP, 0.4); scene.add(g); g.visible = false; return { group: g, api: g.userData.api }; })();
 // punkt 4 — bryły zderzeń zębów (wielokąty wypukłe z zarysu, ten sam co model) i strefa swobody zazębienia z nich:
 // luz i jego zmienność wzdłuż przyporu wychodzą ze zderzeń zębów, nie ze wzoru (oba koła cieńsze o 0,04·m → ok. 0,08·m)
-const isGear = (u) => u && u.z && u.m && u.rf && u.rb;
+const isGear = (u) => u && u.z && u.m && u.rf && u.rb && !u.internal;
 const ZONES = new Map();
 function BACKLASH(e) {
   if (e.type !== 'mesh') return 0;
@@ -400,6 +398,13 @@ function physStats() {
     const zone = Z ? `z brył zębów ${mm(c.hi - c.lo)} mm (wzdłuż przyporu ${mm(Z.z.width.min)}–${mm(Z.z.width.max)})` : `${fmt(0.08 * gb.m * 1000, 2)} mm`;
     rows.push([`Luz ${ga.z} : ${gb.z}`, `${zone} · ${c.contact > 0 ? 'przylega flanką przednią' : c.contact < 0 ? 'przylega flanką tylną' : 'w luzie — zęby się nie dotykają'}`]);
   }
+  // bryły zderzeń bez wiązania (co 0,5 s): satelity, rolki łańcucha; zahaczenia części obrotowych (raz, przy starcie)
+  const now = performance.now();
+  if (!LIVE || now - LIVE.t > 500) LIVE = { t: now, ...liveChecks() };
+  const mmS = (x) => fmt(Math.abs(x) * 1000, 3);
+  LIVE.planets.forEach((p, k) => rows.push([`Satelita ${k + 1} — zęby`, ['sun', 'ring'].map((key) => `${key === 'sun' ? 'ze słonecznym' : 'z koroną'} ${p[key].pen ? 'PRZENIKANIE' : `luz −${mmS(p[key].lo)} / +${mmS(p[key].hi)} mm`}`).join(' · ')]));
+  for (const r of LIVE.rollers) rows.push([`Rolki łańcucha — ${r.name}`, `${r.near} rolek na kole · ${r.pen ? `PRZENIKANIE ${r.pen} rolek` : 'bez przenikania (zarys ISO 606: gniazdo, bok r_e, głowa)'}`]);
+  rows.push(['Zahaczenia o obudowy i łożyska', CLASHES.length ? CLASHES.map((c) => `${c.part} × ${c.fixed} ${mmS(c.depth)} mm`).join('; ') : `brak (sprawdzone ${parts.filter((e) => e.spin).length} części obrotowych, dla każdego kąta)`]);
   $('bDrive').replaceChildren(...rows.flatMap(([x, y]) => [el('span', { textContent: x }), el('b', { textContent: y })]));
   $('bList').replaceChildren(...parts.flatMap((e) => { const sp = el('span', { textContent: e.name }); sp.onclick = () => select(e); return [sp, el('b', { textContent: `${dirOf(e.omega)} ${fmt(Math.abs(rpmOf(e.omega)), 1)} obr/min · ${fmt(e.T, 1)} N·m` })]; }));
   if (sel) showSel();
@@ -409,55 +414,184 @@ function physStats() {
 // walec stóp i walce piast; inna część obrotowa — walec wzdłuż osi (obraca się z częścią); część nieruchoma —
 // prostopadłościan; siatki druciane rysowane przez wszystko
 const hitG = new THREE.Group(); scene.add(hitG); hitG.visible = false;
-const HM = { spin: new THREE.LineBasicMaterial({ color: 0x4ad2ff, transparent: true, opacity: 0.85, depthTest: false }), fixed: new THREE.LineBasicMaterial({ color: 0xffc14a, transparent: true, opacity: 0.7, depthTest: false }) };
+const HM = { clash: new THREE.LineBasicMaterial({ color: 0xff4a4a, transparent: true, opacity: 0.95, depthTest: false }), spin: new THREE.LineBasicMaterial({ color: 0x4ad2ff, transparent: true, opacity: 0.85, depthTest: false }), fixed: new THREE.LineBasicMaterial({ color: 0xffc14a, transparent: true, opacity: 0.7, depthTest: false }) };
 let hitItems = null;
 // wierzchołki siatek poddrzewa w układzie części wirującej `sp` (bez poddrzew innych zębatek — mają własne bryły)
 function eachVert(sp, fn, skipGears) {
   const inv = new THREE.Matrix4().copy(sp.matrixWorld).invert(), v = new THREE.Vector3(), gears = [];
   const walk = (o) => {
-    if (skipGears && o !== sp && isGear(o.userData) && o.userData.spin) { gears.push(o); return; }
+    if (skipGears && o !== sp && isToothed(o.userData) && o.userData.spin) { gears.push(o); return; }
     if (o.isMesh && !o.isInstancedMesh && o.geometry.attributes.position) { const pa = o.geometry.attributes.position; for (let i = 0; i < pa.count; i += 3) fn(v.fromBufferAttribute(pa, i).applyMatrix4(o.matrixWorld).applyMatrix4(inv)); }
     for (const c of o.children) walk(c);
   };
   walk(sp); return gears;
 }
 function cylLines(r, x0, x1) { const c = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.CylinderGeometry(r, r, x1 - x0, 20, 1).rotateZ(-Math.PI / 2), 1), HM.spin); c.position.x = (x0 + x1) / 2; c.renderOrder = 20; return c; }
-function gearHit(g) {   // bryły zębów (obie ściany + krawędzie stopa / głowa), walec stóp, walce piast poza wieńcem
+// bryły zębów części z zębami: zębatka, koło łańcuchowe (ząb podzielony na części wypukłe), koło koronowe (zęby
+// wewnętrzne); każda część wypukła — obie ściany i krawędzie przy skrajnych punktach zęba
+const isToothed = (u) => isGear(u) || (u && u.sprocket) || (u && u.internal);
+function hullsOf(u) {
+  if (u.sprocket) return MK.sprocketHulls(u.z, u.p, u.d1);
+  if (u.internal) return MK.ringHulls(u.z, u.m);
+  return MK.toothHulls(u.z, u.m, { alpha: u.alpha });
+}
+function gearHit(g) {
   const u = g.userData, sp = u.spin, h = u.w / 2, pts = [], holder = new THREE.Group();
-  for (const t of MK.toothHulls(u.z, u.m, { alpha: u.alpha })) {
-    for (const x of [-h, h]) for (let i = 0; i < t.length; i++) { const a = t[i], b = t[(i + 1) % t.length]; pts.push(x, a[0], a[1], x, b[0], b[1]); }
-    for (const k of [0, t.length >> 1, t.length - 1]) pts.push(-h, t[k][0], t[k][1], h, t[k][0], t[k][1]);
+  for (const t of hullsOf(u)) {
+    const parts = Array.isArray(t) ? [t] : t.parts, all = parts.flat();
+    for (const q of parts) for (const x of [-h, h]) for (let i = 0; i < q.length; i++) { const a = q[i], b = q[(i + 1) % q.length]; pts.push(x, a[0], a[1], x, b[0], b[1]); }
+    const ang = (p) => Math.atan2(p[1], p[0]), c = ang(all.reduce((a, p) => [a[0] + p[0], a[1] + p[1]], [0, 0])), d = (p) => Math.atan2(Math.sin(ang(p) - c), Math.cos(ang(p) - c));
+    const ext = [all.reduce((a, p) => (d(p) < d(a) ? p : a)), all.reduce((a, p) => (d(p) > d(a) ? p : a)), all.reduce((a, p) => (Math.hypot(...p) > Math.hypot(...a) ? p : a))];
+    for (const p of ext) pts.push(-h, p[0], p[1], h, p[0], p[1]);
+    hitStat.parts += parts.length;
   }
   const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-  const teeth = new THREE.LineSegments(lg, HM.spin); teeth.renderOrder = 20; holder.add(teeth, cylLines(u.rf, -h, h));
+  const teeth = new THREE.LineSegments(lg, HM.spin); teeth.renderOrder = 20; holder.add(teeth);
+  if (u.internal) holder.add(cylLines(u.ra + 0.5 * u.m, -h, h), cylLines(u.R, -h, h));   // wieniec korony
+  else holder.add(cylLines(u.sprocket ? u.R - u.rs : u.rf, -h, h));   // walec pod zębami
   sp.updateWorldMatrix(true, true);
   const side = { [-1]: { r: 0, x: 0 }, [1]: { r: 0, x: 0 } };
   eachVert(sp, (v) => { if (Math.abs(v.x) <= h + 1e-4) return; const s = side[Math.sign(v.x)]; s.r = Math.max(s.r, Math.hypot(v.y, v.z)); s.x = Math.max(s.x, Math.abs(v.x)); }, true);
   for (const sg of [-1, 1]) if (side[sg].r > 0) holder.add(cylLines(side[sg].r, sg < 0 ? -side[sg].x : h, sg < 0 ? -h : side[sg].x));
-  hitG.add(holder); hitItems.push({ holder, src: sp }); hitStat.teeth += u.z;
+  hitG.add(holder); hitItems.push({ holder, src: sp }); hitStat.teeth += u.z; hitStat.gears++;
 }
-const hitStat = { teeth: 0, gears: 0 };
+const hitStat = { teeth: 0, gears: 0, parts: 0 };
+// rolki łańcucha — walce (Ø d₁, szerokość wewnętrzna), położenia z fazy łańcucha, odświeżane z obrazem
+let rollHit = null;
+function chainHit() {
+  const N = chain.userData.N, r = chain.userData.d1 / 2, seg = 12, hw = 0.0039, pos = new Float32Array(N * seg * 3 * 2 * 2);
+  const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const lines = new THREE.LineSegments(lg, HM.spin); lines.renderOrder = 20; lines.frustumCulled = false; lines.matrixAutoUpdate = false;
+  hitG.add(lines);
+  rollHit = () => {
+    chain.updateWorldMatrix(true, false); lines.matrix.copy(chain.matrixWorld);
+    let k = 0; const put = (x, y, z) => { pos[k++] = x; pos[k++] = y; pos[k++] = z; };
+    for (const [x, y, z] of chain.userData.rollers(chainPhase())) for (const sx of [-hw, hw]) for (let i = 0; i < seg; i++) {
+      const a = i * TAU / seg, b = (i + 1) * TAU / seg; put(x + sx, y + r * Math.cos(a), z + r * Math.sin(a)); put(x + sx, y + r * Math.cos(b), z + r * Math.sin(b));
+    }
+    lg.attributes.position.needsUpdate = true;
+  };
+  rollHit();
+}
+
+/* ---------------- punkt 4 — kontrole brył zderzeń (statyczne i na żywo) ---------------- */
+const chainPhase = () => eC1.theta * 18 / TAU;
+// zderzenia par bez wiązania: satelity ze słonecznym i z koroną (położenia z modelu), rolki łańcucha z zębami kół
+const HULL = { sun: hullsOf(eSun.group.userData), ring: hullsOf(ring.userData), pl: hullsOf(planets[0].userData) }, PL_RP = planets[0].userData.rp;
+const ROLLER_POLY = (() => { const r = chain.userData.d1 / 2, q = []; for (let i = 0; i < 24; i++) q.push([r * Math.cos(i * TAU / 24), r * Math.sin(i * TAU / 24)]); return q; })();
+const SPROCKETS = parts.filter((e) => e.group.userData.sprocket).map((e) => ({ e, hulls: hullsOf(e.group.userData), u: e.group.userData }));
+function liveChecks() {
+  const out = { planets: [], rollers: [] };
+  // satelity: odstęp w obie strony od położenia z modelu (obrót satelity do dotyku), przenikanie
+  for (const pl of planets) {
+    const tp = pl.userData.spin.rotation.x, res = {};
+    for (const [key, A, ta] of [['sun', eSun.spin, eSun.spin.rotation.x], ['ring', ring.userData.spin, ring.userData.spin.rotation.x]]) {
+      const pair = contactPair({ hullsA: HULL[key], hullsB: HULL.pl, za: key === 'sun' ? ZS : ZR, zb: ZPL, map: planeMap(A, pl.userData.spin) });
+      const pen = pair.hit(ta, tp);
+      res[key] = pen ? { pen } : { pen, lo: pair.gap(ta, tp, -1) * PL_RP, hi: pair.gap(ta, tp, 1) * PL_RP };
+    }
+    out.planets.push(res);
+  }
+  // rolki łańcucha: wielokąt rolki w płaszczyźnie koła łańcuchowego, z częściami wypukłymi zębów (SAT)
+  chain.updateWorldMatrix(true, false);
+  const R = chain.userData.rollers(chainPhase()), v = new THREE.Vector3(), inv = new THREE.Matrix4();
+  for (const S of SPROCKETS) {
+    const sp = S.e.spin; sp.updateWorldMatrix(true, false); inv.copy(sp.matrixWorld).invert();
+    let near = 0, pen = 0;
+    for (const [x, y, z] of R) {
+      v.set(x, y, z).applyMatrix4(chain.matrixWorld).applyMatrix4(inv);
+      if (Math.hypot(v.y, v.z) > S.u.R + S.u.d1) continue;
+      near++;
+      const pair = contactPair({ hullsA: S.hulls, hullsB: [ROLLER_POLY], za: S.u.z, zb: 1, map: { a00: 1, a01: 0, a10: 0, a11: 1, tx: v.y, ty: v.z } });
+      if (pair.hit(0, 0)) pen++;
+    }
+    out.rollers.push({ name: S.e.name, near, pen });
+  }
+  return out;
+}
+// części obrotowe a nieruchome (obudowy, łożyska, podpory, łoże): część obrotowa zakreśla bryłę obrotową — jej obrys
+// promieniowy po osi (co 1 mm, z krawędzi trójkątów) nie zależy od kąta, więc kontrola raz wystarcza dla każdego
+// położenia. Trójkąt części nieruchomej przecięty płaszczyzną x = środek przedziału daje odcinek; jego odległość od osi
+// mniejsza niż obrys o więcej niż 0,05 mm = zahaczenie. Pomijane: łańcuch i pas (cięgna — kontrola rolek), koło
+// koronowe (zęby — kontrola satelitów), krzyżaki przegubów (ruchome).
+const CLASH = new Map(), CLASH_TOL = 0.00005;
+let LIVE = null;
+function interference() {
+  const isPart = (o) => { for (let p = o; p; p = p.parent) if (p.userData && p.userData.el) return true; return false; };
+  const fixed = [];
+  for (const o of root.children) if (!isPart(o) && !o.isLight && o.visible && o !== chain && o !== belt && o !== ring && o !== cross1 && o !== cross2) fixed.push({ o, name: o.name || 'podpora' });
+  for (const e of parts) for (const c of e.group.children) if (c !== e.spin) fixed.push({ o: c, name: `${e.name} — część stała` });
+  root.updateWorldMatrix(true, true);
+  const res = [], inv = new THREE.Matrix4(), A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3(), q = [A, B, C];
+  for (const e of parts) {
+    const sp = e.spin; if (!sp) continue;
+    inv.copy(sp.matrixWorld).invert();
+    // obrys promieniowy części (z krawędzi trójkątów, liniowo po x)
+    let x0 = Infinity, x1 = -Infinity;
+    const tris = [];
+    sp.traverse((o) => { if (!o.isMesh || o.isInstancedMesh) return; const g = o.geometry, pa = g.attributes.position, ix = g.index, n = ix ? ix.count : pa.count;
+      const m = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld);
+      for (let i = 0; i < n; i += 3) { const t = []; for (let k = 0; k < 3; k++) { const v = new THREE.Vector3().fromBufferAttribute(pa, ix ? ix.getX(i + k) : i + k).applyMatrix4(m); t.push(v); x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); } tris.push(t); } });
+    if (!(x1 > x0)) continue;
+    const BIN = 0.001, nb = Math.ceil((x1 - x0) / BIN) + 1, env = new Float64Array(nb);
+    for (const t of tris) for (let k = 0; k < 3; k++) {
+      const a = t[k], b = t[(k + 1) % 3], ra = Math.hypot(a.y, a.z), rb = Math.hypot(b.y, b.z);
+      const i0 = Math.round((Math.min(a.x, b.x) - x0) / BIN), i1 = Math.round((Math.max(a.x, b.x) - x0) / BIN);
+      for (let i = i0; i <= i1; i++) { const u = b.x === a.x ? 0 : Math.min(1, Math.max(0, (x0 + i * BIN - a.x) / (b.x - a.x))); env[i] = Math.max(env[i], ra + (rb - ra) * u); }
+    }
+    const rmax = Math.max(...env);
+    for (const f of fixed) {
+      let depth = 0;
+      f.o.traverse((o) => { if (!o.isMesh || o.isInstancedMesh) return; const g = o.geometry, pa = g.attributes.position, ix = g.index, n = ix ? ix.count : pa.count;
+        const m = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld);
+        for (let i = 0; i < n; i += 3) {
+          for (let k = 0; k < 3; k++) q[k].fromBufferAttribute(pa, ix ? ix.getX(i + k) : i + k).applyMatrix4(m);
+          const tx0 = Math.min(A.x, B.x, C.x), tx1 = Math.max(A.x, B.x, C.x);
+          if (tx1 < x0 || tx0 > x1) continue;
+          if (Math.min(A.y, B.y, C.y) > rmax || Math.max(A.y, B.y, C.y) < -rmax || Math.min(A.z, B.z, C.z) > rmax || Math.max(A.z, B.z, C.z) < -rmax) continue;
+          const i0 = Math.max(0, Math.ceil((tx0 - x0) / BIN)), i1 = Math.min(nb - 1, Math.floor((tx1 - x0) / BIN));
+          for (let bi = i0; bi <= i1; bi++) {
+            if (!env[bi]) continue;
+            const X = x0 + bi * BIN, P = [];
+            for (let k = 0; k < 3; k++) { const a = q[k], b = q[(k + 1) % 3]; if ((a.x - X) * (b.x - X) <= 0 && a.x !== b.x) { const u = (X - a.x) / (b.x - a.x); P.push([a.y + (b.y - a.y) * u, a.z + (b.z - a.z) * u]); } }
+            if (P.length < 2) continue;
+            // odległość osi (początek układu) od odcinka P0–P1
+            const [p0, p1] = P, dy = p1[0] - p0[0], dz = p1[1] - p0[1], L = dy * dy + dz * dz, u = L ? Math.max(0, Math.min(1, -(p0[0] * dy + p0[1] * dz) / L)) : 0;
+            const d = Math.hypot(p0[0] + dy * u, p0[1] + dz * u), pen = env[bi] - d;
+            if (pen > depth) depth = pen;
+          }
+        } });
+      if (depth > CLASH_TOL) { res.push({ part: e.name, fixed: f.name, depth }); CLASH.set(f.o, Math.max(CLASH.get(f.o) || 0, depth)); }
+    }
+  }
+  return res;
+}
+const t0Clash = performance.now(), CLASHES = interference();
+console.info(`Kontrola zahaczeń: ${CLASHES.length ? CLASHES.map((c) => `${c.part} × ${c.fixed} ${(c.depth * 1000).toFixed(2)} mm`).join('; ') : 'brak'} (${Math.round(performance.now() - t0Clash)} ms)`);
+
 function buildHit() {
   hitItems = [];
   for (const e of parts) {   // walec: zasięg wzdłuż osi (x lokalne) i największy promień w płaszczyźnie (y, z) części wirującej
-    if (isGear(e.group.userData) && e.spin) { gearHit(e.group); hitStat.gears++; continue; }
+    if (isToothed(e.group.userData) && e.spin) { gearHit(e.group); continue; }
     const sp = e.spin || e.group; sp.updateWorldMatrix(true, true);
     let x0 = Infinity, x1 = -Infinity, r = 0;
     const gears = eachVert(sp, (v) => { x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); r = Math.max(r, Math.hypot(v.y, v.z)); }, true);
-    for (const g of gears) { gearHit(g); hitStat.gears++; }
+    for (const g of gears) gearHit(g);
     if (!(x1 > x0)) continue;
     const holder = new THREE.Group(); holder.add(cylLines(r, x0, x1)); hitG.add(holder); hitItems.push({ holder, src: sp });
   }
   const isPart = (o) => { for (let p = o; p; p = p.parent) if (p.userData && p.userData.el) return true; return false; };
   for (const o of root.children) {   // nieruchome: łożyska, obudowy, silnik (korpus), podpory, łoże
     if (isPart(o) || o.isLight || !o.visible) continue;
+    if (isToothed(o.userData) && o.userData.spin) { gearHit(o); continue; }   // koło koronowe — bryły zębów wewnętrznych
+    if (o === chain) { chainHit(); continue; }
     const bb = new THREE.Box3().setFromObject(o); if (bb.isEmpty()) continue;
-    const bx = new THREE.Box3Helper(bb, 0xffc14a); bx.material = HM.fixed; bx.renderOrder = 20; hitG.add(bx);
+    const bx = new THREE.Box3Helper(bb, 0xffc14a); bx.material = CLASH.has(o) ? HM.clash : HM.fixed; bx.renderOrder = 20; hitG.add(bx);
   }
   { const bb = new THREE.Box3().setFromObject(motorG.children.find((c) => c !== motorG.userData.spin) || motorG); const bx = new THREE.Box3Helper(bb, 0xffc14a); bx.material = HM.fixed; hitG.add(bx); }
   { const bb = new THREE.Box3().setFromObject(reg.group); const bx = new THREE.Box3Helper(bb, 0xffc14a); bx.material = HM.fixed; bx.userData.reg = true; hitG.add(bx); }
 }
-function syncHit() { for (const h of hitItems) { h.src.updateWorldMatrix(true, false); h.holder.matrixAutoUpdate = false; h.holder.matrix.copy(h.src.matrixWorld); } for (const c of hitG.children) if (c.userData.reg) c.visible = S.mode === 'physics'; }
+function syncHit() { if (rollHit) rollHit(); for (const h of hitItems) { h.src.updateWorldMatrix(true, false); h.holder.matrixAutoUpdate = false; h.holder.matrix.copy(h.src.matrixWorld); } for (const c of hitG.children) if (c.userData.reg) c.visible = S.mode === 'physics'; }
 function setHit(on) { S.hit = on; save(); if (on && !hitItems) buildHit(); hitG.visible = on && S.mode !== 'items'; }
 $('hit').checked = S.hit; $('hit').onchange = () => setHit($('hit').checked);
 

@@ -1,5 +1,22 @@
 # Zmiany
 
+## 0.25.4 — 2026-11-26
+- Laboratorium mechaniki 0.9.0 — punkt 4, uzupełnienie brył zderzeń:
+  - **Koła łańcuchowe**: zarys wg ISO 606 (gniazdo, kąt osadzenia, bok r_e, głowa d_a) z łuków, bryły zębów — części
+    wypukłe (`MechKit.convexParts`: strzyżenie uszu + Hertel–Mehlhorn); rolki łańcucha jako walce; kontrola rolek
+    z zębami na żywo.
+  - **Koło koronowe**: bryły zębów wewnętrznych (`MechKit.ringHulls`); luz każdego satelity ze słonecznym i z koroną
+    na żywo (ok. ±0,08 mm).
+  - **Zahaczenia o obudowy i łożyska**: obrys obrotowy każdej części obrotowej a trójkąty części nieruchomych — raz
+    przy starcie, ważne dla każdego kąta; zahaczające części podświetlone na czerwono w hitboksach.
+  - `contact.js`: `contactPair` (zderzenie i odstęp dowolnych kół z części wypukłych, zazębienie zewnętrzne
+    i wewnętrzne).
+- Poprawki w generatorach (znalezione przez kontrole): korona przekładni planetarnej przesunięta o pół podziałki
+  (zęby satelitów wchodziły w zęby korony) — MechKit.planetary i laboratorium; ogniwa łańcucha w gniazdach
+  (`loopPath().seat`: przesunięcie ogniw, faza koła 2 — także w podglądzie przedmiotu); koło łańcuchowe wg ISO 606
+  (rolki schodzące z koła wchodziły w zęby); hamulec tarczowy — zacisk okracza tarczę (dwie obudowy klocków, mostek
+  nad krawędzią), laboratorium używa `MechKit.discBrake`, wspornik zacisku obok tarczy (przechodził przez nią).
+
 ## 0.25.3 — 2026-11-26
 - Laboratorium mechaniki 0.8.0 — tryb Fizyka, punkt 4: **bryły zderzeń zębów**.
   - Ząb zębatki = wielokąt wypukły z zarysu modelu (`MechKit.toothHulls`), zderzenie zębów — osie rozdzielające (SAT)
