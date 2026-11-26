@@ -1,5 +1,16 @@
 # Zmiany
 
+## 0.25.1 — 2026-11-26
+- Laboratorium mechaniki 0.6.0 — tryb Fizyka, punkt 2: **sprężystość połączeń**. Sztywności skrętne z wymiarów
+  i materiałów: wał G·J_p/L (stal 80 GPa), gwiazda sprzęgła kłowego wg twardości (92 Sh A 1300, 98 Sh A 2300,
+  64 Sh D 4500 N·m/rad), zazębienie ≈ 20 N/(mm·µm) × szerokość × r_b², łańcuch 08A i pas SPA — EA/L × r²; tłumienie
+  ζ (stal 2 %, poliuretan 7 %, guma 8 %). Połączenia miękkie (< 10⁵ N·m/rad) to sprężyny skrętne liczone jawnie
+  (96 podkroków na klatkę), bardzo sztywne — wiązania. Okno Opis: skręcenie, moment i sztywność każdego sprężystego
+  połączenia na żywo (np. przy hamulcu 20 N·m: wał wyjściowy 0,40°, pas 1,8°, gwiazda 0,03°). W trybie Przedmioty:
+  sztywność skrętna wału i sprzęgła kłowego.
+- Uwaga: sprężystość jako podatność XPBD nie zbiegała się w kilku iteracjach wzdłuż długiego łańcucha połączeń
+  (połączenia 10–50 razy miększe niż k) — stąd sprężyny jawne dla połączeń miękkich.
+
 ## 0.25.0 — 2026-11-26
 - Laboratorium mechaniki 0.5.0: trzeci tryb **Fizyka** — ta sama maszyna liczona fizycznie (`js/behaviors/mech/physics.js`):
   każda część ma własny kąt i prędkość, połączenia z napędu (te same porty) są wiązaniami XPBD na kątach; silnik daje

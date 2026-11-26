@@ -174,7 +174,8 @@ export const ITEMS = [
     ],
     build(p) {
       const g = MK.shaft({ len: p.len, r: p.d / 2, mat: p.mat, key: p.key }); g.position.x = -p.len / 2; const h = new THREE.Group(); h.add(g); const u = g.userData;
-      return { group: h, update: spinAll(g), info: [['Masa', kg(u.mass)], ['Bezwładność', kgcm2(u.J)], ['Materiał', matName(p.mat)], ['Smukłość l/d', Math.round(p.len / p.d).toString()]],
+      const kt = (p.mat === 'alu' ? 26e9 : p.mat === 'brass' ? 37e9 : p.mat === 'iron' ? 45e9 : 80e9) * Math.PI * p.d ** 4 / 32 / p.len;   // G·J_p / L
+      return { group: h, update: spinAll(g), info: [['Masa', kg(u.mass)], ['Bezwładność', kgcm2(u.J)], ['Materiał', matName(p.mat)], ['Sztywność skrętna', `${Math.round(kt).toLocaleString('pl')} N·m/rad (${(kt * Math.PI / 180).toLocaleString('pl', { maximumFractionDigits: 1 })} N·m na 1°)`], ['Smukłość l/d', Math.round(p.len / p.d).toString()]],
         ports: [P('a', 'Koniec A'), P('b', 'Koniec B'), P('mid', 'Osadzenie (koła, sprzęgła, łożyska)')] };
     },
   },
@@ -200,7 +201,7 @@ export const ITEMS = [
       const r = p.r / 2, c = MK.jawCoupling({ r, bore: Math.min(0.0125, r * 0.4), spider: p.spider }), g = new THREE.Group(), spin = new THREE.Group(); g.add(spin); spin.add(c.a, c.spider, c.b);
       const sa = shaftBit(0.12, Math.min(0.0125, r * 0.4)), sb = shaftBit(0.12, Math.min(0.0125, r * 0.4)); sa.position.x = -0.12 - 0.04; sb.position.x = 0.04; g.add(sa, sb);
       return { group: g, update: (t) => { spin.rotation.x = t; sa.userData.spin.rotation.x = t; sb.userData.spin.rotation.x = t; },
-        info: [['Rodzaj', 'podatne, kłowe (3 kły na piaście)'], ['Gwiazda', MK.SPIDER[p.spider].name], ['Kompensuje', 'niewspółosiowość, tłumi drgania'], ['Masa', kg(c.mass)]],
+        info: [['Rodzaj', 'podatne, kłowe (3 kły na piaście)'], ['Gwiazda', MK.SPIDER[p.spider].name], ['Sztywność skrętna (wielkość 19)', `${{ '92A': 1300, '98A': 2300, '64D': 4500 }[p.spider].toLocaleString('pl')} N·m/rad`], ['Tłumienie', p.spider === '64D' ? 'małe (twarda)' : 'duże (miękka)'], ['Kompensuje', 'niewspółosiowość, tłumi drgania'], ['Masa', kg(c.mass)]],
         ports: [P('a', 'Piasta A'), P('b', 'Piasta B')] };
     },
   },

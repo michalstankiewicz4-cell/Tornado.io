@@ -55,7 +55,9 @@ pokrętło, RUN / STOP, FWD / REV, rampa 4 s): ω_syn = 4π f / p (silnik 4-bieg
 Punkty fizyki (dochodzą po kolei):
 
 1. ✅ Luz w zazębieniu — z geometrii zębów (0,08·m), wiązanie z martwą strefą ±luz/2; zmiana kierunku przechodzi luz.
-2. Sprężystość połączeń (skręcanie wałów, gwiazda sprzęgła kłowego).
+2. ✅ Sprężystość połączeń — sztywności skrętne z wymiarów i materiałów (wał G·J_p/L, gwiazda wg twardości, zazębienie,
+   łańcuch, pas), tłumienie ζ; miękkie (< 10⁵ N·m/rad) — sprężyny jawne, bardzo sztywne — wiązania. Skręcenie i moment
+   każdego sprężystego połączenia w oknie Opis.
 3. Poślizg pasa, nierówny bieg łańcucha.
 4. Bryły zderzeń (na razie podgląd: pole **Hitboksy** — walce i prostopadłościany z geometrii).
 5. Obwód elektryczny.

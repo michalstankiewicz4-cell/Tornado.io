@@ -339,11 +339,30 @@ function moveKeys(dt) {
 const reg = (() => { const g = CK.inverter({ kW: 1.1, fmax: 50, ramp: 4 }); g.position.set(-6.3, BED_TOP, 0.4); scene.add(g); g.visible = false; return { group: g, api: g.userData.api }; })();
 // luz w zazębieniu z geometrii zębów: oba koła cieńsze o 0,04·m → luz obwodowy 0,08·m na kole podziałowym koła b
 const BACKLASH = (e) => (e.type === 'mesh' && e.b.group && e.b.group.userData.rp ? 0.08 * e.b.group.userData.m / e.b.group.userData.rp : 0);
-const phys = createPhysics(drive, { motorId: 'motor', brakeId: 'disc', backlash: BACKLASH });
+// punkt 2 — sztywności skrętne połączeń (N·m/rad kąta koła b) i tłumienie ζ:
+//   wał: G·J_p / L (stal G = 80 GPa, J_p = π d⁴ / 32); gwiazda sprzęgła kłowego — wg twardości (katalog, wielkość 19);
+//   zazębienie: sztywność zęba c ≈ 20 N/(mm·µm) × szerokość, sprowadzona na koło zasadnicze (k = c·b·r_b²);
+//   łańcuch i pas: sztywność cięgna EA / L (łańcuch 08A ≈ 2 MN, pas SPA ≈ 40 kN na pas) × r²
+const G_STEEL = 80e9, SPIDER_K = { '92A': 1300, '98A': 2300, '64D': 4500 };
+function STIFF(e) {
+  const ua = e.a.group && e.a.group.userData, ub = e.b.group && e.b.group.userData;
+  if (e.type === 'shaft' && e.a.type === 'shaft' && ua.len) { const d = ua.r * 2; return { k: G_STEEL * Math.PI * d ** 4 / 32 / ua.len, zeta: 0.02, name: `${e.a.name} (Ø ${Math.round(d * 1000)}, ${Math.round(ua.len * 1000)} mm)` }; }
+  if (e.type === 'coupling' && e.a.id === 'jaw') return { k: SPIDER_K['92A'], zeta: 0.07, name: 'Gwiazda sprzęgła kłowego 92 Sh A' };
+  if (e.type === 'coupling') return { k: 1.5e5, zeta: 0.02, name: e.a.name };
+  if (e.type === 'mesh') { const b = Math.min(ua.w, ub.w), rb = ub.rp * Math.cos(20 * Math.PI / 180); return { k: 2e10 * b * rb * rb, zeta: 0.05, name: `Zazębienie ${ua.z} : ${ub.z}` }; }
+  if (e.type === 'chain') return { k: 2e6 / CH.D * CH.R2 * CH.R2, zeta: 0.03, name: 'Łańcuch 08A' };
+  if (e.type === 'belt') return { k: 4e4 / Math.hypot(YS5 - Y0, 0) * 0.04 * 0.04, zeta: 0.08, name: 'Pas klinowy SPA' };
+  if (e.type === 'ujoint') return { k: 2e5, zeta: 0.02, name: 'Przegub Cardana' };
+  if (e.type === 'planetary') return { k: 3e5, zeta: 0.03, name: 'Przekładnia planetarna' };
+  return null;   // wpust (koło na wale) — sztywno
+}
+const phys = createPhysics(drive, { motorId: 'motor', brakeId: 'disc', backlash: BACKLASH, stiffness: STIFF });
 function physStats() {
   const st = phys.state, f1 = (v) => fmt(v, 1), a = reg.api;
   const rows = [['Regulator', `${a.run ? 'RUN' : 'STOP'} · ${a.dir > 0 ? 'FWD' : 'REV'} · ${f1(Math.abs(a.f))} Hz (zadana ${f1(a.set)} Hz)`], ['Silnik', `${dirOf(st.omega)} ${fmt(Math.abs(rpmOf(st.omega)))} obr/min (synchr. ${fmt(Math.abs(30 * a.f))})`], ['Moment silnika', `${f1(st.Tm)} N·m`],
     ['Wyjście', `${dirOf(eDisc.omega)} ${f1(Math.abs(rpmOf(eDisc.omega)))} obr/min`], ['Moment hamulca', `${f1(Math.abs(st.Tb))} N·m`]];
+  // sprężyste połączenia: skręcenie (poza luzem) i moment — miękkie na liście (sztywność poniżej 10⁵ N·m/rad)
+  for (const c of phys.edges) if (c.k < 1e5) rows.push([`Sprężystość: ${c.name}`, `${fmt(c.twist * 180 / Math.PI, 3)}° · ${fmt(Math.abs(c.T), 2)} N·m · k = ${fmt(c.k)} N·m/rad`]);
   for (const c of phys.edges) if (c.dead) {
     const ga = c.e.a.group.userData, gb = c.e.b.group.userData;
     rows.push([`Luz ${ga.z} : ${gb.z}`, `${fmt(0.08 * gb.m * 1000, 2)} mm · ${c.contact > 0 ? 'przylega flanką przednią' : c.contact < 0 ? 'przylega flanką tylną' : 'w luzie — zęby się nie dotykają'}`]);
