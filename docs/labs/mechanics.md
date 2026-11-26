@@ -65,7 +65,14 @@ Punkty fizyki (dochodzą po kolei):
    połączeń (zazębienie walcowe 98 %, łańcuch 97 %, pas 96 %, planetarna 97 %, przegub zależnie od kąta, łożyska) —
    moment silnika rośnie o straty, okno Opis pokazuje straty w W i sprawność całkowitą. Hamulec — wiązanie tarcia
    ograniczone momentem (przy 100 N·m pas się ślizga, wyjście stoi, silnik się kręci).
-4. Bryły zderzeń (na razie podgląd: pole **Hitboksy** — walce i prostopadłościany z geometrii).
+4. ✅ Bryły zderzeń. Ząb zębatki to wielokąt wypukły — zarys ewolwentowy od stopy do głowy zamknięty cięciwą na
+   kole stóp (`MechKit.toothHulls`, ten sam zarys co model); zderzenie zębów dwóch kół — osie rozdzielające (SAT)
+   w płaszczyźnie obrotu (`js/behaviors/mech/contact.js`). Z brył, nie ze wzoru, wychodzi strefa swobody zazębienia:
+   dla kąta koła a — o ile koło b może się obrócić w przód i w tył, zanim ząb dotknie zęba (tabela 48 faz na
+   podziałkę, liczona raz przy starcie, ok. 0,1 s na zazębienie). Wiązanie zazębienia ma te granice zamiast stałego
+   ±luz/2: luz 20 : 40 — 0,34–0,36 mm wzdłuż przyporu, 16 : 48 i 24 : 40 — 0,25–0,26 mm (nieco więcej niż 0,08·m, bo
+   flanki to łamane wpisane w ewolwentę); położenia nominalne bez przenikania. Pole **Hitboksy**: zębatki — bryły
+   zębów, walec stóp i walce piast; inne części obrotowe — walce; nieruchome — prostopadłościany.
 5. Obwód elektryczny.
 
 ## Maszyna

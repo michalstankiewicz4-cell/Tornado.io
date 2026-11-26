@@ -83,6 +83,14 @@ export function involuteOutline(z, m, { add = 1, ded = 1.25, steps = 7, backlash
   return { pts, rp, ra, rf, rb };
 }
 
+// bryły zderzeń zębów: każdy ząb to wielokąt wypukły — zarys od stopy do głowy, zamknięty cięciwą na kole stóp
+// (ten sam zarys co model, więc bryła = ząb); punkty [x, y] w płaszczyźnie koła (lokalne y, z części wirującej)
+export function toothHulls(z, m, { alpha = ALPHA, backlash = 0.04 } = {}) {
+  const o = involuteOutline(z, m, { alpha, backlash }), n = o.pts.length / z, out = [];
+  for (let i = 0; i < z; i++) out.push(o.pts.slice(i * n + 1, (i + 1) * n).map((p) => [p.x, p.y]));
+  return out;
+}
+
 /* ---------------- zębatka ---------------- */
 export function gear({ z = 20, m = 0.004, w = 0.04, bore = 0.0125, mat = 'gear', hub = true, holes: lighten = true, alpha = 20, name } = {}) {
   const M = materials(), o = involuteOutline(z, m, { alpha: alpha * Math.PI / 180 }), shape = new THREE.Shape(o.pts);
@@ -103,7 +111,7 @@ export function gear({ z = 20, m = 0.004, w = 0.04, bore = 0.0125, mat = 'gear',
     for (const s of [-1, 1]) { const h = mesh(extrude(hg, hubLen + 0.001, 0.0008), M[mat]); h.position.x = s * (w + hubLen - 0.001) / 2; g.userData.spin.add(h); }   // piasta zachodzi 0,5 mm w tarczę — bez wspólnej płaszczyzny
   }
   const area = Math.PI * (o.rp * o.rp - bore * bore), rho = RHO[mat] || STEEL_RHO, mass = rho * area * w * (holes ? 0.78 : 1);
-  Object.assign(g.userData, { z, m, rp: o.rp, ra: o.ra, rf: o.rf, rb: o.rb, w, mass, J: 0.5 * mass * (o.rp * o.rp * 0.9 + bore * bore), material: mat, hubLen, holes });
+  Object.assign(g.userData, { z, m, alpha: alpha * Math.PI / 180, rp: o.rp, ra: o.ra, rf: o.rf, rb: o.rb, w, mass, J: 0.5 * mass * (o.rp * o.rp * 0.9 + bore * bore), material: mat, hubLen, holes });
   return g;
 }
 // koło koronowe: otwór o zarysie „wrębów” (głowa korony = stopa zęba koła zewnętrznego)
@@ -479,4 +487,4 @@ export function discBrake({ d = 0.2, t = 0.008, vents = 12 } = {}) {
   return g;
 }
 
-export const MechKit = { materials, gear, ringGear, sprocket, pulley, loopPath, chainDistance, chainLoop, beltLoop, shaft, pillowBlock, jawCoupling, flangeCoupling, yoke, cross, motor, housing, tubeHousing, involuteOutline, planetary, discBrake };
+export const MechKit = { materials, gear, ringGear, sprocket, pulley, loopPath, chainDistance, chainLoop, beltLoop, shaft, pillowBlock, jawCoupling, flangeCoupling, yoke, cross, motor, housing, tubeHousing, involuteOutline, toothHulls, planetary, discBrake };

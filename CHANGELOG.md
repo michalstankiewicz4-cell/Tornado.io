@@ -1,5 +1,15 @@
 # Zmiany
 
+## 0.25.3 — 2026-11-26
+- Laboratorium mechaniki 0.8.0 — tryb Fizyka, punkt 4: **bryły zderzeń zębów**.
+  - Ząb zębatki = wielokąt wypukły z zarysu modelu (`MechKit.toothHulls`), zderzenie zębów — osie rozdzielające (SAT)
+    w płaszczyźnie obrotu (`js/behaviors/mech/contact.js`).
+  - Strefa swobody zazębienia wychodzi ze zderzeń zębów (tabela po fazie koła, 48 próbek na podziałkę): wiązanie
+    zazębienia ma granice zależne od kąta zamiast stałego ±luz/2. Luz z brył: 20 : 40 — 0,34–0,36 mm, 16 : 48 i 24 : 40
+    — 0,25–0,26 mm; położenia nominalne bez przenikania (gdyby było — ostrzeżenie w konsoli i luz ze wzoru).
+  - Hitboksy zębatek: bryły zębów, walec stóp i walce piast (także koło słoneczne i satelity przekładni planetarnej).
+  - Okno Opis: luz każdego zazębienia z brył (teraz i zakres wzdłuż przyporu); Wydajność: liczba brył zębów.
+
 ## 0.25.2 — 2026-11-26
 - Laboratorium mechaniki 0.7.0 — tryb Fizyka, punkt 3: **poślizg pasa, nierówny bieg łańcucha, straty tarcia**.
   - Pas SPA: moment graniczny z Eulera–Eytelweina (napięcie wstępne 2 × 300 N, μ 0,3 w rowku 36°, opasanie 169° →

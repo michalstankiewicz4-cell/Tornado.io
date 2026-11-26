@@ -15,7 +15,9 @@
 //      moment tarcia (1 − η)·|moment| hamuje koło b; pas: moment graniczny (Euler–Eytelwein), pełzanie sprężyste
 //      (do ok. 1,5 % przy pełnym obciążeniu) i poślizg całkowity powyżej granicy; łańcuch: efekt wielokąta
 //      (nierówny bieg — relacja kątów z modify()).
-//   (dalej: bryły zderzeń, obwód elektryczny)
+//   4. bryły zderzeń zębów — backlash(edge) może zwrócić strefę z brył ({ zone(θa, out) → out.lo, out.hi }, contact.js):
+//      granice wiązania zazębienia zależą wtedy od kąta koła a (zmienność luzu wzdłuż przyporu), a nie są stałym ±luz/2.
+//   (dalej: obwód elektryczny)
 //   const ph = createPhysics(drive, { motorId, brakeId, backlash: (edge) => luz kątowy koła b (rad) | 0,
 //                                     stiffness: (edge) => ({ k, zeta, name }) | null (sztywno),
 //                                     modify: (edge) => nowa relacja kątów (ta, tb) => θb | null,
@@ -32,7 +34,12 @@ export function createPhysics(drive, { motorId, brakeId, backlash = () => 0, sti
   const idx = new Map(nodes.map((n, i) => [n, i]));
   const N = nodes.length, th = new Float64Array(N), om = new Float64Array(N), prev = new Float64Array(N), w = new Float64Array(N);
   nodes.forEach((n, i) => { th[i] = n.theta; om[i] = n.omega || 0; w[i] = 1 / Math.max(n.J || 0, 1e-6); });
-  const E = order.map((e) => { const r = modify(e); return { e: r ? { ...e, rel: r, base: e } : e, a: idx.get(e.a), b: idx.get(e.b), dead: Math.max(0, backlash(e) || 0) / 2, lam: 0, T: 0, Tl: 0, C: 0, contact: 0, twist: 0, eta: e.eta ?? 1, belt: belt(e), slip: 0, slipping: false, creepRate: 0, ...elastic(e) }; });
+  const E = order.map((e) => { const r = modify(e); return { e: r ? { ...e, rel: r, base: e } : e, a: idx.get(e.a), b: idx.get(e.b), ...zoneOf(backlash(e)), lam: 0, T: 0, Tl: 0, C: 0, contact: 0, twist: 0, eta: e.eta ?? 1, belt: belt(e), slip: 0, slipping: false, creepRate: 0, ...elastic(e) }; });
+  // strefa swobody połączenia: liczba — symetryczna ±luz/2; obiekt z zone() — granice z brył zderzeń (zależne od θa)
+  function zoneOf(b) {
+    if (b && typeof b.zone === 'function') { const z = b.zone(0, {}); return { zone: b.zone, lo: z.lo, hi: z.hi, dead: (z.hi - z.lo) / 2 }; }
+    const d = Math.max(0, b || 0) / 2; return { zone: null, lo: -d, hi: d, dead: d };
+  }
   // sprężystość połączenia: k (N·m/rad), tłumienie c = 2ζ√(k·J_zred) — J_zred: bezwładność zredukowana wiązania
   function elastic(e) {
     const sp = stiffness(e); if (!sp || !(sp.k > 0)) return { soft: false, k: Infinity, name: '' };
@@ -47,8 +54,9 @@ export function createPhysics(drive, { motorId, brakeId, backlash = () => 0, sti
   function solve(c) {
     const ta = th[c.a], tb = th[c.b], C = tb - c.e.rel(ta, tb);
     c.C = C;
+    if (c.zone) c.zone(ta, c);
     let ex = 0;
-    if (C > c.dead) ex = C - c.dead; else if (C < -c.dead) ex = C + c.dead;
+    if (C > c.hi) ex = C - c.hi; else if (C < c.lo) ex = C - c.lo;
     if (!ex) return;
     const eps = 1e-5, ga = -(c.e.rel(ta + eps, tb) - c.e.rel(ta - eps, tb)) / (2 * eps);
     const dl = -ex / (w[c.a] * ga * ga + w[c.b]);
@@ -60,7 +68,8 @@ export function createPhysics(drive, { motorId, brakeId, backlash = () => 0, sti
     const ta = th[c.a], tb = th[c.b], C = tb - c.e.rel(ta, tb), eps = 1e-5, ga = -(c.e.rel(ta + eps, tb) - c.e.rel(ta - eps, tb)) / (2 * eps);
     let ex = 0;
     const Ce = C - c.slip;   // pas: przesunięcie z poślizgu
-    if (Ce > c.dead) ex = Ce - c.dead; else if (Ce < -c.dead) ex = Ce + c.dead;
+    if (c.zone) c.zone(ta, c);
+    if (Ce > c.hi) ex = Ce - c.hi; else if (Ce < c.lo) ex = Ce - c.lo;
     const Cd = om[c.b] + ga * om[c.a];
     let F = ex ? -(c.k * ex + c.kc * Cd) : 0;
     if (c.belt) {
@@ -124,7 +133,7 @@ export function createPhysics(drive, { motorId, brakeId, backlash = () => 0, sti
     for (const c of E) {
       if (!c.soft) c.twist = 0;
     c.slipFrac = c.belt ? c.slipN / n : 0;   // ułamek podkroków klatki w poślizgu całkowitym (chwyta i zrywa się)
-    c.contact = c.dead ? (c.C >= c.dead - 1e-6 ? 1 : c.C <= -c.dead + 1e-6 ? -1 : 0) : 0;
+    c.contact = c.dead ? (c.C >= c.hi - 1e-6 ? 1 : c.C <= c.lo + 1e-6 ? -1 : 0) : 0;
       c.e.b.T = Math.abs(c.T);
     }
     motor.T = Tm;
