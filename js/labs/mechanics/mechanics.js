@@ -356,13 +356,31 @@ function STIFF(e) {
   if (e.type === 'planetary') return { k: 3e5, zeta: 0.03, name: 'Przekładnia planetarna' };
   return null;   // wpust (koło na wale) — sztywno
 }
-const phys = createPhysics(drive, { motorId: 'motor', brakeId: 'disc', backlash: BACKLASH, stiffness: STIFF });
+// punkt 3 — pas klinowy: moment graniczny na małym kole (Euler–Eytelwein): F1/F2 = e^(μ'θ), μ' = μ / sin(β/2) (rowek 36°),
+// F1 + F2 = 2·F0 (napięcie wstępne) → T_maks = 2·F0·r·(e^(μ'θ) − 1)/(e^(μ'θ) + 1); ślizg — tarcie kinetyczne 0,85 T_maks;
+// pełzanie sprężyste do 1,5 % przy T_maks. Łańcuch — efekt wielokąta: prędkość cięgna v = ω·R·cos φ, φ ∈ [−π/z, π/z]
+const BELT_F0 = 300, BELT_MU = 0.3, BELT_WRAP = Math.PI - 2 * Math.asin((0.08 - 0.04) / Math.hypot(YS5 - Y0, 0));
+const BELT_MUE = BELT_MU / Math.sin(18 * Math.PI / 180), BELT_E = Math.exp(BELT_MUE * BELT_WRAP), BELT_TMAX = 2 * BELT_F0 * 0.04 * (BELT_E - 1) / (BELT_E + 1);
+function polygon(z) { const p = TAU / z, s2 = 2 * Math.sin(p / 2); return (t) => { const n = Math.floor(t / p), u = t - n * p; return n * p + p * (Math.sin(u - p / 2) + Math.sin(p / 2)) / s2; }; }
+const MODIFY = (e) => { if (e.type !== 'chain') return null; const G = polygon(18), k = 18 / 27, r0 = e.rel; return (ta, tb) => r0(ta, tb) + k * (G(ta) - ta); };
+const BELT = (e) => (e.type === 'belt' ? { Tmax: BELT_TMAX, kinetic: 0.85, creep: 0.015 } : null);
+const phys = createPhysics(drive, { motorId: 'motor', brakeId: 'disc', backlash: BACKLASH, stiffness: STIFF, modify: MODIFY, belt: BELT });
 function physStats() {
   const st = phys.state, f1 = (v) => fmt(v, 1), a = reg.api;
   const rows = [['Regulator', `${a.run ? 'RUN' : 'STOP'} · ${a.dir > 0 ? 'FWD' : 'REV'} · ${f1(Math.abs(a.f))} Hz (zadana ${f1(a.set)} Hz)`], ['Silnik', `${dirOf(st.omega)} ${fmt(Math.abs(rpmOf(st.omega)))} obr/min (synchr. ${fmt(Math.abs(30 * a.f))})`], ['Moment silnika', `${f1(st.Tm)} N·m`],
     ['Wyjście', `${dirOf(eDisc.omega)} ${f1(Math.abs(rpmOf(eDisc.omega)))} obr/min`], ['Moment hamulca', `${f1(Math.abs(st.Tb))} N·m`]];
   // sprężyste połączenia: skręcenie (poza luzem) i moment — miękkie na liście (sztywność poniżej 10⁵ N·m/rad)
   for (const c of phys.edges) if (c.k < 1e5) rows.push([`Sprężystość: ${c.name}`, `${fmt(c.twist * 180 / Math.PI, 3)}° · ${fmt(Math.abs(c.T), 2)} N·m · k = ${fmt(c.k)} N·m/rad`]);
+  // punkt 3: straty, pas, łańcuch
+  const loss = phys.edges.reduce((a, c) => a + Math.abs(c.Tl * c.e.b.omega), 0);
+  rows.push(['Straty tarcia w połączeniach', `${fmt(loss, 1)} W (sprawność ${fmt(st.P > 0.5 ? (st.Pout || 0) / st.P * 100 : 0, 1)} %)`]);
+  // poślizg pasa mierzony jak na prawdziwym napędzie: s = 1 − ω₂ / (ω₁·d₁/d₂) (średnie prędkości z klatki) — pełzanie
+  // sprężyste i poślizg całkowity (pas chwyta i zrywa się co kilkadziesiąt ms) w jednej liczbie
+  for (const c of phys.edges) if (c.belt) {
+    const w1 = c.e.a.omega, w2 = c.e.b.omega, sl = Math.abs(w1) > 0.05 ? 1 - w2 / (w1 * 0.16 / 0.08) : 0, full = sl > 0.05;
+    rows.push(['Pas — poślizg', `${full ? 'POŚLIZG ' : ''}${fmt(sl * 100, 2)} %${full ? ' — pas ślizga się w rowku (moment graniczny przekroczony)' : ' — pełzanie sprężyste'} · moment ${fmt(Math.abs(c.T), 1)} N·m, graniczny ${fmt(c.belt.Tmax, 1)} N·m (napięcie 2 × ${BELT_F0} N, opasanie ${Math.round(BELT_WRAP * 180 / Math.PI)}°)`]);
+  }
+  for (const c of phys.edges) if (c.e.type === 'chain') rows.push(['Łańcuch — efekt wielokąta', `prędkość koła biernego waha się o ±${fmt((1 - Math.cos(Math.PI / 18)) * 50, 2)} % (z = 18)${Math.abs(c.e.a.omega) > 0.5 ? ` · teraz ${fmt(c.e.b.omega / c.e.a.omega * 27 / 18 * 100 - 100, 2)} %` : ''}`]);
   for (const c of phys.edges) if (c.dead) {
     const ga = c.e.a.group.userData, gb = c.e.b.group.userData;
     rows.push([`Luz ${ga.z} : ${gb.z}`, `${fmt(0.08 * gb.m * 1000, 2)} mm · ${c.contact > 0 ? 'przylega flanką przednią' : c.contact < 0 ? 'przylega flanką tylną' : 'w luzie — zęby się nie dotykają'}`]);

@@ -1,5 +1,16 @@
 # Zmiany
 
+## 0.25.2 — 2026-11-26
+- Laboratorium mechaniki 0.7.0 — tryb Fizyka, punkt 3: **poślizg pasa, nierówny bieg łańcucha, straty tarcia**.
+  - Pas SPA: moment graniczny z Eulera–Eytelweina (napięcie wstępne 2 × 300 N, μ 0,3 w rowku 36°, opasanie 169° →
+    21,4 N·m), pełzanie sprężyste do 1,5 %, ponad granicą poślizg z tarciem kinetycznym (0,85 granicy). Okno Opis:
+    poślizg z prędkości kół (s = 1 − ω₂ / (ω₁·d₁/d₂)), np. hamulec 20 N·m → 0,47 %, 100 N·m → POŚLIZG (wyjście stoi).
+  - Łańcuch 08A: efekt wielokąta (z = 18, prędkość koła biernego ±0,76 % na każdy ząb).
+  - Straty: sprawność każdego połączenia (zazębienie 98 %, łańcuch 97 %, pas 96 %, planetarna 97 %, przegub wg kąta,
+    łożyska) — moment silnika rośnie o straty; w oknie Opis straty w W i sprawność całkowita (~78 %).
+  - Hamulec jako wiązanie tarcia ograniczone momentem, liczone razem z połączeniami (wcześniej hamował tylko
+    bezwładność tarczy — 100 N·m działało jak ~32 N·m). Prędkości w oknach — średnie z klatki.
+
 ## 0.25.1 — 2026-11-26
 - Laboratorium mechaniki 0.6.0 — tryb Fizyka, punkt 2: **sprężystość połączeń**. Sztywności skrętne z wymiarów
   i materiałów: wał G·J_p/L (stal 80 GPa), gwiazda sprzęgła kłowego wg twardości (92 Sh A 1300, 98 Sh A 2300,

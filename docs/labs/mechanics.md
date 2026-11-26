@@ -48,7 +48,7 @@ pokrętło (części z `userData.control`, modele w `js/models/mech/controls.js`
 
 Trzeci tryb: ta sama maszyna liczona fizycznie (`js/behaviors/mech/physics.js`). Każda część ma własny kąt i prędkość;
 połączenia (te same co w napędzie kinematycznym) są wiązaniami XPBD na kątach (C = θb − f(θa)), rozwiązywanymi tam
-i z powrotem po drzewie połączeń, 48 podkroków na klatkę. Silnik (poślizg, moment krytyczny 18 N·m) napędza wirnik,
+i z powrotem po drzewie połączeń, 96 podkroków na klatkę. Silnik (poślizg, moment krytyczny 18 N·m) napędza wirnik,
 hamulec (tarcie suche) — tarczę, łożyska mają opór lepki. Prędkość zadaje **regulator przy silniku** (falownik:
 pokrętło, RUN / STOP, FWD / REV, rampa 4 s): ω_syn = 4π f / p (silnik 4-biegunowy).
 
@@ -58,7 +58,13 @@ Punkty fizyki (dochodzą po kolei):
 2. ✅ Sprężystość połączeń — sztywności skrętne z wymiarów i materiałów (wał G·J_p/L, gwiazda wg twardości, zazębienie,
    łańcuch, pas), tłumienie ζ; miękkie (< 10⁵ N·m/rad) — sprężyny jawne, bardzo sztywne — wiązania. Skręcenie i moment
    każdego sprężystego połączenia w oknie Opis.
-3. Poślizg pasa, nierówny bieg łańcucha.
+3. ✅ Poślizg pasa, nierówny bieg łańcucha, straty tarcia. Pas: moment graniczny z Eulera–Eytelweina
+   (napięcie wstępne 2 × 300 N, μ 0,3 w rowku klinowym 36°, opasanie 169° → 21,4 N·m na małym kole), pełzanie
+   sprężyste do 1,5 %, ponad granicą poślizg (tarcie kinetyczne 0,85 granicy); poślizg mierzony z prędkości kół.
+   Łańcuch: efekt wielokąta (z = 18 → prędkość koła biernego waha się o ±0,76 % na każdy ząb). Straty: sprawność
+   połączeń (zazębienie walcowe 98 %, łańcuch 97 %, pas 96 %, planetarna 97 %, przegub zależnie od kąta, łożyska) —
+   moment silnika rośnie o straty, okno Opis pokazuje straty w W i sprawność całkowitą. Hamulec — wiązanie tarcia
+   ograniczone momentem (przy 100 N·m pas się ślizga, wyjście stoi, silnik się kręci).
 4. Bryły zderzeń (na razie podgląd: pole **Hitboksy** — walce i prostopadłościany z geometrii).
 5. Obwód elektryczny.
 
