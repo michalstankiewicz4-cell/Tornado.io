@@ -1,5 +1,18 @@
 # Zmiany
 
+## 0.26.0 — 2026-11-26
+- Laboratorium mechaniki 0.10.0 — tryb Fizyka, punkt 5: **obwód elektryczny** (`js/behaviors/mech/circuit.js`).
+  - Instalacja przy silniku, obsługiwana na modelach: źródło X0 3 × 400/230 V (TN-S) → wyłącznik główny Q1 → stycznik
+    K1 → falownik → silnik. Sterowanie 230 V: grzybek S0 (NC) → STOP S1 (NC) → START S2 (NO) ∥ podtrzymanie K1 13-14
+    → cewka K1; lampka H1 „praca”; zadawanie potencjometrem R1 na wejście AI falownika (0–10 V = 0–50 Hz).
+  - Obwód jako lista połączeń: sieci z zamkniętych styków i żył (union-find), fazory napięć źródła, wykrywanie zwarć,
+    napięcia odbiorników; stycznik z progami zadziałania / odpadania i czasem 20 ms; falownik bez zasilania — silnik
+    wybiega (fizyka: moment silnika 0).
+  - Kable z przekrojem i długością (rezystancja żył → spadek napięcia), pobór falownika, prąd fazowy, napięcie U/f
+    i prąd silnika w oknie Opis. `MechanicsApi.circuit()`.
+- ControlKit: `cable()` (przewód wielożyłowy w powłoce z dławikami), stycznik `coil(v)`, lampka `power(v)`, falownik
+  `power(v)`, `reference('panel' | 'ai')`, `ai(V)`. Fizyka: `step({ on })` — silnik bez zasilania.
+
 ## 0.25.4 — 2026-11-26
 - Laboratorium mechaniki 0.9.0 — punkt 4, uzupełnienie brył zderzeń:
   - **Koła łańcuchowe**: zarys wg ISO 606 (gniazdo, kąt osadzenia, bok r_e, głowa d_a) z łuków, bryły zębów — części

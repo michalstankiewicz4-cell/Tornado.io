@@ -172,24 +172,33 @@ export function inverter({ kW = 1.1, fmax = 50, ramp = 5 } = {}) {
   const lab = mesh(new THREE.PlaneGeometry(W * 0.7, W * 0.7 / 4), new THREE.MeshStandardMaterial({ map: label.t, roughness: 0.6 })); lab.position.set(0, H * 0.2, fz + 0.0005); g.add(lab);
   const term = mesh(new THREE.BoxGeometry(W * 0.9, H * 0.12, 0.006), Pm.dark); term.position.set(0, H * 0.07, fz); g.add(term);
   let set = 0.6, f = 0, run = false, dir = 1;   // f ze znakiem: + przód (FWD), − wstecz (REV)
+  // zasilanie z obwodu (power(v)) i zadawanie: 'panel' — pokrętło, 'ai' — wejście analogowe 0–10 V (ai(v))
+  let powered = true, ref = 'panel', ain = 0;
   const draw = () => {
     const c = disp.c.getContext('2d'); c.fillStyle = '#0b1a10'; c.fillRect(0, 0, 256, 96);
+    if (!powered) { c.fillStyle = '#050806'; c.fillRect(0, 0, 256, 96); disp.t.needsUpdate = true; return; }   // bez zasilania — wyświetlacz ciemny
     c.fillStyle = run ? '#5dff8a' : '#2f8a4a'; c.font = 'bold 60px monospace'; c.textAlign = 'right'; c.textBaseline = 'middle';
     c.fillText(Math.abs(f).toFixed(1), 196, 50); c.font = 'bold 26px monospace'; c.fillText('Hz', 248, 62);
     c.font = '18px monospace'; c.textAlign = 'left'; c.fillText(run ? 'RUN' : 'STOP', 8, 20); c.fillText(dir > 0 ? 'FWD' : 'REV', 8, 88);
+    if (ref === 'ai') c.fillText('AI', 8, 54);
     disp.t.needsUpdate = true;
   };
   const apply = () => { kn.rotation.z = -(-135 + 270 * set) * Math.PI / 180; };
   apply(); draw();
   let last = '';
   const api = {
-    get f() { return f; }, get set() { return set * fmax; }, get run() { return run; }, get dir() { return dir; },
-    press(c) { if (c === 'run') run = true; if (c === 'stop') run = false; if (c === 'dir') dir = -dir; if (c === 'run' || c === 'stop' || c === 'dir') { const b = c === 'run' ? bRun : c === 'stop' ? bStop : bDir; b.position.z = 0.002; setTimeout(() => { b.position.z = 0.0035; }, 160); } },
+    get f() { return f; }, get set() { return (ref === 'ai' ? ain / 10 : set) * fmax; }, get run() { return run; }, get dir() { return dir; },
+    get powered() { return powered; }, get ref() { return ref; }, get ain() { return ain; },
+    // power(v): utrata zasilania — wyjście wyłączone od razu (silnik wybiega), po powrocie STOP (nowe polecenie RUN)
+    power(v) { v = !!v; if (v === powered) return; powered = v; if (!v) { run = false; f = 0; } last = ''; draw(); },
+    reference(r) { ref = r === 'ai' ? 'ai' : 'panel'; last = ''; }, ai(v) { ain = Math.max(0, Math.min(10, v)); },
+    press(c) { if (!powered) return; if (c === 'run') run = true; if (c === 'stop') run = false; if (c === 'dir') dir = -dir; if (c === 'run' || c === 'stop' || c === 'dir') { const b = c === 'run' ? bRun : c === 'stop' ? bStop : bDir; b.position.z = 0.002; setTimeout(() => { b.position.z = 0.0035; }, 160); } },
     release() {}, drag(c, dy) { if (c === 'knob') { set = Math.max(0, Math.min(1, set - dy / 300)); apply(); } },
     tick(dt) {
-      const target = run ? dir * set * fmax : 0, step = fmax / Math.max(0.1, ramp) * dt;
+      if (!powered) return;
+      const target = run ? dir * (ref === 'ai' ? ain / 10 : set) * fmax : 0, step = fmax / Math.max(0.1, ramp) * dt;
       f = Math.abs(target - f) <= step ? target : f + Math.sign(target - f) * step;
-      const s = f.toFixed(1) + run + dir; if (s !== last) { last = s; draw(); }
+      const s = f.toFixed(1) + run + dir + ref; if (s !== last) { last = s; draw(); }
     },
   };
   Object.assign(g.userData, { kW, fmax, ramp, mass: 1.4 * k * k * k, api });
@@ -233,8 +242,10 @@ export function pilotLamp({ color = 'green', volts = '24DC' } = {}) {
   lens.userData.control = 'lamp';
   const light = new THREE.PointLight(lm.color.getHex(), 0, 0.4, 2); light.position.z = 0.02; pivot.add(light);
   let on = false, glow = 0;
-  const api = { get on() { return on; }, press(c) { if (c === 'lamp') on = !on; }, release() {}, drag() {},
-    tick(dt) { glow += ((on ? 1 : 0) - glow) * Math.min(1, dt * 20); lm.emissiveIntensity = 2.2 * glow; light.intensity = 0.25 * glow; } };
+  // power(v) — napięcie z obwodu (0…1 względem znamionowego); klik w soczewkę — test lampki (bez obwodu)
+  let pw = 0;
+  const api = { get on() { return on || pw > 0.5; }, power(v) { pw = v; }, press(c) { if (c === 'lamp') on = !on; }, release() {}, drag() {},
+    tick(dt) { glow += ((on ? 1 : Math.min(1, pw * pw)) - glow) * Math.min(1, dt * 20); lm.emissiveIntensity = 2.2 * glow; light.intensity = 0.25 * glow; } };
   Object.assign(g.userData, { color, volts, mass: 0.06, api });
   return g;
 }
@@ -308,9 +319,10 @@ export function contactor({ amps = 12, coil = '230AC', aux = '1NO' } = {}) {
   const win = mesh(new THREE.BoxGeometry(0.012, 0.012, 0.0015), Pm.black); win.position.set(0, 0.055, 0.0938); g.add(win);
   const ind = mesh(new THREE.BoxGeometry(0.008, 0.004, 0.002), Pm.yellow); ind.position.set(0, 0.058, 0.0945); g.add(ind);
   for (const o of [win, ind, front]) o.userData.control = 'test';
-  let on = false, a = 0;
-  const api = { get on() { return on; }, press(c) { if (c === 'test') on = !on; }, release() {}, drag() {},
-    tick(dt) { a += ((on ? 1 : 0) - a) * Math.min(1, dt * 30); ind.position.y = 0.058 - 0.006 * a; } };
+  let coilOn = false, test = false, a = 0;
+  // coil(v) — stan kotwicy z obwodu (cewka zasilona); klik w okienko — ręczne wciśnięcie kotwicy (test)
+  const api = { get on() { return coilOn || test; }, get test() { return test; }, coil(v) { coilOn = !!v; }, press(c) { if (c === 'test') test = !test; }, release() {}, drag() {},
+    tick(dt) { a += ((coilOn || test ? 1 : 0) - a) * Math.min(1, dt * 30); ind.position.y = 0.058 - 0.006 * a; } };
   Object.assign(g.userData, { amps, coil, aux, mass: amps > 18 ? 0.55 : 0.36, api });
   return g;
 }
@@ -342,6 +354,26 @@ export function wire({ mm2 = 1.5, color = 'brown', len = 0.5 } = {}) {
   }
   const R = 0.0178 * L / mm2;   // Ω (Cu, 20 °C)
   Object.assign(g.userData, { mm2, color, len: L, R, dIns, mass: L * (mm2 * 8.9e-3 + Math.PI * (dIns * dIns - dCu * dCu) / 4 * 1400) });
+  return g;
+}
+
+/* ---------------- kabel wielożyłowy ---------------- */
+// przewód w powłoce (np. 5G2,5 — 5 żył po 2,5 mm², z żółto-zieloną): powłoka PVC wzdłuż krzywej przez punkty
+// (w układzie rodzica), średnica z żył: d_żyły = 2√(S/π)·1,35 + 1,6 mm, pęk ≈ 2,2–2,6 d_żyły, powłoka 1 mm
+export function cable({ points, cores = 5, mm2 = 2.5, color = 'grey', name } = {}) {
+  const pts = points.map((p) => p.clone()), curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
+  const dCore = 2 * Math.sqrt(mm2 / Math.PI) / 1000 * 1.35 + 0.0016, D = dCore * (cores <= 2 ? 2 : cores === 3 ? 2.16 : cores === 4 ? 2.42 : 2.7) + 0.002;
+  const L = curve.getLength(), seg = Math.max(16, Math.round(L / 0.01));
+  const mat = new THREE.MeshStandardMaterial({ color: color === 'black' ? 0x1c1d1f : color === 'orange' ? 0xd86a1c : 0x8f9396, roughness: 0.62 });
+  const g = new THREE.Group(); g.name = name || `Przewód ${cores}×${String(mm2).replace('.', ',')} mm²`;
+  const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, seg, D / 2, 14, false), mat); tube.castShadow = true; g.add(tube);
+  for (const t of [0, 1]) {   // dławiki na końcach (wejście do urządzenia)
+    const p = curve.getPoint(t), d = curve.getTangent(t);
+    const gl = new THREE.Mesh(new THREE.CylinderGeometry(D / 2 + 0.0025, D / 2 + 0.0035, 0.012, 6), new THREE.MeshStandardMaterial({ color: 0x2a2b2e, roughness: 0.5 }));
+    gl.position.copy(p); gl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d); g.add(gl);
+  }
+  const R = 0.0178 * L / mm2;   // Ω na żyłę (Cu, 20 °C)
+  Object.assign(g.userData, { cores, mm2, len: L, D, R, mass: L * (cores * mm2 * 8.9e-3 + Math.PI * D * 0.001 * 1400) });
   return g;
 }
 
@@ -390,4 +422,4 @@ export function powerSource({ kind = 'AC', volts = 230, phases = 1, hz = 50, amp
   return g;
 }
 
-export const ControlKit = { enclosure, switchUnit, potentiometer, pushButton, inverter, eStop, pilotLamp, selector, limitSwitch, contactor, wire, powerSource, plastics, BUTTON_COLORS, WIRE_COLORS };
+export const ControlKit = { enclosure, switchUnit, potentiometer, pushButton, inverter, eStop, pilotLamp, selector, limitSwitch, contactor, wire, cable, powerSource, plastics, BUTTON_COLORS, WIRE_COLORS };

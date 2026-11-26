@@ -86,7 +86,17 @@ Punkty fizyki (dochodzą po kolei):
      (zęby satelitów w zębach korony), ogniwa łańcucha między gniazdami (0,63 podziałki), rolki schodzące z koła
      wchodzące w zęby (stary zarys bez boku r_e), zacisk hamulca jako pełny klocek przez tarczę i wspornik zacisku
      przechodzący przez tarczę (teraz zacisk okracza tarczę: dwie obudowy klocków i mostek; wspornik obok).
-5. Obwód elektryczny.
+5. ✅ Obwód elektryczny (`js/behaviors/mech/circuit.js`). Instalacja przy silniku, obsługiwana na modelach:
+   źródło X0 3 × 400/230 V 50 Hz (TN-S) → wyłącznik główny Q1 → stycznik K1 → falownik → silnik; sterowanie 230 V:
+   L1 → grzybek S0 (NC) → STOP S1 (NC) → START S2 (NO) ∥ styk pomocniczy K1 13-14 (podtrzymanie) → cewka K1 → N,
+   lampka H1 „praca” równolegle do cewki; zadawanie częstotliwości potencjometrem R1 (10 kΩ, wejście AI 0–10 V
+   = 0–50 Hz). Kable `ControlKit.cable` z przekrojem i długością (W1–W3 5G/4G2,5, W4 4G1,5 do silnika, W5 5×1
+   sterowanie, W6 3×0,5 potencjometr). Rozwiązanie co klatkę: sieci z zamkniętych połączeń (union-find), napięcie
+   sieci — fazor źródła albo brak, dwa różne fazory w jednej sieci — zwarcie; napięcie odbiornika |V_a − V_b|
+   (trójfazowy — najmniejsze międzyprzewodowe). Stycznik: zadziała przy ≥ 85 % Un po 20 ms, odpada < 60 % Un.
+   Falownik bez zasilania — wyjście wyłączone, silnik wybiega (moment 0); po powrocie zasilania STOP (nowe RUN).
+   Okno Opis: stan styków, napięcie cewki, lampka, pobór falownika (moc, prąd fazowy), napięcie U/f i prąd silnika,
+   spadek napięcia w kablach. `MechanicsApi.circuit('power' | 'main' | 'start' | 'stop' | 'estop' | 'test' | 'pot', v)`.
 
 ## Maszyna
 

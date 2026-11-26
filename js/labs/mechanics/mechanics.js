@@ -11,6 +11,7 @@ import * as MK from '../../models/mech/mechkit.js';
 import { createDrive, KIND_NAME } from '../../behaviors/mech/drive.js';
 import { createPhysics } from '../../behaviors/mech/physics.js';
 import { meshZone, planeMap, contactPair } from '../../behaviors/mech/contact.js';
+import { createCircuit } from '../../behaviors/mech/circuit.js';
 import * as CK from '../../models/mech/controls.js';
 import { ITEMS } from './items.js';
 import { loadState, valid } from '../shared/saved.js';
@@ -239,7 +240,7 @@ const selBox = new THREE.BoxHelper(new THREE.Object3D(), 0xf2c14e); selBox.visib
 function loop(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (S.mode === 'machine') { drive.step(dt, { rpm: S.rpm, brake: S.brake }); applyAngles(); }
-  else if (S.mode === 'physics') { reg.api.tick(dt); phys.step(dt, { w0: reg.api.f * 4 * Math.PI / 4, brake: S.brake }); applyAngles(); }   // silnik 4-biegunowy: ω_syn = 4π f / p
+  else if (S.mode === 'physics') { ELEC.tick(dt); reg.api.tick(dt); const on = reg.api.powered && (reg.api.run || Math.abs(reg.api.f) > 0.05); phys.step(dt, { w0: reg.api.f * 4 * Math.PI / 4, brake: S.brake, on }); ELEC.power(phys.state.Tm, phys.state.omega, on); applyAngles(); }   // silnik 4-biegunowy: ω_syn = 4π f / p
   else if (item) { itemTheta += S.spin * TAU / 60 * dt; item.update(itemTheta); if (item.tick) item.tick(dt); }
   moveKeys(dt);
   if ((statT += dt) > 0.2) { statT = 0; stats(); }
@@ -303,12 +304,14 @@ const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
 // sterowanie na modelu (tryb Przedmioty): część z userData.control — klik / przytrzymanie / przeciąganie zamiast obrotu kamery
 let ctl = null;
 // obiekt z obsługą w bieżącym trybie: przedmiot ze sterowaniem (Przedmioty) albo regulator przy silniku (Fizyka)
-const ctlTarget = () => (S.mode === 'items' ? (item && item.controls ? { group: item.group, api: item.api } : null) : S.mode === 'physics' ? reg : null);
+const ctlTarget = () => (S.mode === 'items' ? (item && item.controls ? [{ group: item.group, api: item.api }] : null) : S.mode === 'physics' ? ELEC.devices : null);
 function controlAt(e) {
-  const tg = ctlTarget(); if (!tg) return null;
+  const tgs = ctlTarget(); if (!tgs) return null;
   const r = renderer.domElement.getBoundingClientRect(); ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera);
-  const h = ray.intersectObject(tg.group, true)[0]; let o = h && h.object; while (o && !o.userData.control) o = o.parent;
-  return o ? { name: o.userData.control, api: tg.api } : null;
+  const h = ray.intersectObjects(tgs.map((t) => t.group), true)[0]; let o = h && h.object; while (o && !o.userData.control) o = o.parent;
+  if (!o) return null;
+  const tg = tgs.find((t) => { for (let p = o; p; p = p.parent) if (p === t.group) return true; return false; });
+  return tg ? { name: o.userData.control, api: tg.api } : null;
 }
 cv.addEventListener('pointerdown', (e) => {
   cv.setPointerCapture(e.pointerId);
@@ -336,6 +339,86 @@ function moveKeys(dt) {
 /* ---------------- tryb „Fizyka”: regulator przy silniku, napęd fizyczny, hitboksy ---------------- */
 // regulator prędkości: falownik z pokrętłem, RUN / STOP i FWD / REV na łożu przed silnikiem (obsługa na modelu)
 const reg = (() => { const g = CK.inverter({ kW: 1.1, fmax: 50, ramp: 4 }); g.position.set(-6.3, BED_TOP, 0.4); scene.add(g); g.visible = false; return { group: g, api: g.userData.api }; })();
+/* ---------------- punkt 5 — obwód elektryczny ---------------- */
+// Zasilanie silnika jak w prawdziwej maszynie: źródło 3 × 400/230 V (TN-S) → wyłącznik główny Q1 → stycznik K1 →
+// falownik (zadawanie z potencjometru R1, wejście AI 0–10 V) → silnik. Sterowanie stycznikiem 230 V: L1 → grzybek
+// S0 (NC) → STOP S1 (NC) → START S2 (NO) ∥ styk pomocniczy K1 13-14 (podtrzymanie) → cewka K1 → N; lampka H1
+// „praca” równolegle do cewki. Elementy obsługiwane na modelach; kable z prawdziwymi przekrojami i długościami.
+const elecG = new THREE.Group(); elecG.visible = false; scene.add(elecG);
+reg.api.reference('ai'); reg.api.power(false);   // falownik zasilany dopiero przez stycznik K1
+const ELEC = (() => {
+  const put = (g, x, y, z) => { g.position.set(x, y, z); elecG.add(g); return { group: g, api: g.userData.api, name: '' }; };
+  const X0 = put(CK.powerSource({ kind: 'AC', volts: 400, phases: 3, amps: 16 }), -6.5, BED_TOP, 0.4);
+  const Q1 = put(CK.switchUnit({ kind: 'main', poles: 3, amps: 25 }), -6.16, BED_TOP, 0.42);
+  // płyta montażowa z szyną DIN i stycznikiem (stoi na łożu, front w +z)
+  const board = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.2, 0.01), M.steel); board.position.set(-6.0, BED_TOP + 0.1, 0.415); board.castShadow = true; elecG.add(board);
+  const K1 = put(CK.contactor({ amps: 12, coil: '230AC', aux: '1NO' }), -6.0, BED_TOP + 0.06, 0.42);
+  const S0 = put(CK.eStop(), -6.52, BED_TOP, 0.62);
+  const S1 = put(CK.pushButton({ color: 'red', contact: 'NC' }), -6.42, BED_TOP, 0.62);
+  const S2 = put(CK.pushButton({ color: 'green', contact: 'NO' }), -6.33, BED_TOP, 0.62);
+  const H1 = put(CK.pilotLamp({ color: 'green', volts: '230AC' }), -6.24, BED_TOP, 0.62);
+  const R1 = put(CK.potentiometer({ ohms: 10000, taper: 'lin' }), -6.14, BED_TOP, 0.62);
+  Object.assign(X0, { name: 'Zasilanie X0' }); Object.assign(Q1, { name: 'Wyłącznik główny Q1' }); Object.assign(K1, { name: 'Stycznik K1' });
+  Object.assign(S0, { name: 'Grzybek S0' }); Object.assign(S1, { name: 'STOP S1' }); Object.assign(S2, { name: 'START S2' }); Object.assign(H1, { name: 'Lampka H1' }); Object.assign(R1, { name: 'Potencjometr R1' });
+  X0.api.press('power'); Q1.api.press('toggle');   // na starcie: zasilanie i wyłącznik główny włączone, stycznik czeka na START
+  // kable: dławik z tyłu urządzenia (albo od dołu), przez łoże do drugiego urządzenia
+  elecG.updateWorldMatrix(true, true); reg.group.updateWorldMatrix(true, true);
+  const back = (g, dx = 0) => { const b = new THREE.Box3().setFromObject(g), c = b.getCenter(new THREE.Vector3()); return { p: new THREE.Vector3(c.x + dx, BED_TOP + 0.025, b.min.z - 0.002), n: new THREE.Vector3(0, 0, -1) }; };
+  const under = (g, dx = 0) => { const b = new THREE.Box3().setFromObject(g), c = b.getCenter(new THREE.Vector3()); return { p: new THREE.Vector3(c.x + dx, b.min.y + 0.006, b.max.z - 0.012), n: new THREE.Vector3(0, -1, 0) }; };
+  motorG.updateWorldMatrix(true, true);
+  const mb = motorG.userData, tbox = { p: motorG.localToWorld(new THREE.Vector3(-0.15, mb.H + 0.11, 0.052)), n: new THREE.Vector3(0, 0, 1) };
+  const cables = {};
+  const lay = (key, A, B, o) => {
+    const D0 = 0.012, a1 = A.p.clone().addScaledVector(A.n, 0.04), b1 = B.p.clone().addScaledVector(B.n, 0.04);
+    const mid = a1.clone().lerp(b1, 0.5); mid.y = BED_TOP + D0 / 2;
+    const pts = [A.p, a1, mid, b1, B.p];
+    if (a1.y > BED_TOP + 0.03) pts.splice(2, 0, new THREE.Vector3(a1.x, BED_TOP + D0 / 2, a1.z).lerp(mid, 0.3));
+    if (b1.y > BED_TOP + 0.03) pts.splice(pts.length - 2, 0, new THREE.Vector3(b1.x, BED_TOP + D0 / 2, b1.z).lerp(mid, 0.3));
+    const c = CK.cable({ points: pts, ...o }); elecG.add(c); cables[key] = c; return c;
+  };
+  lay('W1', back(X0.group), back(Q1.group), { cores: 5, mm2: 2.5, color: 'black', name: 'W1 — zasilanie 5G2,5' });
+  lay('W2', back(Q1.group, 0.02), under(K1.group, -0.012), { cores: 5, mm2: 2.5, color: 'black', name: 'W2 — Q1 → K1 5G2,5' });
+  lay('W3', under(K1.group, 0.012), back(reg.group, 0.02), { cores: 4, mm2: 2.5, color: 'black', name: 'W3 — K1 → falownik 4G2,5' });
+  lay('W4', back(reg.group, -0.02), tbox, { cores: 4, mm2: 1.5, color: 'orange', name: 'W4 — falownik → silnik 4G1,5 (ekranowany)' });
+  lay('W5', back(S2.group), under(K1.group, 0), { cores: 5, mm2: 1, color: 'grey', name: 'W5 — sterowanie 5×1' });
+  lay('W6', back(R1.group), back(reg.group, 0), { cores: 3, mm2: 0.5, color: 'grey', name: 'W6 — potencjometr 3×0,5' });
+  for (const [a, b] of [[S0, S1], [S1, S2], [S2, H1]]) lay(`J${a.name}`, back(a.group, 0.02), back(b.group, -0.02), { cores: 2, mm2: 1, color: 'grey', name: 'mostek w kasecie 2×1' });
+  // lista połączeń (schemat)
+  const c = createCircuit(), Rw = (k) => cables[k].userData.R, UF = 400 / Math.sqrt(3);   // napięcie fazowe 230,9 V
+  c.source('X0', { L1: [UF, 0], L2: [UF, -120], L3: [UF, 120], N: [0, 0], PE: [0, 0] }, () => X0.api.on);
+  for (const [f, t] of [['L1', '1'], ['L2', '3'], ['L3', '5'], ['N', 'N1'], ['PE', 'PE']]) c.wire(`X0:${f}`, `Q1:${t}`, { R: Rw('W1'), name: 'W1' });
+  for (const [a, b] of [['1', '2'], ['3', '4'], ['5', '6']]) c.contact(`Q1:${a}`, `Q1:${b}`, () => Q1.api.on, 'Q1');
+  c.wire('Q1:N1', 'Q1:N2', { name: 'Q1 N (bez rozłączania)' }).wire('Q1:PE', 'K1:PE', { R: Rw('W2'), name: 'W2' });
+  for (const [f, t] of [['2', '1'], ['4', '3'], ['6', '5']]) c.wire(`Q1:${f}`, `K1:${t}`, { R: Rw('W2'), name: 'W2' });
+  c.wire('Q1:N2', 'K1:N', { R: Rw('W2'), name: 'W2' });
+  for (const [a, b] of [['1', '2'], ['3', '4'], ['5', '6'], ['13', '14']]) c.contact(`K1:${a}`, `K1:${b}`, () => K1.api.on, 'K1');
+  c.wire('K1:14', 'K1:A1', { name: 'mostek K1 14–A1' }).wire('K1:A2', 'K1:N', { name: 'mostek K1 A2–N' });
+  for (const [f, t] of [['2', 'L1'], ['4', 'L2'], ['6', 'L3']]) c.wire(`K1:${f}`, `VFD:${t}`, { R: Rw('W3'), name: 'W3' });
+  c.wire('K1:1', 'S0:11', { R: Rw('W5'), name: 'W5 żyła 1' }).wire('S1:12', 'K1:13', { R: Rw('W5'), name: 'W5 żyła 2' }).wire('S2:14', 'K1:A1', { R: Rw('W5'), name: 'W5 żyła 3' }).wire('K1:N', 'H1:X2', { R: Rw('W5'), name: 'W5 żyła 4' });
+  c.wire('S0:12', 'S1:11', { name: 'mostek' }).wire('S1:12', 'S2:13', { name: 'mostek' }).wire('S2:14', 'H1:X1', { name: 'mostek' });
+  c.contact('S0:11', 'S0:12', () => S0.api.closed, 'S0').contact('S1:11', 'S1:12', () => S1.api.closed, 'S1').contact('S2:13', 'S2:14', () => S2.api.closed, 'S2');
+  c.load('K1', ['K1:A1', 'K1:A2'], { Un: 230 }).load('H1', ['H1:X1', 'H1:X2'], { Un: 230 }).load('VFD', ['VFD:L1', 'VFD:L2', 'VFD:L3'], { Un: 400 });
+  const st = { kOn: false, kT: 0, r: null, uK: 0, uH: 0, uV: 0, Pin: 0, I: 0, Im: 0, Uout: 0, Pel: 0, dU: 0 };
+  const In = 1100 / (Math.sqrt(3) * 400 * 0.84 * 0.77), Rline = Rw('W1') + Rw('W2') + Rw('W3');
+  // co klatkę: obwód → stycznik (zadziała przy ≥ 85 % Un po 20 ms, odpada < 60 % Un), lampka, zasilanie falownika
+  function tick(dt) {
+    const r = c.solve(); st.r = r; st.uK = r.U('K1'); st.uH = r.U('H1'); st.uV = r.U('VFD');
+    if (!st.kOn) { st.kT = st.uK >= 0.85 * 230 ? st.kT + dt : 0; if (st.kT >= 0.02) st.kOn = true; } else if (st.uK < 0.6 * 230) { st.kOn = false; st.kT = 0; }
+    K1.api.coil(st.kOn); H1.api.power(st.uH / 230);
+    reg.api.power(st.uV >= 0.85 * 400); reg.api.ai(10 * R1.api.ratio());
+    for (const d of [X0, Q1, K1, S0, S1, S2, H1, R1]) d.api.tick(dt);
+  }
+  // moce i prądy z momentu silnika (sprawność silnika 84 %, falownika 97 %, cos φ silnika 0,77, wejścia falownika 0,95)
+  function power(Tm, omega, on) {
+    const Pm = Tm * omega, Pel = on ? (Pm >= 0 ? Pm / 0.84 : Pm * 0.84) + 55 * Math.min(1, Math.abs(reg.api.f) / 50) : 0;
+    st.Pel = Pel; st.Pin = reg.api.powered ? 15 + Math.max(0, Pel) / 0.97 : 0;
+    st.I = st.uV > 1 ? st.Pin / (Math.sqrt(3) * st.uV * 0.95) : 0;
+    const Tn = motorG.userData.Tn || 7.4, k0 = 0.6; st.Im = on ? In * Math.sqrt(k0 * k0 + (1 - k0 * k0) * Math.min(4, (Tm / Tn) ** 2)) : 0;
+    st.Uout = on ? Math.min(400, 400 * Math.abs(reg.api.f) / 50) : 0; st.dU = Math.sqrt(3) * st.I * Rline;
+  }
+  return { X0, Q1, K1, S0, S1, S2, H1, R1, devices: [reg, X0, Q1, K1, S0, S1, S2, H1, R1], circuit: c, cables, st, tick, power, In, Rline };
+})();
+reg.name = 'Falownik';
 // punkt 4 — bryły zderzeń zębów (wielokąty wypukłe z zarysu, ten sam co model) i strefa swobody zazębienia z nich:
 // luz i jego zmienność wzdłuż przyporu wychodzą ze zderzeń zębów, nie ze wzoru (oba koła cieńsze o 0,04·m → ok. 0,08·m)
 const isGear = (u) => u && u.z && u.m && u.rf && u.rb && !u.internal;
@@ -381,6 +464,18 @@ function physStats() {
   const st = phys.state, f1 = (v) => fmt(v, 1), a = reg.api;
   const rows = [['Regulator', `${a.run ? 'RUN' : 'STOP'} · ${a.dir > 0 ? 'FWD' : 'REV'} · ${f1(Math.abs(a.f))} Hz (zadana ${f1(a.set)} Hz)`], ['Silnik', `${dirOf(st.omega)} ${fmt(Math.abs(rpmOf(st.omega)))} obr/min (synchr. ${fmt(Math.abs(30 * a.f))})`], ['Moment silnika', `${f1(st.Tm)} N·m`],
     ['Wyjście', `${dirOf(eDisc.omega)} ${f1(Math.abs(rpmOf(eDisc.omega)))} obr/min`], ['Moment hamulca', `${f1(Math.abs(st.Tb))} N·m`]];
+  // punkt 5 — obwód elektryczny
+  { const E = ELEC, es = E.st, onoff = (v) => (v ? 'zamknięty' : 'otwarty');
+    rows.push(['Zasilanie X0', `${E.X0.api.on ? 'WŁ' : 'WYŁ'} · 3 × 400/230 V, 50 Hz (TN-S)${es.r && es.r.shorts.length ? ` · ZWARCIE: ${es.r.shorts.join(', ')}` : ''}`]);
+    rows.push(['Wyłącznik główny Q1', E.Q1.api.on ? 'I (załączony)' : '0 (wyłączony)']);
+    rows.push(['Sterowanie 230 V', `S0 grzybek ${E.S0.api.latched ? 'WCIŚNIĘTY (styk otwarty)' : onoff(true)} · S1 STOP ${onoff(E.S1.api.closed)} · S2 START ${onoff(E.S2.api.closed)}`]);
+    rows.push(['Stycznik K1', `${E.K1.api.on ? 'załączony' : 'wyłączony'}${E.K1.api.test ? ' (test ręczny)' : ''} · cewka ${fmt(es.uK)} V (zadziała ≥ 196 V, odpada < 138 V) · podtrzymanie 13-14 ${onoff(E.K1.api.on)}`]);
+    rows.push(['Lampka H1', `${es.uH > 0.5 * 230 ? 'świeci' : 'zgaszona'} (${fmt(es.uH)} V)`]);
+    rows.push(['Falownik — zasilanie', reg.api.powered ? `${fmt(es.uV)} V · pobór ${fmt(es.Pin)} W · ${fmt(es.I, 2)} A na fazę` : `bez zasilania (${fmt(es.uV)} V) — silnik wybiega`]);
+    rows.push(['Zadawanie (R1 → AI)', `${fmt(reg.api.ain, 2)} V → ${fmt(reg.api.set, 1)} Hz (potencjometr 10 kΩ liniowy, 0–10 V = 0–50 Hz)`]);
+    rows.push(['Silnik — zasilanie', es.Uout ? `${fmt(es.Uout)} V (U/f) · ${fmt(es.Im, 2)} A (znam. ${fmt(E.In, 2)} A) · ${fmt(es.Pel)} W` : 'bez napięcia']);
+    rows.push(['Spadek napięcia W1–W3', `${fmt(es.dU * 1000, 1)} mV (${fmt(es.dU / 4, 4)} %) · ${fmt(E.Rline * 1000, 1)} mΩ na żyłę (2,5 mm² Cu, ${fmt(['W1', 'W2', 'W3'].reduce((a, k) => a + E.cables[k].userData.len, 0), 2)} m)`]);
+  }
   // sprężyste połączenia: skręcenie (poza luzem) i moment — miękkie na liście (sztywność poniżej 10⁵ N·m/rad)
   for (const c of phys.edges) if (c.k < 1e5) rows.push([`Sprężystość: ${c.name}`, `${fmt(c.twist * 180 / Math.PI, 3)}° · ${fmt(Math.abs(c.T), 2)} N·m · k = ${fmt(c.k)} N·m/rad`]);
   // punkt 3: straty, pas, łańcuch
@@ -521,6 +616,8 @@ function interference() {
   const fixed = [];
   for (const o of root.children) if (!isPart(o) && !o.isLight && o.visible && o !== chain && o !== belt && o !== ring && o !== cross1 && o !== cross2) fixed.push({ o, name: o.name || 'podpora' });
   for (const e of parts) for (const c of e.group.children) if (c !== e.spin) fixed.push({ o: c, name: `${e.name} — część stała` });
+  for (const o of [reg.group, ...elecG.children]) fixed.push({ o, name: o.name || (ELEC.devices.find((d) => d.group === o) || {}).name || 'instalacja elektryczna' });
+  elecG.updateWorldMatrix(true, true); reg.group.updateWorldMatrix(true, true);
   root.updateWorldMatrix(true, true);
   const res = [], inv = new THREE.Matrix4(), A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3(), q = [A, B, C];
   for (const e of parts) {
@@ -589,7 +686,7 @@ function buildHit() {
     const bx = new THREE.Box3Helper(bb, 0xffc14a); bx.material = CLASH.has(o) ? HM.clash : HM.fixed; bx.renderOrder = 20; hitG.add(bx);
   }
   { const bb = new THREE.Box3().setFromObject(motorG.children.find((c) => c !== motorG.userData.spin) || motorG); const bx = new THREE.Box3Helper(bb, 0xffc14a); bx.material = HM.fixed; hitG.add(bx); }
-  { const bb = new THREE.Box3().setFromObject(reg.group); const bx = new THREE.Box3Helper(bb, 0xffc14a); bx.material = HM.fixed; bx.userData.reg = true; hitG.add(bx); }
+  for (const o of [reg.group, ...elecG.children]) { if (o.isGroup && o.userData.cores) continue; const bb = new THREE.Box3().setFromObject(o); const bx = new THREE.Box3Helper(bb, 0xffc14a); bx.material = CLASH.has(o) ? HM.clash : HM.fixed; bx.userData.reg = true; hitG.add(bx); }
 }
 function syncHit() { if (rollHit) rollHit(); for (const h of hitItems) { h.src.updateWorldMatrix(true, false); h.holder.matrixAutoUpdate = false; h.holder.matrix.copy(h.src.matrixWorld); } for (const c of hitG.children) if (c.userData.reg) c.visible = S.mode === 'physics'; }
 function setHit(on) { S.hit = on; save(); if (on && !hitItems) buildHit(); hitG.visible = on && S.mode !== 'items'; }
@@ -690,7 +787,7 @@ function setMode(m) {
   for (const b of document.querySelectorAll('#modes button')) b.classList.toggle('on', b.dataset.mode === S.mode);
   const mach = S.mode !== 'items', phy = S.mode === 'physics';
   root.visible = mach; for (const c of [cross1, cross2]) c.visible = mach; itemRoot.visible = !mach; selBox.visible = mach && !!sel;
-  reg.group.visible = phy; $('rpmCtl').hidden = phy; hitG.visible = mach && S.hit;
+  reg.group.visible = phy; elecG.visible = phy; $('rpmCtl').hidden = phy; hitG.visible = mach && S.hit;
   if (phy && was !== 'physics') phys.sync();   // fizyka startuje z bieżącego położenia części
   $('mBar').hidden = !mach;
   $('info').textContent = phy ? $('info').dataset.physics : mach ? $('info').dataset.machine : $('info').dataset.items;
@@ -721,6 +818,12 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), RUN_MAX = 120;
 window.MechanicsApi = {
   mode(m) { setMode(m); return S.mode; },
   // regulator(nazwa) — obsługa regulatora przy silniku w trybie Fizyka: 'run' | 'stop' | 'dir' | liczba (przeciągnięcie pokrętła, px)
+  // circuit(nazwa) — obsługa instalacji w trybie Fizyka: 'power' (X0), 'main' (Q1), 'start' / 'stop' (chwilowe), 'estop' (zatrzask / odblokowanie), 'test' (K1 ręcznie); circuit('pot', 0–1)
+  circuit(c, v) {
+    const E = ELEC, map = { power: [E.X0, 'power'], main: [E.Q1, 'toggle'], start: [E.S2, 'button'], stop: [E.S1, 'button'], estop: [E.S0, 'estop'], test: [E.K1, 'test'] };
+    if (c === 'pot') { E.R1.api.pos = Number(v) || 0; } else if (map[c]) { const [d, n] = map[c]; d.api.press(n); if (c === 'start' || c === 'stop') setTimeout(() => d.api.release(n), 150); }
+    const es = E.st; return { power: E.X0.api.on, main: E.Q1.api.on, k1: E.K1.api.on, estop: E.S0.api.latched, vfd: reg.api.powered, Ucoil: es.uK, Uvfd: es.uV, shorts: es.r ? es.r.shorts : [] };
+  },
   regulator(c) { if (typeof c === 'number') reg.api.drag('knob', c); else reg.api.press(c); return { run: reg.api.run, dir: reg.api.dir, f: reg.api.f, set: reg.api.set }; },
   // ratios() — przełożenia ω_element / ω_silnika w fizyce i w kinematyce (sprawdzenie zgodności)
   ratios() { return parts.filter((e) => phys.nodes.includes(e)).slice(-4).map((e) => [e.name, +(phys.state.omega ? e.omega / phys.state.omega : 0).toFixed(4)]); },

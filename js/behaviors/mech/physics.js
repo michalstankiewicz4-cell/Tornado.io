@@ -17,12 +17,12 @@
 //      (nierówny bieg — relacja kątów z modify()).
 //   4. bryły zderzeń zębów — backlash(edge) może zwrócić strefę z brył ({ zone(θa, out) → out.lo, out.hi }, contact.js):
 //      granice wiązania zazębienia zależą wtedy od kąta koła a (zmienność luzu wzdłuż przyporu), a nie są stałym ±luz/2.
-//   (dalej: obwód elektryczny)
+//   5. obwód elektryczny (js/behaviors/mech/circuit.js) — zasilanie silnika z falownika: on = false → moment 0 (wybieg).
 //   const ph = createPhysics(drive, { motorId, brakeId, backlash: (edge) => luz kątowy koła b (rad) | 0,
 //                                     stiffness: (edge) => ({ k, zeta, name }) | null (sztywno),
 //                                     modify: (edge) => nowa relacja kątów (ta, tb) => θb | null,
 //                                     belt: (edge) => ({ Tmax, kinetic, creep }) | null — pas z poślizgiem })
-//   ph.step(dt, { w0, brake, Tmax, slip, rated }) → stan;  ph.state, ph.edges (stan każdego połączenia)
+//   ph.step(dt, { w0, brake, Tmax, slip, rated, on }) → stan;  ph.state, ph.edges (stan każdego połączenia)
 export const ENV = ['land'];
 const TAU = Math.PI * 2;
 
@@ -88,7 +88,7 @@ export function createPhysics(drive, { motorId, brakeId, backlash = () => 0, sti
     c.Tf = -F;
   }
 
-  function step(dt, { w0 = 0, brake: Tbrake = 0, Tmax = 18, slip = 0.06, rated = 1450 } = {}) {
+  function step(dt, { w0 = 0, brake: Tbrake = 0, Tmax = 18, slip = 0.06, rated = 1450, on = true } = {}) {   // on: false — silnik bez zasilania (wybieg)
     if (dt <= 0) return st;
     const n = Math.max(1, Math.round(substeps * dt * 60)), h = dt / n, h2 = h * h, k = Tmax / (2.5 * slip * rated * TAU / 60);
     const im = idx.get(motor), ib = brake ? idx.get(brake) : -1;
@@ -97,7 +97,7 @@ export function createPhysics(drive, { motorId, brakeId, backlash = () => 0, sti
     let Tm = 0, Tb = 0;
     for (let s = 0; s < n; s++) {
       // momenty zewnętrzne: silnik (poślizg — falownik zadaje prędkość synchroniczną w0), łożyska (opór lepki)
-      Tm = Math.max(-Tmax, Math.min(Tmax, k * (w0 - om[im])));
+      Tm = on ? Math.max(-Tmax, Math.min(Tmax, k * (w0 - om[im]))) : 0;
       om[im] += h * Tm * w[im];
       for (let i = 0; i < N; i++) om[i] -= om[i] * Math.min(1, bearing * w[i] * h);
       for (const c of SOFTS) spring(c, h);   // sprężyny: momenty z bieżącego skręcenia (jawnie, przed ruchem)
