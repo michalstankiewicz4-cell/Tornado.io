@@ -174,6 +174,10 @@ export function inverter({ kW = 1.1, fmax = 50, ramp = 5 } = {}) {
   let set = 0.6, f = 0, run = false, dir = 1;   // f ze znakiem: + przód (FWD), − wstecz (REV)
   // zasilanie z obwodu (power(v)) i zadawanie: 'panel' — pokrętło, 'ai' — wejście analogowe 0–10 V (ai(v))
   let powered = true, ref = 'panel', ain = 0;
+  // sterowanie: 'panel' — RUN / STOP / FWD-REV na panelu, 'terminal' — wejścia cyfrowe DI1 (praca w przód) i DI2
+  // (praca wstecz) ze sterowania dwuprzewodowego; ochrona przed samoczynnym startem: po włączeniu zasilania albo
+  // STOP z panelu praca rusza dopiero po zdjęciu sygnału (oba wejścia nieaktywne) i ponownym podaniu
+  let ctrl = 'panel', di1 = false, di2 = false, armed = false, boot = 0;   // boot: rozruch po włączeniu zasilania (0,5 s)
   const draw = () => {
     const c = disp.c.getContext('2d'); c.fillStyle = '#0b1a10'; c.fillRect(0, 0, 256, 96);
     if (!powered) { c.fillStyle = '#050806'; c.fillRect(0, 0, 256, 96); disp.t.needsUpdate = true; return; }   // bez zasilania — wyświetlacz ciemny
@@ -181,6 +185,7 @@ export function inverter({ kW = 1.1, fmax = 50, ramp = 5 } = {}) {
     c.fillText(Math.abs(f).toFixed(1), 196, 50); c.font = 'bold 26px monospace'; c.fillText('Hz', 248, 62);
     c.font = '18px monospace'; c.textAlign = 'left'; c.fillText(run ? 'RUN' : 'STOP', 8, 20); c.fillText(dir > 0 ? 'FWD' : 'REV', 8, 88);
     if (ref === 'ai') c.fillText('AI', 8, 54);
+    if (ctrl === 'terminal') { c.fillText('TERM', 60, 20); if (!armed && (di1 || di2)) { c.fillStyle = '#ffb04a'; c.fillText('BLOK', 60, 88); } }
     disp.t.needsUpdate = true;
   };
   const apply = () => { kn.rotation.z = -(-135 + 270 * set) * Math.PI / 180; };
@@ -189,16 +194,24 @@ export function inverter({ kW = 1.1, fmax = 50, ramp = 5 } = {}) {
   const api = {
     get f() { return f; }, get set() { return (ref === 'ai' ? ain / 10 : set) * fmax; }, get run() { return run; }, get dir() { return dir; },
     get powered() { return powered; }, get ref() { return ref; }, get ain() { return ain; },
+    get ctrl() { return ctrl; }, get di() { return [di1, di2]; }, get armed() { return armed; },
+    control(m) { ctrl = m === 'terminal' ? 'terminal' : 'panel'; armed = false; last = ''; },
+    inputs(a, b) { di1 = !!a; di2 = !!b; },
     // power(v): utrata zasilania — wyjście wyłączone od razu (silnik wybiega), po powrocie STOP (nowe polecenie RUN)
-    power(v) { v = !!v; if (v === powered) return; powered = v; if (!v) { run = false; f = 0; } last = ''; draw(); },
+    power(v) { v = !!v; if (v === powered) return; powered = v; armed = false; boot = v ? 0.5 : 0; if (!v) { run = false; f = 0; } last = ''; draw(); },
     reference(r) { ref = r === 'ai' ? 'ai' : 'panel'; last = ''; }, ai(v) { ain = Math.max(0, Math.min(10, v)); },
-    press(c) { if (!powered) return; if (c === 'run') run = true; if (c === 'stop') run = false; if (c === 'dir') dir = -dir; if (c === 'run' || c === 'stop' || c === 'dir') { const b = c === 'run' ? bRun : c === 'stop' ? bStop : bDir; b.position.z = 0.002; setTimeout(() => { b.position.z = 0.0035; }, 160); } },
+    press(c) { if (!powered) return; const term = ctrl === 'terminal'; if (c === 'run' && !term) run = true; if (c === 'stop') { run = false; armed = false; } if (c === 'dir' && !term) dir = -dir; if (c === 'run' || c === 'stop' || c === 'dir') { const b = c === 'run' ? bRun : c === 'stop' ? bStop : bDir; b.position.z = 0.002; setTimeout(() => { b.position.z = 0.0035; }, 160); } },
     release() {}, drag(c, dy) { if (c === 'knob') { set = Math.max(0, Math.min(1, set - dy / 300)); apply(); } },
     tick(dt) {
       if (!powered) return;
+      if (boot > 0) { boot -= dt; return; }   // rozruch: wejścia czytane dopiero po nim
+      if (ctrl === 'terminal') {   // DI1 xor DI2 — praca (oba naraz: stop), DI2 — wstecz
+        if (!di1 && !di2) armed = true;
+        run = armed && di1 !== di2; if (run) dir = di2 ? -1 : 1;
+      }
       const target = run ? dir * (ref === 'ai' ? ain / 10 : set) * fmax : 0, step = fmax / Math.max(0.1, ramp) * dt;
       f = Math.abs(target - f) <= step ? target : f + Math.sign(target - f) * step;
-      const s = f.toFixed(1) + run + dir + ref; if (s !== last) { last = s; draw(); }
+      const s = f.toFixed(1) + run + dir + ref + ctrl + armed + di1 + di2; if (s !== last) { last = s; draw(); }
     },
   };
   Object.assign(g.userData, { kW, fmax, ramp, mass: 1.4 * k * k * k, api });
@@ -268,10 +281,12 @@ export function selector({ positions = 'I-0-II', spring = false, handle = 'short
   const mk = mesh(new THREE.BoxGeometry(0.0015, 0.006, 0.0006), Pm.white); mk.position.set(0, hl / 2 - 0.004, 0.0148); kn.add(mk);
   for (const o of [disc, hnd, mk]) o.userData.control = 'selector';
   const P = three ? [['I', Math.PI / 4], ['0', 0], ['II', -Math.PI / 4]] : [['0', Math.PI / 4], ['I', -Math.PI / 4]];
-  let idx = three ? 1 : 0, ang = P[idx][1], down = false;
+  let idx = three ? 1 : 0, ang = P[idx][1], down = false, side = 2;
+  // klik: trójpołożeniowy przechodzi zawsze przez 0 (0 → I → 0 → II → 0 …), nie przeskakuje z I na II
   const api = {
     get pos() { return P[idx][0]; },
-    press(c) { if (c !== 'selector') return; down = true; idx = (idx + 1) % P.length; },
+    set pos(v) { const i = P.findIndex((p) => p[0] === v); if (i >= 0) idx = i; },
+    press(c) { if (c !== 'selector') return; down = true; if (!three) idx = 1 - idx; else if (idx !== 1) { side = idx; idx = 1; } else idx = side === 0 ? 2 : 0; },
     release() { down = false; if (spring) idx = three ? 1 : 0; }, drag() {},
     tick(dt) { ang += (P[idx][1] - ang) * Math.min(1, dt * 18); kn.rotation.z = ang; },
   };

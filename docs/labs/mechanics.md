@@ -97,6 +97,11 @@ Punkty fizyki (dochodzą po kolei):
    Falownik bez zasilania — wyjście wyłączone, silnik wybiega (moment 0); po powrocie zasilania STOP (nowe RUN).
    Okno Opis: stan styków, napięcie cewki, lampka, pobór falownika (moc, prąd fazowy), napięcie U/f i prąd silnika,
    spadek napięcia w kablach. `MechanicsApi.circuit('power' | 'main' | 'start' | 'stop' | 'estop' | 'test' | 'pot', v)`.
+   Praca i kierunek z kasety: przełącznik S3 I-0-II (I — w przód, 0 — stop, II — wstecz; zawsze przez 0) na wejścia
+   cyfrowe falownika DI1 / DI2, zasilane z jego wewnętrznych 24 V DC (kabel W7 4×0,5; wejście aktywne ≥ 15 V,
+   IEC 61131-2). Falownik w trybie sterowania z zacisków (TERM): RUN i FWD / REV na panelu nie działają, STOP z panelu
+   działa. Ochrona przed samoczynnym startem: po włączeniu zasilania (rozruch 0,5 s) albo STOP z panelu praca rusza
+   dopiero po przestawieniu S3 na 0 i z powrotem (na wyświetlaczu BLOK). `MechanicsApi.circuit('dir', 'I' | '0' | 'II')`.
 
 ## Maszyna
 

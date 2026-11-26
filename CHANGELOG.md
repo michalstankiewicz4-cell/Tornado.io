@@ -1,5 +1,14 @@
 # Zmiany
 
+## 0.26.1 — 2026-11-26
+- Laboratorium mechaniki 0.11.0 — praca i kierunek obrotów z kasety zamiast przycisków na falowniku: przełącznik S3
+  I-0-II → wejścia cyfrowe falownika DI1 (w przód) / DI2 (wstecz), zasilane z jego 24 V DC (kabel W7 4×0,5, wejście
+  aktywne ≥ 15 V). Falownik sterowany z zacisków (TERM): RUN i FWD / REV na panelu nie działają, STOP działa.
+  Ochrona przed samoczynnym startem: po włączeniu zasilania albo STOP z panelu — dopiero po przestawieniu S3 na 0
+  (wyświetlacz: BLOK). Okno Opis: położenie S3, napięcia DI1 / DI2, stan pracy. `MechanicsApi.circuit('dir', …)`.
+- ControlKit: falownik `control('panel' | 'terminal')`, `inputs(DI1, DI2)`, rozruch 0,5 s po włączeniu zasilania;
+  przełącznik wyboru I-0-II przechodzi zawsze przez 0 (nie przeskakuje z I na II), `pos` do ustawienia.
+
 ## 0.26.0 — 2026-11-26
 - Laboratorium mechaniki 0.10.0 — tryb Fizyka, punkt 5: **obwód elektryczny** (`js/behaviors/mech/circuit.js`).
   - Instalacja przy silniku, obsługiwana na modelach: źródło X0 3 × 400/230 V (TN-S) → wyłącznik główny Q1 → stycznik

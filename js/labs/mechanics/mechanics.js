@@ -345,7 +345,7 @@ const reg = (() => { const g = CK.inverter({ kW: 1.1, fmax: 50, ramp: 4 }); g.po
 // S0 (NC) → STOP S1 (NC) → START S2 (NO) ∥ styk pomocniczy K1 13-14 (podtrzymanie) → cewka K1 → N; lampka H1
 // „praca” równolegle do cewki. Elementy obsługiwane na modelach; kable z prawdziwymi przekrojami i długościami.
 const elecG = new THREE.Group(); elecG.visible = false; scene.add(elecG);
-reg.api.reference('ai'); reg.api.power(false);   // falownik zasilany dopiero przez stycznik K1
+reg.api.reference('ai'); reg.api.control('terminal'); reg.api.power(false);   // falownik zasilany dopiero przez stycznik K1
 const ELEC = (() => {
   const put = (g, x, y, z) => { g.position.set(x, y, z); elecG.add(g); return { group: g, api: g.userData.api, name: '' }; };
   const X0 = put(CK.powerSource({ kind: 'AC', volts: 400, phases: 3, amps: 16 }), -6.5, BED_TOP, 0.4);
@@ -358,8 +358,9 @@ const ELEC = (() => {
   const S2 = put(CK.pushButton({ color: 'green', contact: 'NO' }), -6.33, BED_TOP, 0.62);
   const H1 = put(CK.pilotLamp({ color: 'green', volts: '230AC' }), -6.24, BED_TOP, 0.62);
   const R1 = put(CK.potentiometer({ ohms: 10000, taper: 'lin' }), -6.14, BED_TOP, 0.62);
+  const S3 = put(CK.selector({ positions: 'I-0-II', handle: 'long' }), -6.04, BED_TOP, 0.62);   // praca: I — w przód, 0 — stop, II — wstecz
   Object.assign(X0, { name: 'Zasilanie X0' }); Object.assign(Q1, { name: 'Wyłącznik główny Q1' }); Object.assign(K1, { name: 'Stycznik K1' });
-  Object.assign(S0, { name: 'Grzybek S0' }); Object.assign(S1, { name: 'STOP S1' }); Object.assign(S2, { name: 'START S2' }); Object.assign(H1, { name: 'Lampka H1' }); Object.assign(R1, { name: 'Potencjometr R1' });
+  Object.assign(S0, { name: 'Grzybek S0' }); Object.assign(S1, { name: 'STOP S1' }); Object.assign(S2, { name: 'START S2' }); Object.assign(H1, { name: 'Lampka H1' }); Object.assign(R1, { name: 'Potencjometr R1' }); Object.assign(S3, { name: 'Przełącznik kierunku S3' });
   X0.api.press('power'); Q1.api.press('toggle');   // na starcie: zasilanie i wyłącznik główny włączone, stycznik czeka na START
   // kable: dławik z tyłu urządzenia (albo od dołu), przez łoże do drugiego urządzenia
   elecG.updateWorldMatrix(true, true); reg.group.updateWorldMatrix(true, true);
@@ -382,6 +383,7 @@ const ELEC = (() => {
   lay('W4', back(reg.group, -0.02), tbox, { cores: 4, mm2: 1.5, color: 'orange', name: 'W4 — falownik → silnik 4G1,5 (ekranowany)' });
   lay('W5', back(S2.group), under(K1.group, 0), { cores: 5, mm2: 1, color: 'grey', name: 'W5 — sterowanie 5×1' });
   lay('W6', back(R1.group), back(reg.group, 0), { cores: 3, mm2: 0.5, color: 'grey', name: 'W6 — potencjometr 3×0,5' });
+  lay('W7', back(S3.group), back(reg.group, -0.035), { cores: 4, mm2: 0.5, color: 'grey', name: 'W7 — praca / kierunek 4×0,5 (24 V DC)' });
   for (const [a, b] of [[S0, S1], [S1, S2], [S2, H1]]) lay(`J${a.name}`, back(a.group, 0.02), back(b.group, -0.02), { cores: 2, mm2: 1, color: 'grey', name: 'mostek w kasecie 2×1' });
   // lista połączeń (schemat)
   const c = createCircuit(), Rw = (k) => cables[k].userData.R, UF = 400 / Math.sqrt(3);   // napięcie fazowe 230,9 V
@@ -397,6 +399,12 @@ const ELEC = (() => {
   c.wire('K1:1', 'S0:11', { R: Rw('W5'), name: 'W5 żyła 1' }).wire('S1:12', 'K1:13', { R: Rw('W5'), name: 'W5 żyła 2' }).wire('S2:14', 'K1:A1', { R: Rw('W5'), name: 'W5 żyła 3' }).wire('K1:N', 'H1:X2', { R: Rw('W5'), name: 'W5 żyła 4' });
   c.wire('S0:12', 'S1:11', { name: 'mostek' }).wire('S1:12', 'S2:13', { name: 'mostek' }).wire('S2:14', 'H1:X1', { name: 'mostek' });
   c.contact('S0:11', 'S0:12', () => S0.api.closed, 'S0').contact('S1:11', 'S1:12', () => S1.api.closed, 'S1').contact('S2:13', 'S2:14', () => S2.api.closed, 'S2');
+  // sterowanie falownikiem 24 V DC (zasilacz wewnętrzny falownika, działa przy zasilonym falowniku): +24 V → S3 → DI1 / DI2
+  c.source('VFD24', { P: [24, 0], COM: [0, 0] }, () => reg.api.powered);
+  c.wire('VFD24:P', 'VFD:+24', { name: 'falownik +24 V' }).wire('VFD24:COM', 'VFD:COM', { name: 'falownik COM' });
+  c.wire('VFD:+24', 'S3:C', { R: Rw('W7'), name: 'W7 żyła 1' }).wire('S3:13', 'VFD:DI1', { R: Rw('W7'), name: 'W7 żyła 2' }).wire('S3:23', 'VFD:DI2', { R: Rw('W7'), name: 'W7 żyła 3' });
+  c.contact('S3:C', 'S3:13', () => S3.api.pos === 'I', 'S3 I').contact('S3:C', 'S3:23', () => S3.api.pos === 'II', 'S3 II');
+  c.load('DI1', ['VFD:DI1', 'VFD:COM'], { Un: 24 }).load('DI2', ['VFD:DI2', 'VFD:COM'], { Un: 24 });
   c.load('K1', ['K1:A1', 'K1:A2'], { Un: 230 }).load('H1', ['H1:X1', 'H1:X2'], { Un: 230 }).load('VFD', ['VFD:L1', 'VFD:L2', 'VFD:L3'], { Un: 400 });
   const st = { kOn: false, kT: 0, r: null, uK: 0, uH: 0, uV: 0, Pin: 0, I: 0, Im: 0, Uout: 0, Pel: 0, dU: 0 };
   const In = 1100 / (Math.sqrt(3) * 400 * 0.84 * 0.77), Rline = Rw('W1') + Rw('W2') + Rw('W3');
@@ -405,8 +413,10 @@ const ELEC = (() => {
     const r = c.solve(); st.r = r; st.uK = r.U('K1'); st.uH = r.U('H1'); st.uV = r.U('VFD');
     if (!st.kOn) { st.kT = st.uK >= 0.85 * 230 ? st.kT + dt : 0; if (st.kT >= 0.02) st.kOn = true; } else if (st.uK < 0.6 * 230) { st.kOn = false; st.kT = 0; }
     K1.api.coil(st.kOn); H1.api.power(st.uH / 230);
-    reg.api.power(st.uV >= 0.85 * 400); reg.api.ai(10 * R1.api.ratio());
-    for (const d of [X0, Q1, K1, S0, S1, S2, H1, R1]) d.api.tick(dt);
+    const was = reg.api.powered; reg.api.power(st.uV >= 0.85 * 400); reg.api.ai(10 * R1.api.ratio());
+    const r2 = was === reg.api.powered ? r : c.solve();   // zasilanie falownika się zmieniło — jego 24 V też
+    st.uDI1 = r2.U('DI1'); st.uDI2 = r2.U('DI2'); reg.api.inputs(st.uDI1 >= 15, st.uDI2 >= 15);   // wejście aktywne ≥ 15 V (IEC 61131-2, typ 1)
+    for (const d of [X0, Q1, K1, S0, S1, S2, H1, R1, S3]) d.api.tick(dt);
   }
   // moce i prądy z momentu silnika (sprawność silnika 84 %, falownika 97 %, cos φ silnika 0,77, wejścia falownika 0,95)
   function power(Tm, omega, on) {
@@ -416,7 +426,7 @@ const ELEC = (() => {
     const Tn = motorG.userData.Tn || 7.4, k0 = 0.6; st.Im = on ? In * Math.sqrt(k0 * k0 + (1 - k0 * k0) * Math.min(4, (Tm / Tn) ** 2)) : 0;
     st.Uout = on ? Math.min(400, 400 * Math.abs(reg.api.f) / 50) : 0; st.dU = Math.sqrt(3) * st.I * Rline;
   }
-  return { X0, Q1, K1, S0, S1, S2, H1, R1, devices: [reg, X0, Q1, K1, S0, S1, S2, H1, R1], circuit: c, cables, st, tick, power, In, Rline };
+  return { X0, Q1, K1, S0, S1, S2, H1, R1, S3, devices: [reg, X0, Q1, K1, S0, S1, S2, H1, R1, S3], circuit: c, cables, st, tick, power, In, Rline };
 })();
 reg.name = 'Falownik';
 // punkt 4 — bryły zderzeń zębów (wielokąty wypukłe z zarysu, ten sam co model) i strefa swobody zazębienia z nich:
@@ -472,6 +482,7 @@ function physStats() {
     rows.push(['Stycznik K1', `${E.K1.api.on ? 'załączony' : 'wyłączony'}${E.K1.api.test ? ' (test ręczny)' : ''} · cewka ${fmt(es.uK)} V (zadziała ≥ 196 V, odpada < 138 V) · podtrzymanie 13-14 ${onoff(E.K1.api.on)}`]);
     rows.push(['Lampka H1', `${es.uH > 0.5 * 230 ? 'świeci' : 'zgaszona'} (${fmt(es.uH)} V)`]);
     rows.push(['Falownik — zasilanie', reg.api.powered ? `${fmt(es.uV)} V · pobór ${fmt(es.Pin)} W · ${fmt(es.I, 2)} A na fazę` : `bez zasilania (${fmt(es.uV)} V) — silnik wybiega`]);
+    rows.push(['Praca / kierunek (S3 → DI)', `S3 w położeniu ${E.S3.api.pos} · DI1 (w przód) ${fmt(es.uDI1 || 0)} V, DI2 (wstecz) ${fmt(es.uDI2 || 0)} V · ${reg.api.run ? (reg.api.dir > 0 ? 'praca w przód' : 'praca wstecz') : !reg.api.armed && (reg.api.di[0] || reg.api.di[1]) ? 'BLOKADA — przestaw S3 na 0 (ochrona przed samoczynnym startem)' : 'stop'}`]);
     rows.push(['Zadawanie (R1 → AI)', `${fmt(reg.api.ain, 2)} V → ${fmt(reg.api.set, 1)} Hz (potencjometr 10 kΩ liniowy, 0–10 V = 0–50 Hz)`]);
     rows.push(['Silnik — zasilanie', es.Uout ? `${fmt(es.Uout)} V (U/f) · ${fmt(es.Im, 2)} A (znam. ${fmt(E.In, 2)} A) · ${fmt(es.Pel)} W` : 'bez napięcia']);
     rows.push(['Spadek napięcia W1–W3', `${fmt(es.dU * 1000, 1)} mV (${fmt(es.dU / 4, 4)} %) · ${fmt(E.Rline * 1000, 1)} mΩ na żyłę (2,5 mm² Cu, ${fmt(['W1', 'W2', 'W3'].reduce((a, k) => a + E.cables[k].userData.len, 0), 2)} m)`]);
@@ -818,9 +829,10 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), RUN_MAX = 120;
 window.MechanicsApi = {
   mode(m) { setMode(m); return S.mode; },
   // regulator(nazwa) — obsługa regulatora przy silniku w trybie Fizyka: 'run' | 'stop' | 'dir' | liczba (przeciągnięcie pokrętła, px)
-  // circuit(nazwa) — obsługa instalacji w trybie Fizyka: 'power' (X0), 'main' (Q1), 'start' / 'stop' (chwilowe), 'estop' (zatrzask / odblokowanie), 'test' (K1 ręcznie); circuit('pot', 0–1)
+  // circuit(nazwa) — obsługa instalacji w trybie Fizyka: circuit('dir', 'I' | '0' | 'II') — przełącznik S3, 'power' (X0), 'main' (Q1), 'start' / 'stop' (chwilowe), 'estop' (zatrzask / odblokowanie), 'test' (K1 ręcznie); circuit('pot', 0–1)
   circuit(c, v) {
-    const E = ELEC, map = { power: [E.X0, 'power'], main: [E.Q1, 'toggle'], start: [E.S2, 'button'], stop: [E.S1, 'button'], estop: [E.S0, 'estop'], test: [E.K1, 'test'] };
+    const E = ELEC; if (c === 'dir') { E.S3.api.pos = v; return E.S3.api.pos; }
+    const map = { power: [E.X0, 'power'], main: [E.Q1, 'toggle'], start: [E.S2, 'button'], stop: [E.S1, 'button'], estop: [E.S0, 'estop'], test: [E.K1, 'test'] };
     if (c === 'pot') { E.R1.api.pos = Number(v) || 0; } else if (map[c]) { const [d, n] = map[c]; d.api.press(n); if (c === 'start' || c === 'stop') setTimeout(() => d.api.release(n), 150); }
     const es = E.st; return { power: E.X0.api.on, main: E.Q1.api.on, k1: E.K1.api.on, estop: E.S0.api.latched, vfd: reg.api.powered, Ucoil: es.uK, Uvfd: es.uV, shorts: es.r ? es.r.shorts : [] };
   },
