@@ -1,6 +1,6 @@
 // ClockKit — tarcza zegara (posrebrzana, grawerowana: pierścień minutowy, sekundnik, tarcza godzinowa) i wskazówki.
 import * as THREE from '../../../../vendor/three/three.module.js';
-import { TAU, mesh, circle, slab, cylZ, materials } from './shared.js';
+import { TAU, mesh, circle, slab, cylZ, materials } from '../common.js';
 
 /* ---------------- tarcza zegara (posrebrzana, grawerowana) ---------------- */
 export function dialTexture({ subS = [0, 0.045], subH = [0, -0.028], R = 0.11 } = {}) {

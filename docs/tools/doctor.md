@@ -23,3 +23,13 @@ Modeli nie poprawiamy ręcznie pod doktora — poprawka idzie do budującego kod
 (`mech/…` — z katalogu `js/labs/mechanics/items.js`, ustawienia domyślne i warianty skrajne z `MECH_VARIANTS`) i beczka
 z laboratorium deformacji (`deform/…`). Przedmioty w skali milimetrów mają `planeEps: 0.0002` (domyślne 0,01 m jest dla
 ulic i budynków). Uruchomienie dla jednej rodziny: `python3 tools/doctor.py mech/`.
+
+## Złożenie — „clash” (do przeniesienia do GameLaboratory)
+
+- `python3 tools/doctor.py --scene <strona>` otwiera stronę z `window.LabScene = { prepare?(), root(), components(),
+  clashOk?(a, b) }` i bada sprawdzenie `clash` między modelami sceny (każdy element `components()` to osobny model).
+- Kolizja: wierzchołek części jednego modelu leży w zamkniętej bryle innego modelu i zostaje w niej po przesunięciu
+  o `clashDepth` (domyślnie 0,3 mm) w ±x, ±y, ±z — styk powierzchni i pasowanie (wał w otworze) nie są kolizją. Wynik
+  podaje głębokość (≥ …) i miejsce. Pasowanie zamierzone: `userData.doctorOk = 'clash'` na części (trzpień śruby).
+- Ogólne poprawki MechKit przy okazji: faza wyciągnięć do środka (`bevelOffset = −bevelSize`, obrys i otwory nominalne),
+  faza ograniczona do 0,3 średniego odcinka obrysu (drobne zęby).

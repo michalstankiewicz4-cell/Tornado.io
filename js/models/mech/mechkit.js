@@ -82,7 +82,11 @@ export function materials() {
 // kształt w płaszczyźnie (sx, sy) wyciągnięty wzdłuż sz → świat (x = sz, y = sx, z = sy): kąt w kształcie = kąt obrotu wokół +x
 const PERM = new THREE.Matrix4().set(0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1);
 function extrude(shape, w, bevel = 0.0006, curve = 24) {
-  const g = new THREE.ExtrudeGeometry(shape, { depth: w - 2 * bevel, bevelEnabled: bevel > 0, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 1, curveSegments: curve });
+  // fazowanie do środka (bevelOffset = −bevelSize): obrys i otwory mają wymiar nominalny — bez tego koło jest grubsze, a otwory
+  // ciaśniejsze o fazę (zęby współpracujących kół i wały w otworach wchodziły w siebie)
+  // drobne kształty (małe zęby): faza nie większa niż pół średniego odcinka obrysu — inaczej przesunięty do środka obrys się przecina
+  { const pts = shape.getPoints(curve); let per = 0; for (let i = 0; i < pts.length; i++) per += pts[i].distanceTo(pts[(i + 1) % pts.length]); bevel = Math.min(bevel, 0.3 * per / Math.max(1, pts.length)); }
+  const g = new THREE.ExtrudeGeometry(shape, { depth: w - 2 * bevel, bevelEnabled: bevel > 0, bevelThickness: bevel, bevelSize: bevel, bevelOffset: -bevel, bevelSegments: 1, curveSegments: curve });
   g.translate(0, 0, -(w - 2 * bevel) / 2).applyMatrix4(PERM);
   return uvScale(g, 6);
 }
@@ -248,8 +252,13 @@ export function conRod({ l = 0.2, w = 0.014, t = 0.008, name } = {}) {
     const eye = mesh(ringY(rt, ro, t * 1.2, 28).rotateX(Math.PI / 2), M.dark); eye.position.x = x; g.add(eye);
     const bush = mesh(ringY(rb, rt, t * 1.2, 28).rotateX(Math.PI / 2), M.brass); bush.position.x = x; g.add(bush);
   }
-  const v = new THREE.Vector3(), X1 = new THREE.Vector3(1, 0, 0);
-  const pose = (A, B) => { g.position.copy(A); v.subVectors(B, A).normalize(); g.quaternion.setFromUnitVectors(X1, v); };
+  // ustawienie: oś x korbowodu od A do B, oczka (oś lokalna z) współosiowe ze sworzniami (oś sworzni: axis, domyślnie świat x)
+  const v = new THREE.Vector3(), yv = new THREE.Vector3(), zv = new THREE.Vector3(), Mb = new THREE.Matrix4();
+  const pose = (A, B, axis = new THREE.Vector3(1, 0, 0)) => {
+    g.position.copy(A); v.subVectors(B, A).normalize();
+    zv.copy(axis).addScaledVector(v, -axis.dot(v)).normalize(); yv.crossVectors(zv, v);
+    g.quaternion.setFromRotationMatrix(Mb.makeBasis(v, yv, zv));
+  };
   const mass = STEEL_RHO * l * w * t;
   Object.assign(g.userData, { l, mass, pose, phys: { ...PHYS.crank } });
   return g;
@@ -299,6 +308,7 @@ export function bolt({ d = 0.01, len = 0.03, name } = {}) {
   const washer = mesh(ringY(d * 0.54, wr, wt, 24), M.steel); washer.position.y = wt / 2; g.add(washer);
   const head = mesh(new THREE.CylinderGeometry(D.s / 2 / Math.cos(Math.PI / 6), D.s / 2 / Math.cos(Math.PI / 6), D.k, 6), M.dark); head.position.y = wt + D.k / 2; g.add(head);
   const shank = mesh(new THREE.CylinderGeometry(d / 2, d / 2, len, 16), M.dark); shank.position.y = -len / 2 + wt * 0.5; g.add(shank);   // trzpień (w otworze, widać po odkręceniu)
+  shank.userData.doctorOk = 'clash';   // trzpień siedzi w otworze gwintowanym części — pasowanie, nie kolizja (łeb i podkładka już tak)
   const Fp = 0.7 * 640e6 * D.As;
   Object.assign(g.userData, { d, len, Fp, mu: 0.15, mass: STEEL_RHO * (Math.PI * d * d / 4 * len + D.s * D.s * 0.87 * D.k), bolt: true });
   return g;
@@ -584,12 +594,12 @@ export function shaft({ len = 1, r = 0.0125, mat = 'steel', key: keyway = true, 
 export function pillowBlock({ h = 0.12, r = 0.0125, name = 'Łożysko w oprawie stojącej UCP' } = {}) {
   const M = materials(), g = new THREE.Group(); g.name = name;
   const k = r / 0.0125, hc = 0.036 * k, base = h - hc, top = new THREE.Group(); top.scale.setScalar(k); top.position.y = base; g.add(top);
-  const s = new THREE.Shape(); s.moveTo(-0.085, 0); s.lineTo(0.085, 0); s.lineTo(0.085, 0.016); s.lineTo(0.036, 0.019);
-  s.absarc(0, 0.036, 0.038, -0.35, Math.PI + 0.35, false); s.lineTo(-0.085, 0.016); s.closePath();   // kształt w skali 1 (oprawa skalowana k), oś na 0,036
+  const s = new THREE.Shape(); s.moveTo(-0.085, 0); s.lineTo(0.085, 0); s.lineTo(0.085, 0.019); s.lineTo(0.036, 0.019);
+  s.absarc(0, 0.036, 0.038, -0.35, Math.PI + 0.35, false); s.lineTo(-0.036, 0.019); s.lineTo(-0.085, 0.019); s.closePath();   // łapy płaskie (powierzchnia pod podkładkę)   // kształt w skali 1 (oprawa skalowana k), oś na 0,036
   s.holes.push(circlePath(0.026, 40, 0, 0.036), circlePath(0.0065, 16, -0.064, 0.008), circlePath(0.0065, 16, 0.064, 0.008));
   // kształt (sx → z, sy → y), wyciągnięcie wzdłuż x (macierz o wyznaczniku +1)
   const SM = new THREE.Matrix4().set(0, 0, 1, 0, 0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 0, 1);
-  const hg = new THREE.ExtrudeGeometry(s, { depth: 0.036, bevelEnabled: true, bevelThickness: 0.002, bevelSize: 0.002, bevelSegments: 1, curveSegments: 24 });
+  const hg = new THREE.ExtrudeGeometry(s, { depth: 0.036, bevelEnabled: true, bevelThickness: 0.002, bevelSize: 0.002, bevelOffset: -0.002, bevelSegments: 1, curveSegments: 24 });
   hg.translate(0, 0, -0.018).applyMatrix4(SM); uvScale(hg, 6);
   const hs = mesh(hg, M.paintGrey); top.add(hs);
   // wkładka łożyskowa UC (w skali 1, oprawa skalowana k): pierścień zewnętrzny w gnieździe, uszczelnienia, pierścień
@@ -607,7 +617,7 @@ export function pillowBlock({ h = 0.12, r = 0.0125, name = 'Łożysko w oprawie 
   // miejsca śrub mocujących (oś +y, płaszczyzna pod podkładką): wysoka podpora — płyta podstawy, niska — łapy oprawy
   // set: 'housing' — oprawa do podłoża / słupka (łapy), 'base' — słupek do łoża (płyta podstawy); część jest luźna, gdy
   // odkręcone są wszystkie śruby jednego zestawu (łeb śruby dawniej rysowany w modelu — teraz prawdziwa śruba MechKit.bolt)
-  const feet = [-1, 1].map((sz) => ({ p: new THREE.Vector3(0, base + 0.016 * k, sz * 0.064 * k), d: k >= 0.9 ? 0.012 : 0.01, set: 'housing' }));
+  const feet = [-1, 1].map((sz) => ({ p: new THREE.Vector3(0, base + 0.019 * k, sz * 0.064 * k), d: k >= 1.3 ? 0.012 : 0.01, set: 'housing' }));   // otwór Ø 13 — M10 (UCP204), większe oprawy M12
   const mounts = base > 0.12 ? [...[-1, 1].flatMap((sx) => [-1, 1].map((sz) => ({ p: new THREE.Vector3(sx * 0.035, 0.012, sz * 0.08), d: 0.01, set: 'base' }))), ...feet] : feet;
   g.userData = { mounts, phys: { ...PHYS.bearing }, ports: { bore: port('Gniazdo wału', DOMAIN.rot, 'łożysko') }, h, r, k, mass: 0.8 * k * k * k + (base > 0 ? IRON_RHO * 0.05 * 0.19 * base * 0.4 : 0) };
   return g;
@@ -792,7 +802,7 @@ export function discBrake({ d = 0.2, t = 0.008, vents = 12 } = {}) {
   // zacisk pływający okracza tarczę: dwie obudowy klocków po bokach (luz 1 mm do tarczy) i mostek nad krawędzią (2 mm)
   const gap = 0.001, ht = 0.018, cx = t / 2 + gap + ht / 2;
   for (const sx of [-1, 1]) { const c = mesh(box(ht, 0.05, 0.07), M.paintRed); c.position.set(sx * cx, R - 0.015, 0); g.add(c); }
-  const bridge = mesh(box(2 * (cx + ht / 2) - 0.002, 0.012, 0.068), M.paintRed); bridge.position.set(0, R + 0.002 + 0.006, 0); g.add(bridge);
+  const bridge = mesh(box(2 * (cx + ht / 2) - 0.002, 0.012, 0.068), M.paintRed); bridge.position.set(0, R - 0.015 + 0.025 + 0.006, 0); g.add(bridge);   // mostek na obudowach klocków (nie w nich), 10 mm nad krawędzią tarczy
   const mass = STEEL_RHO * Math.PI * R * R * t * 0.9 + STEEL_RHO * Math.PI * (R * 0.32) ** 2 * 0.03;
   Object.assign(g.userData, { ports: { shaft: port('Piasta (wpust)', DOMAIN.rot, 'wpust') }, d, t, vents, mass, J: 0.5 * mass * R * R * 0.85 });
   return g;

@@ -2,7 +2,7 @@
 import * as THREE from '../../../../vendor/three/three.module.js';
 import { DOMAIN } from '../mechkit.js';
 import { escapementGeometry, palletOutline } from '../../../behaviors/mech/escapement.js';
-import { TAU, EN, mesh, port, circle, slab, cylZ, materials } from './shared.js';
+import { TAU, EN, mesh, port, circle, slab, cylZ, materials } from '../common.js';
 
 /* ---------------- wychwyt Grahama ---------------- */
 // koło wychwytowe: zęby ostre pochylone do przodu (obrót zgodny z zegarem), ząb 0 — wierzchołek przy kącie π/2 (w górę),

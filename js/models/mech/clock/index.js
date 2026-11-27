@@ -5,8 +5,8 @@
 // skala amplitudy, deska z orzecha). Koła i wychwyt leżą w płaszczyźnie xy, osie wzdłuż +z (przód zegara); obrót
 // części — rotation.z (+ przeciwnie do zegara, patrząc od przodu). Geometria wychwytu wspólna z fizyką
 // (js/behaviors/mech/escapement.js: escapementGeometry, palletOutline). Wymiary prawdziwe (metry, kg).
-// Pliki: shared.js (pomocniki, materiały), wheels.js, escapement.js, springs.js, ratchet.js, flywheel.js, dial.js, regulator.js.
-export { materials } from './shared.js';
+// Pliki: wheels.js, escapement.js, springs.js, ratchet.js, flywheel.js, dial.js, regulator.js.
+export { materials } from '../common.js';
 export { clockWheel, pinion, arbor } from './wheels.js';
 export { escapeWheel, anchor, pendulum } from './escapement.js';
 export { compressionSpring, mainspringBarrel } from './springs.js';

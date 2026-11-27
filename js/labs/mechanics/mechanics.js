@@ -14,6 +14,7 @@ import { meshZone, planeMap, contactPair, meshClash } from '../../behaviors/mech
 import { createCircuit } from '../../behaviors/mech/circuit.js';
 import * as CK from '../../models/mech/controls.js';
 import { createClock } from './clock.js';
+import { createAutomation } from './automation.js';
 import { ITEMS, CATS, cardanMax } from './items.js';
 import { loadState, valid } from '../shared/saved.js';
 import { T, tr, LOC, EN, translateDom } from './lang.js';
@@ -44,7 +45,7 @@ const BED_TOP = 0.75, Y0 = 0.87, BX0 = -6.6, BX1 = 3.8, BZ0 = -0.35, BZ1 = 0.75;
   const bg = new THREE.BoxGeometry(BX1 - BX0, 0.08, BZ1 - BZ0), buv = bg.attributes.uv; for (let i = 0; i < buv.count; i++) buv.setXY(i, buv.getX(i) * (BX1 - BX0) / 1.2, buv.getY(i) * (BZ1 - BZ0) / 1.2);
   const bed = new THREE.Mesh(bg, M.bed); bed.position.set((BX0 + BX1) / 2, BED_TOP - 0.04, (BZ0 + BZ1) / 2); bed.castShadow = bed.receiveShadow = true; root.add(bed);
   for (let x = BX0 + 0.25; x < BX1; x += 1.3) for (const z of [BZ0 + 0.08, BZ1 - 0.08]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(0.1, BED_TOP - 0.08, 0.1), M.iron); leg.position.set(x, (BED_TOP - 0.08) / 2, z); leg.castShadow = leg.receiveShadow = true; root.add(leg); }
-  for (const z of [BZ0 + 0.2, BZ1 - 0.2]) { const slot = new THREE.Mesh(new THREE.BoxGeometry(BX1 - BX0 - 0.1, 0.002, 0.018), M.black); slot.position.set((BX0 + BX1) / 2, BED_TOP + 0.0005, z); root.add(slot); }   // rowki teowe
+  for (const z of [BZ0 + 0.2, BZ1 - 0.2]) { const slot = new THREE.Mesh(new THREE.BoxGeometry(BX1 - BX0 - 0.1, 0.0002, 0.018), M.black); slot.position.set((BX0 + BX1) / 2, BED_TOP + 0.0001, z); root.add(slot); }   // rowki teowe
 }
 for (const [x, z] of [[-5, 1.6], [-1.5, 1.8], [2, 1.6]]) {   // lampy warsztatowe nad stanowiskami
   const L = new THREE.SpotLight(0xffe2b8, 18, 9, 0.75, 0.6, 1.6); L.position.set(x, 3.4, z); L.target.position.set(x, Y0, 0.15); root.add(L, L.target);
@@ -53,7 +54,8 @@ for (const [x, z] of [[-5, 1.6], [-1.5, 1.8], [2, 1.6]]) {   // lampy warsztatow
 /* ---------------- napęd i elementy ---------------- */
 const drive = createDrive();
 const parts = [];   // { el, group } — do wybierania kliknięciem
-let CLOCK = { parts: [], devices: [], step: () => {}, rows: () => {} };   // zegar — regulator (osobny mechanizm obok łoża; sekcja „zegar” niżej)
+let CLOCK = { parts: [], devices: [], step: () => {}, rows: () => {} };
+let AUTO = null;   // czujniki, przekaźnik czasowy, regulator PID (js/labs/mechanics/automation.js)   // zegar — regulator (osobny mechanizm obok łoża; sekcja „zegar” niżej)
 const panes = [];   // szyby obudów (przezroczystość)
 function element(id, name, type, group, { J = group.userData.J || 0, props = [], ports, frame, onAngle } = {}) {
   const u = group.userData, dof = u.slide ? 'lin' : 'rot';   // część przesuwna (listwa, suwak, nakrętka): współrzędna w metrach, J = masa
@@ -98,12 +100,12 @@ const eG4 = gearEl('g4', -4.3, YS3, 0.12, { z: 48, m: 0.003, w: 0.03, mat: 'bras
 const eS3 = shaftEl('s3', -4.385, -3.815, YS3, 0.12, 'Wał pośredni');
 const eG5 = gearEl('g5', -3.95, YS3, 0.12, { z: 24, m: 0.003, w: 0.03, mat: 'gear' }, 'Zębatka 5 (z = 24)');
 const eG6 = gearEl('g6', -3.95, Y0, 0.12, { z: 40, m: 0.003, w: 0.03, mat: 'brass' }, 'Zębatka 6 (z = 40)');
-const eS4 = shaftEl('s4', -4.06, -2.42, Y0, 0.12, 'Wał 4');
+const eS4 = shaftEl('s4', -4.06, -2.5, Y0, 0.12, 'Wał 4');   // koniec przed słupkiem podpory wału 5 (x −2,45)
 {
   // ścianki z otworami i oprawkami; w nich łożyska kulkowe 6205-2RS (otwór 25 mm = wał) — wał przechodzi przez łożysko
   const B0 = MK.BEARINGS.ball, hs = MK.housing([0.6, 0.34, 0.22], { bores: [[Y0 - 0.935, 0, B0.D / 2], [YS3 - 0.935, 0, B0.D / 2]] }); hs.position.set(-4.1, 0.935, 0.12); root.add(hs); panes.push(hs.userData.panes);
   for (const [x, y] of [[-4.4, Y0], [-4.4, YS3], [-3.8, YS3], [-3.8, Y0]]) at(MK.rollingBearing({ type: 'ball', d: 0.025, seal: true, name: 'Łożysko 6205-2RS w ściance' }), x, y, 0.12);
-  FX.gbFeet = []; for (const x of [-4.36, -3.84]) { const f = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.012, 0.26), M.alu); f.position.set(x, BED_TOP + 0.006, 0.12); f.castShadow = f.receiveShadow = true; root.add(f); FX.gbFeet.push(f); }
+  FX.gbFeet = []; for (const x of [-4.36, -3.84]) { const f = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.012, 0.3), M.alu); f.position.set(x, BED_TOP + 0.006, 0.12); f.castShadow = f.receiveShadow = true; root.add(f); FX.gbFeet.push(f); }
 }
 block(-3.55, Y0, 0.12); block(-2.75, Y0, 0.12);
 
@@ -183,7 +185,7 @@ block(2.62, Y0, ZP); block(3.22, Y0, ZP);
 // hamulec tarczowy i tarcza z podziałką
 const disc = MK.discBrake({ d: 0.2, t: 0.008, vents: 12 }); disc.position.set(2.92, Y0, ZP); root.add(disc);
 { // wspornik zacisku z łoża: słupek obok tarczy (od strony +x, poza jej grubością i promieniem wału) i ramię pod obudowę klocka
-  const px = 2.92 + 0.03, top = Y0 + 0.06;
+  const px = 2.92 + 0.03, top = Y0 + 0.0595;   // ramię pod obudową klocka (0,5 mm luzu)
   const brk = new THREE.Mesh(new THREE.BoxGeometry(0.03, top - BED_TOP, 0.03), M.dark); brk.position.set(px, BED_TOP + (top - BED_TOP) / 2, ZP + 0.07); brk.castShadow = true; root.add(brk);
   const arm = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.012, 0.065), M.dark); arm.position.set(px, top - 0.006, ZP + 0.0525); arm.castShadow = true; root.add(arm);
   const bf = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.008, 0.07), M.dark); bf.position.set(px, BED_TOP + 0.004, ZP + 0.07); bf.castShadow = true; root.add(bf);   // stopa wspornika pod śruby
@@ -219,7 +221,7 @@ const slG = MK.slider({ len: 0.07, w: 0.04, h: 0.03, travel: 0.12, rack: { m: 0.
 slG.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 1, 0)));
 slG.position.set(CR.x + slG.userData.pin.x, Y0, ZM); root.add(slG);
 { const st = new THREE.Mesh(new THREE.BoxGeometry(0.05, Y0 - 0.035 - BED_TOP, 0.18), M.iron); st.position.set(slG.position.x, BED_TOP + (Y0 - 0.035 - BED_TOP) / 2, ZM); st.castShadow = true; root.add(st);
-  const sf = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.008, 0.2), M.iron); sf.position.set(slG.position.x, BED_TOP + 0.004, ZM); root.add(sf); FX.slider = { objs: [st, sf], foot: sf }; }   // podstawa prowadnicy
+  const sf = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.008, 0.26), M.iron); sf.position.set(slG.position.x + 0.01, BED_TOP + 0.004, ZM); root.add(sf); FX.slider = { objs: [st, sf], foot: sf }; }   // podstawa prowadnicy (obok płyty podpory śruby, śruby poza słupkiem)
 const ZB = { m: 0.0015, z: 16 }, RK = slG.userData.rack, YS = Y0 + RK.z + ZB.m * ZB.z / 2;   // oś śruby nad listwą: linia podziałowa + r_p zębnika
 const scrG = at(MK.leadScrew({ d: 0.02, lead: 0.02, len: 0.47, kind: 'ball', thread: [0.06, 0.39] }), 2.97, YS, ZM);
 const pinion = MK.gear({ z: ZB.z, m: ZB.m, w: 0.012, bore: 0.008, name: 'Zębnik z = 16' }); pinion.position.x = CR.x - 0.028 - 2.97; scrG.userData.spin.add(pinion);
@@ -286,12 +288,16 @@ function crossPose(cr, pinA, ta, axA, pinB, tb, axB) {
 /* ---------------- pętla ---------------- */
 let last = performance.now(), statT = 0, sel = null;
 const selBox = new THREE.BoxHelper(new THREE.Object3D(), 0xf2c14e); selBox.visible = false; scene.add(selBox);
-function loop(now) {
-  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+// jeden krok symulacji (pętla klatek i MechanicsApi.simulate)
+function simStep(dt) {
   if (S.mode === 'machine') { drive.step(dt, { rpm: S.rpm, brake: S.brake }); applyAngles(); }
   else if (S.mode === 'physics') { ELEC.tick(dt); reg.api.tick(dt); const on = reg.api.powered && (reg.api.run || Math.abs(reg.api.f) > 0.05); phys.step(dt, { w0: reg.api.f * 4 * Math.PI / 4, brake: FX.brakeLoose() ? 0 : S.brake, on }); ELEC.power(phys.state.Tm, phys.state.omega, on); applyAngles(); }
-  if (S.mode !== 'items') { fixtureStep(dt); bearingStep(dt); CLOCK.step(dt); }   // silnik 4-biegunowy: ω_syn = 4π f / p
+  if (S.mode !== 'items') { fixtureStep(dt); bearingStep(dt); CLOCK.step(dt); if (AUTO) AUTO.step(dt); }   // silnik 4-biegunowy: ω_syn = 4π f / p
   else if (item) { itemTheta += S.spin * TAU / 60 * dt; item.update(itemTheta); if (item.tick) item.tick(dt); }
+}
+function loop(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  simStep(dt);
   moveKeys(dt);
   if ((statT += dt) > 0.2) { statT = 0; stats(); }
   if (sel) selBox.update();
@@ -314,9 +320,9 @@ function stats() {
   const rows = [['Silnik', `${fmt(rpmOf(st.omega))} obr/min`], ['Moment silnika', `${fmt(st.Tm, 1)} N·m`], ['Moc silnika', `${fmt(st.P)} W`], ['Moc na hamulcu', `${fmt(st.Pout || 0)} W`],
     ['Sprawność całkowita', `${fmt(eDisc.eta * 100, 1)} %`], ['Przełożenie całkowite', `${fmt(Math.abs(1 / (eDisc.r || 1e-9)), 2)} : 1`], ['Bezwładność zredukowana', `${fmt(st.Jeff * 1e4, 1)} kg·cm²`], ['Wyjście', `${fmt(rpmOf(eDisc.omega), 1)} obr/min, ${fmt(eDisc.T, 1)} N·m`]];
   if (typeof boltRows === 'function' && FIXT.length) boltRows(rows);
-  CLOCK.rows(rows);
+  CLOCK.rows(rows); if (AUTO) AUTO.rows(rows);
   $('bDrive').replaceChildren(...rows.flatMap(([a, b]) => [el('span', { textContent: a }), el('b', { textContent: b })]));
-  $('bList').replaceChildren(...[...parts, ...CLOCK.parts].flatMap((e) => { const s = el('span', { textContent: e.name }); s.onclick = () => select(e); return [s, el('b', { textContent: `${speedTxt(e)} · ${loadTxt(e.T, e)}` })]; }));
+  $('bList').replaceChildren(...[...parts, ...CLOCK.parts, ...(AUTO ? AUTO.parts : [])].flatMap((e) => { const s = el('span', { textContent: e.name }); s.onclick = () => select(e); return [s, el('b', { textContent: `${speedTxt(e)} · ${loadTxt(e.T, e)}` })]; }));
   if (sel) showSel();
   perfRows([['Elementy', String(parts.length)], ['Połączenia', String(drive.edges.length)], ['Ogniwa łańcucha', String(CH.N)]]);
 }
@@ -341,7 +347,7 @@ function pick(e) {
   const r = renderer.domElement.getBoundingClientRect(); ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera);
   const bh = ray.intersectObject(boltG, true)[0];   // śruba mocująca — odkręć / dokręć
   if (bh) { let o = bh.object; while (o && !o.userData.bolt) o = o.parent; if (o) { toggleBolt(o); return; } }
-  const hits = ray.intersectObjects([...parts, ...CLOCK.parts].map((p) => p.group), true);
+  const hits = ray.intersectObjects([...parts, ...CLOCK.parts, ...(AUTO ? AUTO.parts : [])].map((p) => p.group), true);
   for (const h of hits) { let o = h.object; while (o && !o.userData.el) o = o.parent; if (o) { select(o.userData.el); return; } }
   sel = null; selBox.visible = false; $('selName').textContent = tr('Kliknij element maszyny'); $('selProps').replaceChildren(); $('selPorts').replaceChildren();
 }
@@ -360,7 +366,7 @@ const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
 // sterowanie na modelu (tryb Przedmioty): część z userData.control — klik / przytrzymanie / przeciąganie zamiast obrotu kamery
 let ctl = null;
 // obiekt z obsługą w bieżącym trybie: przedmiot ze sterowaniem (Przedmioty) albo regulator przy silniku (Fizyka)
-const ctlTarget = () => (S.mode === 'items' ? (item && item.controls ? [{ group: item.group, api: item.api }] : null) : S.mode === 'physics' ? [...ELEC.devices, ...CLOCK.devices] : null);
+const ctlTarget = () => (S.mode === 'items' ? (item && item.controls ? [{ group: item.group, api: item.api }] : null) : S.mode === 'physics' ? [...ELEC.devices, ...CLOCK.devices, ...(AUTO ? AUTO.devices : [])] : null);
 function controlAt(e) {
   const tgs = ctlTarget(); if (!tgs) return null;
   const r = renderer.domElement.getBoundingClientRect(); ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera);
@@ -453,6 +459,7 @@ const ELEC = (() => {
   c.wire('Q1:N2', 'K1:N', { R: Rw('W2'), name: 'W2' });
   for (const [a, b] of [['1', '2'], ['3', '4'], ['5', '6'], ['13', '14']]) c.contact(`K1:${a}`, `K1:${b}`, () => K1.api.on, 'K1');
   c.wire('K1:14', 'K1:A1', { name: 'mostek K1 14–A1' }).wire('K1:A2', 'K1:N', { name: 'mostek K1 A2–N' });
+  c.wire('K1:14', 'KT1:A1', { name: 'mostek K1 14 — KT1 A1' }).wire('KT1:A2', 'K1:N', { name: 'mostek KT1 A2 — N' });   // przekaźnik czasowy zasilany razem z cewką K1
   for (const [f, t] of [['2', 'L1'], ['4', 'L2'], ['6', 'L3']]) c.wire(`K1:${f}`, `VFD:${t}`, { R: Rw('W3'), name: 'W3' });
   c.wire('K1:1', 'S0:11', { R: Rw('W5'), name: 'W5 żyła 1' }).wire('S1:12', 'K1:13', { R: Rw('W5'), name: 'W5 żyła 2' }).wire('S2:14', 'K1:A1', { R: Rw('W5'), name: 'W5 żyła 3' }).wire('K1:N', 'H1:X2', { R: Rw('W5'), name: 'W5 żyła 4' });
   c.wire('S0:12', 'S1:11', { name: 'mostek' }).wire('S1:12', 'S2:13', { name: 'mostek' }).wire('S2:14', 'H1:X1', { name: 'mostek' });
@@ -460,18 +467,20 @@ const ELEC = (() => {
   // sterowanie falownikiem 24 V DC (zasilacz wewnętrzny falownika, działa przy zasilonym falowniku): +24 V → S3 → DI1 / DI2
   c.source('VFD24', { P: [eV.supply, 0], COM: [0, 0] }, () => reg.api.powered);
   c.wire('VFD24:P', 'VFD:+24', { name: 'falownik +24 V' }).wire('VFD24:COM', 'VFD:COM', { name: 'falownik COM' });
-  c.wire('VFD:+24', 'S3:C', { R: Rw('W7'), name: 'W7 żyła 1' }).wire('S3:13', 'VFD:DI1', { R: Rw('W7'), name: 'W7 żyła 2' }).wire('S3:23', 'VFD:DI2', { R: Rw('W7'), name: 'W7 żyła 3' });
+  c.wire('VFD:+24', 'KT1:15', { name: 'falownik +24 V → KT1 15' }).contact('KT1:15', 'KT1:18', () => !!AUTO && AUTO.kt.state.closed, 'KT1').wire('KT1:18', 'S3:C', { R: Rw('W7'), name: 'W7 żyła 1' }).wire('S3:13', 'VFD:DI1', { R: Rw('W7'), name: 'W7 żyła 2' }).wire('S3:23', 'VFD:DI2', { R: Rw('W7'), name: 'W7 żyła 3' });
   c.contact('S3:C', 'S3:13', () => S3.api.pos === 'I', 'S3 I').contact('S3:C', 'S3:23', () => S3.api.pos === 'II', 'S3 II');
   c.load('DI1', ['VFD:DI1', 'VFD:COM'], { Un: eV.supply }).load('DI2', ['VFD:DI2', 'VFD:COM'], { Un: eV.supply });
+  c.load('KT1', ['KT1:A1', 'KT1:A2'], { Un: 230 });
   c.load('K1', ['K1:A1', 'K1:A2'], { Un: eK.coilU }).load('H1', ['H1:X1', 'H1:X2'], { Un: eH.U }).load('VFD', ['VFD:L1', 'VFD:L2', 'VFD:L3'], { Un: eV.Uin });
   const st = { kOn: false, kT: 0, r: null, uK: 0, uH: 0, uV: 0, Pin: 0, I: 0, Im: 0, Uout: 0, Pel: 0, dU: 0 };
   const In = eM.In, Rline = Rw('W1') + Rw('W2') + Rw('W3');
   // co klatkę: obwód → stycznik (zadziała przy ≥ 85 % Un po 20 ms, odpada < 60 % Un), lampka, zasilanie falownika
   function tick(dt) {
-    const r = c.solve(); st.r = r; st.uK = r.U('K1'); st.uH = r.U('H1'); st.uV = r.U('VFD');
+    if (AUTO) AUTO.ktTick(dt, st.uKT || 0);   // przekaźnik czasowy: napięcie A1–A2 z poprzedniej klatki
+    const r = c.solve(); st.r = r; st.uKT = r.U('KT1'); st.uK = r.U('K1'); st.uH = r.U('H1'); st.uV = r.U('VFD');
     if (!st.kOn) { st.kT = st.uK >= eK.pullIn * eK.coilU ? st.kT + dt : 0; if (st.kT >= eK.tClose) st.kOn = true; } else if (st.uK < eK.dropOut * eK.coilU) { st.kOn = false; st.kT = 0; }
     K1.api.coil(st.kOn); H1.api.power(st.uH / eH.U);
-    const was = reg.api.powered; reg.api.power(st.uV >= 0.85 * eV.Uin); reg.api.ai(eV.aiMax * R1.api.ratio());
+    const was = reg.api.powered; reg.api.power(st.uV >= 0.85 * eV.Uin); reg.api.ai(AUTO ? AUTO.aiOut(eV.aiMax * R1.api.ratio(), dt) : eV.aiMax * R1.api.ratio());
     const r2 = was === reg.api.powered ? r : c.solve();   // zasilanie falownika się zmieniło — jego 24 V też
     st.uDI1 = r2.U('DI1'); st.uDI2 = r2.U('DI2'); reg.api.inputs(st.uDI1 >= eV.diOn, st.uDI2 >= eV.diOn);   // wejście aktywne ≥ 15 V (IEC 61131-2, typ 1)
     for (const d of [X0, Q1, K1, S0, S1, S2, H1, R1, S3]) d.api.tick(dt);
@@ -619,9 +628,9 @@ function physStats() {
   LIVE.planets.forEach((p, k) => rows.push([`Satelita ${k + 1} — zęby`, ['sun', 'ring'].map((key) => `${key === 'sun' ? 'ze słonecznym' : 'z koroną'} ${p[key].pen ? 'PRZENIKANIE' : `luz −${mmS(p[key].lo)} / +${mmS(p[key].hi)} mm`}`).join(' · ')]));
   for (const r of LIVE.rollers) rows.push([`Rolki łańcucha — ${r.name}`, `${r.near} rolek na kole · ${r.pen ? `PRZENIKANIE ${r.pen} rolek` : 'bez przenikania (zarys ISO 606: gniazdo, bok r_e, głowa)'}`]);
   rows.push(['Zahaczenia o obudowy i łożyska', CLASHES.length ? CLASHES.map((c) => `${c.part} × ${c.fixed} ${mmS(c.depth)} mm`).join('; ') : `brak (sprawdzone ${parts.filter((e) => e.spin).length} części obrotowych, dla każdego kąta)`]);
-  CLOCK.rows(rows);
+  CLOCK.rows(rows); if (AUTO) AUTO.rows(rows);
   $('bDrive').replaceChildren(...rows.flatMap(([x, y]) => [el('span', { textContent: x }), el('b', { textContent: y })]));
-  $('bList').replaceChildren(...[...parts, ...CLOCK.parts].flatMap((e) => { const sp = el('span', { textContent: e.name }); sp.onclick = () => select(e); return [sp, el('b', { textContent: `${speedTxt(e)} · ${loadTxt(e.T, e)}` })]; }));
+  $('bList').replaceChildren(...[...parts, ...CLOCK.parts, ...(AUTO ? AUTO.parts : [])].flatMap((e) => { const sp = el('span', { textContent: e.name }); sp.onclick = () => select(e); return [sp, el('b', { textContent: `${speedTxt(e)} · ${loadTxt(e.T, e)}` })]; }));
   if (sel) showSel();
   perfRows([['Stopnie swobody', String(phys.nodes.length)], ['Wiązania', String(phys.edges.length)], ['Zazębienia z luzem', String(phys.edges.filter((c) => c.dead).length)], ['Bryły zderzeń zębów', `${[...ZONES.values()].reduce((a, v) => a + (v.ua ? v.ua.z + v.ub.z : ZB.z + RK.n), 0)} wielokątów wypukłych (${ZONES.size} zazębienia)`]]);
 }
@@ -850,7 +859,7 @@ function fixture(name, objs, bolts, phys = null) {
   fixture('Silnik', [motorG], boltsOn(motorG, mU.mounts, 0.01, 0.03), { tau: () => -phys.state.Tm, m: mU.mass, b: 0.09, h: mU.H + 0.01, z: motorG.position.z, y: motorG.position.y, limit: 0.05,
     effect: (loose) => phys.setBroken((e) => e.type === 'coupling' && e.a.id === 'motor', loose), what: 'sprzęgło kłowe rozłączone' });
   fixture('Podstawa silnika', [FX.riser], boltsOn(FX.riser, cornerPts(FX.riser, 0.02, 0.02), 0.012, 0.04));
-  FX.gbFeet.forEach((f, k) => fixture(`Stopa obudowy przekładni ${k + 1}`, [f], boltsOn(f, [new THREE.Vector3(0, 0.006, -0.11), new THREE.Vector3(0, 0.006, 0.11)], 0.008, 0.02)));
+  FX.gbFeet.forEach((f, k) => fixture(`Stopa obudowy przekładni ${k + 1}`, [f], boltsOn(f, [new THREE.Vector3(0, 0.006, -0.135), new THREE.Vector3(0, 0.006, 0.135)], 0.008, 0.02)));
   // przekładnia planetarna: korona w obudowie na podporze — moment korony
   const pc = FX.planet, ringT = () => { const c = phys.edges.find((q) => q.e.type === 'planetary'); return c ? 0.75 * c.T * Math.sign(eCar.omega || 1) : 0; };
   // obudowa wisi na wałach (łożyska w deklach): luźna obraca się wokół osi wałów jak wahadło (podpora pod osią)
@@ -862,7 +871,7 @@ function fixture(name, objs, bolts, phys = null) {
   fixture('Wspornik zacisku hamulca', bc.objs, boltsOn(bc.foot, cornerPts(bc.foot, 0.012, 0.012), 0.008, 0.02), { tau: () => phys.state.Tb, m: 1.6, b: 0.035, h: Y0 - BED_TOP, z: ZP + 0.07, y: BED_TOP, limit: 0.035,
     effect: (loose) => { brakeLoose = loose; }, what: 'zacisk zszedł z tarczy — hamulec nie działa' });
   FX.brakeLoose = () => brakeLoose;
-  fixture('Podstawa prowadnicy suwaka', FX.slider.objs, boltsOn(FX.slider.foot, cornerPts(FX.slider.foot, 0.012, 0.02), 0.008, 0.02));
+  fixture('Podstawa prowadnicy suwaka', FX.slider.objs, boltsOn(FX.slider.foot, cornerPts(FX.slider.foot, 0.012, 0.015), 0.008, 0.02));
   fixture('Wskaźnik tarczy', FX.post.objs, boltsOn(FX.post.foot, cornerPts(FX.post.foot, 0.01, 0.01), 0.006, 0.015));
 }
 const G = 9.81;
@@ -1126,7 +1135,7 @@ function itemSettings() {
   sp.oninput = () => { S.spin = +sp.value; spo.textContent = `${S.spin} ${T('obr/min', 'rpm')}`; save(); };
   const reset = el('button', { type: 'button', textContent: 'Domyślne' }); reset.onclick = () => { delete S.items[def.id]; save(); itemSettings(); buildItem(); };
   // sterowanie i zasilanie — bez obrotu podglądu; sterowanie obsługuje się na modelu
-  const preview0 = def.group === 'Zasilanie i przewody' && def.id === 'wire' ? [] : ['Sterowanie', 'Zasilanie i przewody', 'Optyka'].includes(def.group) ? def.group === 'Optyka' ? [] : [el('p', { className: 'note', textContent: 'Obsługa na modelu: klik — dźwignia, przycisk, wyłącznik, RUN / STOP; przytrzymanie — przycisk chwilowy, krańcówka; przeciąganie w górę / w dół — pokrętło.' })] : [el('h3', { textContent: 'Podgląd' }), el('div', { className: 'row' }, el('span', { textContent: 'Obrót wejścia' }), sp, spo)];
+  const preview0 = def.group === 'Zasilanie i przewody' && def.id === 'wire' ? [] : ['Sterowanie', 'Zasilanie i przewody', 'Optyka', 'Przekaźniki', 'Regulatory'].includes(def.group) ? def.group === 'Optyka' || def.id === 'governor' ? [] : [el('p', { className: 'note', textContent: 'Obsługa na modelu: klik — dźwignia, przycisk, wyłącznik, RUN / STOP; przytrzymanie — przycisk chwilowy, krańcówka; przeciąganie w górę / w dół — pokrętło.' })] : [el('h3', { textContent: 'Podgląd' }), el('div', { className: 'row' }, el('span', { textContent: 'Obrót wejścia' }), sp, spo)];
   box0.replaceChildren(el('h3', { textContent: def.name }), ...rows, ...preview0, el('div', { className: 'btns' }, reset));
 }
 function itemStats() {
@@ -1172,9 +1181,18 @@ addEventListener('keydown', (e) => {
 
 /* ---------------- zegar — regulator (js/labs/mechanics/clock.js) ---------------- */
 CLOCK = createClock({ root, S, fmt });
+/* ---------------- etap 3: czujniki, przekaźnik czasowy, regulator PID (js/labs/mechanics/automation.js) ---------------- */
+AUTO = createAutomation({ root, elecG, S, fmt, BED_TOP, Y0, motorG, eMotor, g1: eG1.group, eG1, disc, eDisc });
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), RUN_MAX = 120;
 // MechanicsApi.mode('items' | 'machine'), item(id, ustawienia), items(), rpm(v), brake(Nm), alpha(0–1), state(), elements(), select(id), view(…), run(sekundy)
+// scena dla doktora modeli (python3 tools/doctor.py --scene labs/mechanics.html): każdy model maszyny osobno — śruby,
+// stopy, urządzenia, kable pominięte (wchodzą w dławiki z założenia); doktor sprawdza, czy modele nie wchodzą jeden w drugi
+window.LabScene = {
+  prepare: async () => { setMode('machine'); applyAngles(); elecG.visible = true; reg.group.visible = true; scene.updateMatrixWorld(true); },   // położenia z kinematyki (dokładne fazy zazębień)
+  root: () => scene,
+  components: () => [...root.children.filter((c) => c !== boltG), ...boltG.children, cross1, cross2, reg.group, ...elecG.children.filter((o) => !(o.userData && o.userData.cores))],
+};
 window.MechanicsApi = {
   clock() { const c = CLOCK.state, e = CLOCK.esc.state; return { time: CLOCK.hms(), amp: +(c.amp * 180 / Math.PI).toFixed(3), period: +(+c.period).toFixed(4), wind: +c.wind.toFixed(3), contact: e.contact, face: e.face, escRev: +(-c.te / TAU).toFixed(3) }; },
   runClock(sec = 10) { const n = Math.round(clamp(sec, 0, 600) * 60); for (let i = 0; i < n; i++) CLOCK.step(1 / 60); return this.clock(); },
@@ -1209,9 +1227,12 @@ window.MechanicsApi = {
   alpha(a) { if (Number.isFinite(a)) { S.alpha = clamp(a, 0, 1); $('alpha').value = S.alpha; $('alphaV').textContent = `${Math.round(S.alpha * 100)} %`; applyAlpha(); save(); } return S.alpha; },
   state: () => ({ ...drive.state, ok: solved.ok }),
   elements: () => parts.map((e) => ({ id: e.id, name: e.name, dof: e.dof, rpm: e.dof === 'lin' ? undefined : +rpmOf(e.omega).toFixed(2), v: e.dof === 'lin' ? +e.omega.toFixed(5) : undefined, T: +e.T.toFixed(3), eta: +e.eta.toFixed(4), theta: +e.theta.toFixed(4) })),
-  select(id) { const e = [...parts, ...CLOCK.parts].find((p) => p.id === id); if (e) select(e); return !!e; },
+  select(id) { const e = [...parts, ...CLOCK.parts, ...(AUTO ? AUTO.parts : [])].find((p) => p.id === id); if (e) select(e); return !!e; },
   view(t = [-1.4, 0.9, 0.2], dist = 9, yaw = 0.25, pitch = 0.38) { orbit.target.set(...t); Object.assign(orbit, { dist, yaw, pitch }); },
   // run: najwyżej RUN_MAX sekund na wywołanie (Infinity / NaN nie zawieszą strony)
+  // simulate(s) — bieżący tryb (Maszyna, Fizyka, Przedmioty) krokami 1/60 s, bez rysowania (testy, AI)
+  simulate(sec = 1) { const n = Math.round(clamp(Number.isFinite(sec) ? sec : 0, 0, RUN_MAX) * 60); for (let i = 0; i < n; i++) simStep(1 / 60); stats(); return { mode: S.mode, k1: ELEC.K1.api.on, kt1: AUTO.kt.state, run: reg.api.run, f: +reg.api.f.toFixed(2), rpm: +AUTO.B2.state.rpm.toFixed(1), pid: { auto: AUTO.pid.state.auto, sv: AUTO.pid.state.sv, out: +AUTO.pid.state.out.toFixed(3) }, b1: AUTO.B1.state.edges, b3: AUTO.B3.state.count }; },
+  pid(c, v) { const P = AUTO.pid.state; if (c === 'auto') P.auto = !!v; if (c === 'sv') P.sv = clamp(+v, 0, 1500); return { ...P }; },
   run(sec = 1) { const n = Math.round(clamp(Number.isFinite(sec) ? sec : 0, 0, RUN_MAX) * 60); for (let i = 0; i < n; i++) drive.step(1 / 60, { rpm: S.rpm, brake: S.brake }); applyAngles(); stats(); return this.state(); },
   drive,
 };

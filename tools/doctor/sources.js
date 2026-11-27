@@ -76,6 +76,7 @@ const MECH_VARIANTS = {
   rolling: [{}, { type: 'roller' }, { type: 'taper', d: 0.04 }, { type: 'thrust' }, { type: 'needle', d: 0.02 }, { type: 'plain' }],
   mirror: [{}, { shape: 'flat', D: 0.0127 }, { shape: 'convex', D: 0.0508, R: 0.1, angle: 45 }, { coating: 'au', substrate: 'zerodur', R: 1 }],
   cspring: [{}, { d: 0.0005, D: 0.006, n: 20, L0: 0.2 }], mainspring: [{}, { h: 0.0008, L: 0.3 }], flywheel: [{}, { D: 1.2, mat: 'steel' }], ratchet: [{}, { z: 60, R: 0.08 }], escapement: [{}, { L: 0.994, mb: 3 }],
+  inductive: [{}, { size: 'M30', flush: false, target: 'aluminium' }], encoder: [{}], barrier: [{}], timer: [{}], pid: [{}], governor: [{}, { n: 300, L: 0.2 }],
   switch: [{}, { kind: 'main' }, { kind: 'lever', poles: 1 }], estop: [{}], lamp: [{}, { color: 'red' }], selector: [{}, { positions: '0-I', handle: 'long' }], limit: [{}, { actuator: 'plunger' }], contactor: [{}, { amps: 32, coil: '24DC' }],
   wire: [{}, { mm2: 16, color: 'pe', len: 3 }, { mm2: 0.5, color: 'black', len: 0.1 }], ac: [{}, { phases: 3, volts: 400 }], dc: [{}, { volts: 60, amps: 20 }], pot: [{}, { taper: 'log', knob: 'red' }], button: [{}, { lit: true, mode: 'latch' }, { mushroom: true, color: 'red', contact: 'NC' }], vfd: [{}, { kW: 7.5 }, { kW: 0.18 }], motor: [{}, { kW: 0.18, poles: 2 }, { kW: 7.5, poles: 6, paint: 'paintRed' }], brake: [{}, { d: 0.35, t: 0.02, vents: 24 }],
 };

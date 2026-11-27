@@ -1,5 +1,18 @@
 # Zmiany
 
+## 0.31.0 — 2026-11-27
+- Laboratorium mechaniki 0.17.0 — **etap 3: sygnały, czujniki, przekaźnik czasowy, regulatory**. Przedmioty: czujnik
+  indukcyjny, enkoder inkrementalny, bariera optyczna, przekaźnik czasowy (E, Wi, Bp, R), regulator PID z obiektem,
+  regulator odśrodkowy Watta. Maszyna i Fizyka: czujnik B1 nad zębami koła 1, enkoder B2 na wale silnika, bariera B3
+  przy otworach tarczy hamulca; w obwodzie przekaźnik czasowy KT1 (RUN falownika 2 s po START, lampka ostrzega)
+  i regulator PID U1 (enkoder → PID → AI falownika, tryb ręczny / automatyczny, obsługa na modelu).
+- **Doktor modeli: sprawdzanie złożenia** (`python3 tools/doctor.py --scene labs/mechanics.html`) — „clash”: czy modele
+  sceny nie wchodzą jeden w drugi. Maszyna laboratorium mechaniki poprawiona do zera kolizji: faza wyciągnięć MechKit
+  do środka (obrys i otwory nominalne — koniec przenikania zębów i wałów w otworach), korbowód, łapy opraw UCP, stopy
+  obudowy przekładni, podstawa suwaka, wał 4, mostek zacisku, rowki łoża.
+- Modele: `js/models/mech/sensors/`, `relays/`, `regulators/`, wspólne `js/models/mech/common.js`; zachowania:
+  `signal.js`, `sensors.js`, `timer-relay.js`, `pid.js`, `governor.js`. API: `simulate(s)`, `pid()`.
+
 ## 0.30.0 — 2026-11-27
 - Laboratorium mechaniki 0.16.0 — **etap 2: sprężyny, koło zamachowe, zapadka, wahadło z wychwytem i zegar**.
   Przedmioty: sprężyna naciskowa (ściskana na podglądzie, sztywność, zblokowanie, naprężenie z poprawką Wahla,

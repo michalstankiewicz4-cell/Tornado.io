@@ -7,7 +7,7 @@ import { escapeWheel, anchor, pendulum } from './escapement.js';
 import { mainspringBarrel } from './springs.js';
 import { ratchet } from './ratchet.js';
 import { dialTexture, hand } from './dial.js';
-import { TAU, EN, mesh, port, circle, slab, cylZ, materials } from './shared.js';
+import { TAU, EN, mesh, port, circle, slab, cylZ, materials } from '../common.js';
 
 /* ---------------- zegar — regulator ---------------- */
 // Mechanizm (C — oś koła centralnego w (0, 0) na przedniej powierzchni płyty tylnej): bęben 96 → zębnik 12 (koło

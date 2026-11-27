@@ -245,10 +245,12 @@ straty (sprawność), magazyn energii (jeśli ma), ograniczenia (zakres ruchu, p
 ### 3. Ruch i sterowanie
 
 - Wahadła ✅ z wychwytem Grahama (przedmiot i zegar; fizyka kontaktu zębów z paletami — `js/behaviors/mech/escapement.js`).
-- Regulatory ⬜ odśrodkowy (Watta) — mechaniczny; 🟡 elektryczny: falownik + potencjometr; ⬜ regulator PID jako element sygnału.
+- Regulatory ✅ odśrodkowy (Watta) — mechaniczny (przedmiot); ✅ PID jako element sygnału (przedmiot z obiektem; w maszynie U1:
+  enkoder → PID → wejście AI falownika, tryb A/M); falownik + potencjometr.
 - Dźwignie ⬜ (przesuw / obrót z ramionami, przełożenie siły).
 - Zawory ⬜ (płyn: odcinający, zwrotny, dławiący, bezpieczeństwa).
-- Przekaźniki 🟡 stycznik z cewką i stykami (obwód); ⬜ przekaźnik czasowy, przekaźnik sygnału.
+- Przekaźniki ✅ stycznik z cewką i stykami (obwód); ✅ przekaźnik czasowy (E, Wi, Bp, R; w maszynie KT1 — RUN falownika po 2 s
+  od START, lampka H1 ostrzega); ⬜ przekaźnik sygnału.
 - Mechanizmy zapadkowe ✅ zapadka i koło zapadkowe (kąt zapadki z geometrii zarysu), ✅ wychwyt; ⬜ zatrzask z wyzwalaczem.
 - Sterowanie elektryczne ✅ wyłącznik, przyciski, grzybek, przełącznik, potencjometr, lampka, krańcówka (model),
   stycznik, falownik z wejściami DI / AI.
@@ -270,7 +272,8 @@ straty (sprawność), magazyn energii (jeśli ma), ograniczenia (zakres ruchu, p
   promienie śledzone geometrycznie (prawo odbicia, bez przybliżenia przyosiowego): ognisko z promieni, aberracja sferyczna,
   astygmatyzm pod kątem. Model: OptiKit `js/models/mech/optics.js`; promienie: `js/behaviors/mech/optics.js`.
 - Soczewki ⬜ (ogniskowa, skupianie promienia), pryzmaty ⬜ (załamanie, rozszczepienie).
-- Czujniki 🟡 krańcówka (model); ⬜ indukcyjny, optyczny (światło → sygnał), enkoder (obrót → impulsy), czujnik ciśnienia.
+- Czujniki ✅ indukcyjny (B1 — zęby koła 1), ✅ bariera optyczna (B3 — otwory tarczy hamulca), ✅ enkoder (B2 — silnik),
+  🟡 krańcówka (model); ⬜ czujnik ciśnienia.
 - Emitery ⬜ (dioda / laser: sygnał → światło).
 - Odbiorniki ⬜ (fotodioda: światło → sygnał).
 
@@ -287,7 +290,7 @@ straty (sprawność), magazyn energii (jeśli ma), ograniczenia (zakres ruchu, p
    na śrubie kulowej → nakrętka). Łożyska (6 rodzajów) w przedmiotach.
 2. ✅ Sprężyny, koło zamachowe, zapadka, wahadło z wychwytem — pierwsza maszyna „sama z siebie”: zegar — regulator
    (tryby Maszyna i Fizyka; w Fizyce wahadło i koło wychwytowe z kontaktu zębów z paletami, napęd ze sprężyny).
-3. Port sygnału, czujniki, przekaźnik czasowy, regulator.
+3. ✅ Port sygnału, czujniki, przekaźnik czasowy, regulator.
 4. Płyn: rury, pompa, zawory, siłownik, zbiornik, rozdzielacz.
 5. Optyka: promienie, soczewki, lustra, pryzmaty, emitery i odbiorniki.
 6. Warsztat: składanie maszyn z katalogu w laboratorium.
@@ -349,3 +352,28 @@ Fizyka luźnej części (tryb Fizyka) — moment reakcji z fizyki napędu:
   `timekeeping.js`, `controls.js`, `power.js`, `optics.js`, pomocniki `util.js`, kolizje przegubu `cardan.js`);
   `items.js` — kategorie i lista.
 - API: `MechanicsApi.clock()`, `runClock(s)`, `windClock(obroty)`.
+
+## Etap 3 — sygnały (tryby Przedmioty, Maszyna, Fizyka)
+
+- Przedmioty: czujnik indukcyjny (zasięg z rozmiaru i materiału celu, histereza, impulsy z zębów obracanego koła —
+  odległość czoła od prawdziwego zarysu), enkoder inkrementalny (A, B, Z, zliczanie ×4, kierunek), bariera optyczna
+  (wiązka przerywana obracającą się chorągiewką — test promienia), przekaźnik czasowy (funkcje E, Wi, Bp, R; obsługa na
+  modelu), regulator PID z obiektem (falownik z rampą + silnik z poślizgiem), regulator odśrodkowy Watta (wahadło stożkowe).
+- Maszyna i Fizyka (`js/labs/mechanics/automation.js`): B1 nad kołem 1, B2 na tylnym końcu wału silnika, B3 przy tarczy
+  hamulca; w Fizyce KT1 w obwodzie (+24 V falownika → KT1 15–18 → S3: RUN po 2 s od START) i U1 (PID: PV z B2, wyjście
+  0–10 V na AI falownika; A/M — ręcznie śledzi R1, automatycznie trzyma zadaną mimo obciążenia hamulcem).
+- Fizyka: `js/behaviors/mech/` — `signal.js` (szyna sygnałów z historią), `sensors.js` (czujniki, profil zarysu),
+  `timer-relay.js`, `pid.js` (anti-windup, przejście bezuderzeniowe), `governor.js`. Modele: `js/models/mech/sensors/`,
+  `relays/`, `regulators/`, wspólne pomocniki i materiały `js/models/mech/common.js`.
+- API: `MechanicsApi.simulate(s)` (bieżący tryb bez rysowania), `pid('auto' | 'sv', v)`.
+
+## Doktor — złożenie (czy modele nie wchodzą jeden w drugi)
+
+- `python3 tools/doctor.py --scene labs/mechanics.html`: strona wystawia `window.LabScene` (`prepare`, `root`,
+  `components` — osobne modele), doktor sprawdza „clash”: wierzchołki części jednego modelu głęboko (≥ 0,3 mm we
+  wszystkich kierunkach) w zamkniętej bryle innego modelu. Pasowanie zgłoszone na części (`userData.doctorOk = 'clash'`,
+  np. trzpień śruby w otworze gwintowanym) nie jest kolizją.
+- Poprawione przy tym: faza wyciągnięć do środka (MechKit `extrude`, `common.slab` — obrys i otwory nominalne; zęby kół
+  i wały w otworach już się nie przenikają), korbowód — oczka współosiowe ze sworzniami, łapy opraw UCP płaskie pod
+  podkładki (M10), stopy obudowy przekładni i podstawa suwaka (śruby poza profilami i słupkiem), wał 4 kończy się
+  przed słupkiem podpory wału 5, mostek zacisku hamulca na obudowach klocków, rowki łoża jako cienkie paski na wierzchu.

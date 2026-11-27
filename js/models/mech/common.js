@@ -1,8 +1,8 @@
-// ClockKit — wspólne: pomocniki geometrii (kształt w xy wyciągnięty wzdłuż z, walec wzdłuż z, okrąg), porty, język
+// MechKit — wspólne dla zestawów części (ClockKit, czujniki, przekaźniki, regulatory): pomocniki geometrii (kształt w xy wyciągnięty wzdłuż z, walec wzdłuż z, okrąg), porty, język
 // podpisów i materiały zegarmistrzowskie (mosiądz polerowany, stal polerowana i oksydowana, rubin, orzech…).
-import * as THREE from '../../../../vendor/three/three.module.js';
-import { materials as mkMaterials } from '../mechkit.js';
-import { makeMaterial, PRESETS } from '../../../render/materials/matkit.js';
+import * as THREE from '../../../vendor/three/three.module.js';
+import { materials as mkMaterials } from './mechkit.js';
+import { makeMaterial, PRESETS } from '../../render/materials/matkit.js';
 
 export const TAU = Math.PI * 2;
 export const EN = typeof window !== 'undefined' && !!window.LabMenu && !!window.LabMenu.LANG && window.LabMenu.LANG !== 'pl';
@@ -12,7 +12,8 @@ export const circle = (r, n = 48, x = 0, y = 0, cw = true) => { const p = new TH
 // kształt w xy wyciągnięty wzdłuż z: od z0 do z0 + t, z małą fazą na krawędziach; współrzędne tekstury ×25 (kafel 4 cm —
 // tekstury MatKit mają skalę części zegarowych, nie metra)
 export const slab = (shape, t, z0 = 0, bevel = 0.0002, curve = 32) => {
-  const geo = new THREE.ExtrudeGeometry(shape, { depth: Math.max(1e-5, t - 2 * bevel), bevelEnabled: bevel > 0, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 1, curveSegments: curve }).translate(0, 0, z0 + bevel);
+  { const pts = shape.getPoints(curve); let per = 0; for (let i = 0; i < pts.length; i++) per += pts[i].distanceTo(pts[(i + 1) % pts.length]); bevel = Math.min(bevel, 0.5 * per / Math.max(1, pts.length)); }   // faza a drobne kształty
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: Math.max(1e-5, t - 2 * bevel), bevelEnabled: bevel > 0, bevelThickness: bevel, bevelSize: bevel, bevelOffset: -bevel, bevelSegments: 1, curveSegments: curve }).translate(0, 0, z0 + bevel);
   const uv = geo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 25, uv.getY(i) * 25);
   return geo;
 };
@@ -37,3 +38,16 @@ export function materials() {
   };
   return MATS;
 }
+
+// tekstura z płótna (podpisy, wyświetlacze, skale): draw(ctx, w, h)
+export function canvasTex(w, h, draw) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return { c, t, redraw: (fn) => { fn(c.getContext('2d'), w, h); t.needsUpdate = true; } };
+}
+// tworzywa: PBT czujników, obudowy aparatów (RAL 7035), czarne fronty
+export const plastic = (color, rough = 0.5) => new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: 0 });
+export const glow = (color) => new THREE.MeshStandardMaterial({ color: 0x222222, emissive: color, emissiveIntensity: 0, roughness: 0.3 });
+
+// naklejka / nadruk na powierzchni (tabliczka, front aparatu): przesunięcie głębi zamiast odstępu — rysuje się na wierzchu
+export const decal = (map, rough = 0.6) => new THREE.MeshStandardMaterial({ map, roughness: rough, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });

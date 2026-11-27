@@ -1,7 +1,7 @@
 // ClockKit — sprężyny: naciskowa śrubowa (końce szlifowane) i spiralna (zegarowa) w bębnie z wieńcem zębatym.
 import * as THREE from '../../../../vendor/three/three.module.js';
 import { involuteOutline, DOMAIN } from '../mechkit.js';
-import { TAU, EN, mesh, port, circle, slab, cylZ, materials } from './shared.js';
+import { TAU, EN, mesh, port, circle, slab, cylZ, materials } from '../common.js';
 
 /* ---------------- sprężyna naciskowa ---------------- */
 // śrubowa, końce zwinięte i szlifowane (po 1 zwoju nieczynnym z każdej strony); oś wzdłuż +y, podstawa w y = 0.

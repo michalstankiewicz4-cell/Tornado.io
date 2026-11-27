@@ -1,7 +1,7 @@
 // ClockKit — koła zegarowe z ramionami (zarys ewolwentowy z MechKit), zębniki ze stali hartowanej, osie z czopami.
 import * as THREE from '../../../../vendor/three/three.module.js';
 import { involuteOutline, DOMAIN } from '../mechkit.js';
-import { TAU, EN, mesh, port, circle, slab, cylZ, materials } from './shared.js';
+import { TAU, EN, mesh, port, circle, slab, cylZ, materials } from '../common.js';
 
 /* ---------------- koło zegarowe: zarys ewolwentowy, wieniec, ramiona ---------------- */
 // zarys z MechKit (sx, sy) → płaszczyzna xy zegara: x = −sy, y = sx (ząb przy kącie 0 w górę, obrót +z)

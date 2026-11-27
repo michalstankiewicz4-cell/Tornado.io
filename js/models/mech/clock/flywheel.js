@@ -1,7 +1,7 @@
 // ClockKit — koło zamachowe żeliwne (wieniec toczony, ramiona i piasta malowane).
 import * as THREE from '../../../../vendor/three/three.module.js';
 import { DOMAIN } from '../mechkit.js';
-import { TAU, EN, mesh, port, cylZ, materials } from './shared.js';
+import { TAU, EN, mesh, port, cylZ, materials } from '../common.js';
 
 /* ---------------- koło zamachowe ---------------- */
 // żeliwne, wieniec toczony (goła powierzchnia), ramiona i piasta malowane; oś wzdłuż +z

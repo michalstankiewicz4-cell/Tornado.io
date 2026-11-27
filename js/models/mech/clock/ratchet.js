@@ -1,7 +1,7 @@
 // ClockKit — koło zapadkowe z zapadką (kąt zapadki z geometrii zarysu).
 import * as THREE from '../../../../vendor/three/three.module.js';
 import { DOMAIN } from '../mechkit.js';
-import { TAU, EN, mesh, port, circle, slab, cylZ, materials } from './shared.js';
+import { TAU, EN, mesh, port, circle, slab, cylZ, materials } from '../common.js';
 
 /* ---------------- koło zapadkowe i zapadka ---------------- */
 // koło z zębami piłowymi (czoło promieniowe, grzbiet pochylony), zapadka na sworzniu ze sprężynką; koło obraca się
@@ -32,6 +32,7 @@ export function ratchet({ z = 24, R = 0.03, t = 0.006, h = null, name } = {}) {
   pawl.add(mesh(slab(ps, t * 0.8, -t * 0.4, 0.0002, 4), M.blued), mesh(cylZ(0.004, t * 1.3, 20), M.brassF));
   const pin = mesh(cylZ(0.0018, t * 1.8, 12), M.steelP); pin.position.set(Pv.x, Pv.y, 0); g.add(pin);
   const springW = mesh(new THREE.TorusGeometry(0.006, 0.0006, 6, 24, Math.PI * 1.2), M.spring); springW.position.set(Pv.x + 0.004, Pv.y + 0.004, t * 0.3); g.add(springW);
+  for (const a of [0, Math.PI * 1.2]) { const e = mesh(new THREE.SphereGeometry(0.0006, 8, 6), M.spring); e.position.set(Pv.x + 0.004 + 0.006 * Math.cos(a), Pv.y + 0.004 + 0.006 * Math.sin(a), t * 0.3); g.add(e); }   // końce drutu sprężynki
   const setAngle = (theta) => { wheel.rotation.z = theta; pawl.rotation.z = pawlAngle(theta); };
   setAngle(0);
   g.userData = { z, R, t, h: hh, step: p, setAngle, pawlAngle, mass: Math.PI * R * R * t * 7850 * 0.9, J: 0.5 * Math.PI * R * R * t * 7850 * R * R,
