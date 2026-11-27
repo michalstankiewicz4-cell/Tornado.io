@@ -15,15 +15,19 @@ import { createCircuit } from '../../behaviors/mech/circuit.js';
 import * as CK from '../../models/mech/controls.js';
 import { ITEMS, CATS, cardanMax } from './items.js';
 import { loadState, valid } from '../shared/saved.js';
+import { T, tr, LOC, EN, translateDom } from './lang.js';
 
 const $ = (id) => document.getElementById(id);
-const el = (tag, props = {}, ...kids) => { const e = document.createElement(tag); Object.assign(e, props); kids.forEach((k) => e.append(k)); return e; };
+translateDom();
+const perfRows = (rows) => { if (window.LabPerf) window.LabPerf.modelRows(rows.map(([a, b]) => [tr(a), tr(String(b))])); };
+const el = (tag, props = {}, ...kids) => { const e = document.createElement(tag); if (EN) { if (typeof props.textContent === 'string') props.textContent = tr(props.textContent); if (props.title) props.title = tr(props.title); } Object.assign(e, props); kids.forEach((k) => e.append(k)); return e; };
 const KEY = 'tornado.mechanics.v1';
+const WEATHER_PL = { clear: 'Bezchmurnie', fair: 'Cumulusy pięknej pogody', broken: 'Rozerwane chmury', overcast: 'Całkowite zachmurzenie', rain: 'Deszcz', fog: 'Mgła morska', storm: 'Burza' };
 const S = loadState(KEY, { mode: 'items', item: 'gear', items: {}, spin: 20, rpm: 600, brake: 20, alpha: 0.25, hit: false, weather: 'fair', sunEl: 40, sunAz: 205 },
   { mode: ['items', 'machine', 'physics'], item: ITEMS.map((i) => i.id), items: (v) => !Array.isArray(v), spin: (v) => v >= 0 && v <= 120, rpm: (v) => v >= 0 && v <= 1500, brake: (v) => v >= 0 && v <= 300, alpha: (v) => v >= 0 && v <= 1, weather: Object.keys(WEATHER) });
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* prywatny tryb */ } };
 const TAU = Math.PI * 2, X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0);
-const rpmOf = (w) => w * 60 / TAU, fmt = (v, d = 0) => v.toLocaleString('pl', { minimumFractionDigits: d, maximumFractionDigits: d });
+const rpmOf = (w) => w * 60 / TAU, fmt = (v, d = 0) => v.toLocaleString(LOC, { minimumFractionDigits: d, maximumFractionDigits: d });
 
 const stage = createStage($('view'), { shadow: 4096 });
 const { scene, camera, renderer } = stage;
@@ -248,8 +252,8 @@ slG.updateWorldMatrix(true, true);
 C('slider', 'mesh', 'screw', 'mesh', 'rack', { m: RK.m, z: ZB.z, y0: RK.y0, origin: slG.localToWorld(new THREE.Vector3(0, 0, RK.z)) });
 C('screw', 'thread', 'nut', 'thread', 'screw', { lead: scrG.userData.lead });
 const solved = drive.solve('motor', 'disc');
-if (!solved.ok) console.warn('Napęd zakleszczony', solved.conflicts);
-if (solved.unreached.length) console.warn('Elementy bez połączenia', solved.unreached.map((e) => e.name));
+if (!solved.ok) console.warn(T('Napęd zakleszczony', 'Drive jammed'), solved.conflicts);
+if (solved.unreached.length) console.warn(T('Elementy bez połączenia', 'Unconnected elements'), solved.unreached.map((e) => e.name));
 // faza korony: wrąb korony naprzeciw zęba satelity 0 (punkt styku na zewnątrz satelity, kąt 0)
 const PLANET = MK.planetPhase(ZS, ZPL, ZR, 3);   // ten sam wzór co w MechKit.planetary
 ring.userData.spin.rotation.x = PLANET.ring;
@@ -311,14 +315,14 @@ function stats() {
   $('bDrive').replaceChildren(...rows.flatMap(([a, b]) => [el('span', { textContent: a }), el('b', { textContent: b })]));
   $('bList').replaceChildren(...parts.flatMap((e) => { const s = el('span', { textContent: e.name }); s.onclick = () => select(e); return [s, el('b', { textContent: `${speedTxt(e)} · ${loadTxt(e.T, e)}` })]; }));
   if (sel) showSel();
-  if (window.LabPerf) window.LabPerf.modelRows([['Elementy', String(parts.length)], ['Połączenia', String(drive.edges.length)], ['Ogniwa łańcucha', String(CH.N)]]);
+  perfRows([['Elementy', String(parts.length)], ['Połączenia', String(drive.edges.length)], ['Ogniwa łańcucha', String(CH.N)]]);
 }
 
 /* ---------------- wybór elementu ---------------- */
 function select(e) { sel = e; selBox.setFromObject(e.group); selBox.visible = !!e; showSel(); }
 function showSel() {
   const e = sel; if (!e) return;
-  $('selName').textContent = e.name;
+  $('selName').textContent = tr(e.name);
   const rows = [...e.props, ['Prędkość', speedTxt(e)], [e.dof === 'lin' ? 'Siła przenoszona' : 'Moment przenoszony', loadTxt(e.T, e)], ['Moc', `${fmt(Math.abs(e.T * e.omega))} W`], ['Sprawność od silnika', `${fmt(e.eta * 100, 1)} %`]];
   $('selProps').replaceChildren(...rows.flatMap(([a, b]) => [el('span', { textContent: a }), el('b', { textContent: String(b) })]));
   // porty: z czym są połączone i co przez nie płynie
@@ -336,7 +340,7 @@ function pick(e) {
   if (bh) { let o = bh.object; while (o && !o.userData.bolt) o = o.parent; if (o) { toggleBolt(o); return; } }
   const hits = ray.intersectObjects(parts.map((p) => p.group), true);
   for (const h of hits) { let o = h.object; while (o && !o.userData.el) o = o.parent; if (o) { select(o.userData.el); return; } }
-  sel = null; selBox.visible = false; $('selName').textContent = 'Kliknij element maszyny'; $('selProps').replaceChildren(); $('selPorts').replaceChildren();
+  sel = null; selBox.visible = false; $('selName').textContent = tr('Kliknij element maszyny'); $('selProps').replaceChildren(); $('selPorts').replaceChildren();
 }
 
 /* ---------------- kamera ---------------- */
@@ -491,7 +495,7 @@ function rackZone(e) {
   const hullsB = MK.rackHulls(RK.m, RK.n).map((q) => q.map(([y, z]) => [y + RK.y0, z + RK.z]));
   const z = meshZone({ hullsA: MK.toothHulls(ZB.z, ZB.m), hullsB, za: ZB.z, zb: RK.n, map: planeMap(scrG.userData.spin, slG.userData.slide, { slideB: 'y' }), rel: f, slideB: true, pitchB: g.p });
   ZONES.set('rack', { z, rp: g.rp });
-  if (z.pen) console.warn(`Listwa z zębnikiem: zęby przenikają się w ${z.pen} z ${z.samples} położeń nominalnych`);
+  if (z.pen) console.warn(T(`Listwa z zębnikiem: zęby przenikają się w ${z.pen} z ${z.samples} położeń nominalnych`, `Rack with pinion: teeth interpenetrate in ${z.pen} of ${z.samples} nominal positions`));
   const k = -1 / (g.s * g.rp), tmp = {};
   return { zone: (x, out) => { z.zone((x - g.x0) / (g.s * g.rp), tmp); const a = tmp.lo * k, b = tmp.hi * k; out.lo = Math.min(a, b); out.hi = Math.max(a, b); return out; } };
 }
@@ -505,7 +509,7 @@ function BACKLASH(e) {
   if (!map.parallel) return (ua.phys.luz + ub.phys.luz) / ub.rp;   // osie nierównoległe — bez brył płaskich
   const z = meshZone({ hullsA: MK.toothHulls(ua.z, ua.m, { alpha: ua.alpha }), hullsB: MK.toothHulls(ub.z, ub.m, { alpha: ub.alpha }), za: ua.z, zb: ub.z, map, rel: e.rel });
   ZONES.set(`${ua.z}:${ub.z}`, { z, ua, ub });
-  if (z.pen) console.warn(`Zazębienie ${ua.z} : ${ub.z}: zęby przenikają się w ${z.pen} z ${z.samples} położeń nominalnych`);
+  if (z.pen) console.warn(T(`Zazębienie ${ua.z} : ${ub.z}: zęby przenikają się w ${z.pen} z ${z.samples} położeń nominalnych`, `Gear mesh ${ua.z} : ${ub.z}: teeth interpenetrate in ${z.pen} of ${z.samples} nominal positions`));
   return z.pen ? (ua.phys.luz + ub.phys.luz) / ub.rp : z;
 }
 // punkt 2 — sztywności skrętne połączeń (N·m/rad kąta koła b) i tłumienie ζ:
@@ -612,7 +616,7 @@ function physStats() {
   $('bDrive').replaceChildren(...rows.flatMap(([x, y]) => [el('span', { textContent: x }), el('b', { textContent: y })]));
   $('bList').replaceChildren(...parts.flatMap((e) => { const sp = el('span', { textContent: e.name }); sp.onclick = () => select(e); return [sp, el('b', { textContent: `${speedTxt(e)} · ${loadTxt(e.T, e)}` })]; }));
   if (sel) showSel();
-  if (window.LabPerf) window.LabPerf.modelRows([['Stopnie swobody', String(phys.nodes.length)], ['Wiązania', String(phys.edges.length)], ['Zazębienia z luzem', String(phys.edges.filter((c) => c.dead).length)], ['Bryły zderzeń zębów', `${[...ZONES.values()].reduce((a, v) => a + (v.ua ? v.ua.z + v.ub.z : ZB.z + RK.n), 0)} wielokątów wypukłych (${ZONES.size} zazębienia)`]]);
+  perfRows([['Stopnie swobody', String(phys.nodes.length)], ['Wiązania', String(phys.edges.length)], ['Zazębienia z luzem', String(phys.edges.filter((c) => c.dead).length)], ['Bryły zderzeń zębów', `${[...ZONES.values()].reduce((a, v) => a + (v.ua ? v.ua.z + v.ub.z : ZB.z + RK.n), 0)} wielokątów wypukłych (${ZONES.size} zazębienia)`]]);
 }
 // hitboksy z geometrii (ogólnie, bez ręcznych wymiarów): zębatka — bryły zderzeń zębów (wielokąty wypukłe z zarysu),
 // walec stóp i walce piast; inna część obrotowa — walec wzdłuż osi (obraca się z częścią); część nieruchoma —
@@ -793,7 +797,7 @@ const CARDAN = cardanSweep(), CARDAN_MAX = cardanMax();
 // wiersz okna Opis: śruby i części luźne (z momentem reakcji — czy przewróci; bez — stoi)
 function boltRows(rows) {
   const all = boltG.children.length, out = boltG.children.filter((b) => b.userData.target).length;
-  rows.push(['Mocowania', `${all - out} z ${all} śrub dokręconych${out ? ' — kliknij śrubę, żeby ją dokręcić, albo „Reset mocowań”' : ' — kliknij śrubę, żeby ją odkręcić'}`]);
+  rows.push(['Mocowania', `${all - out} ${T('z', 'of')} ${all} śrub dokręconych${out ? ' — kliknij śrubę, żeby ją dokręcić, albo „Reset mocowań”' : ' — kliknij śrubę, żeby ją odkręcić'}`]);
   for (const f of FIXT) {
     if (!f.loose && !f.phi && !(f.phys && f.bolts.some((b) => b.userData.target))) continue;
     if (!f.phys) {
@@ -1001,7 +1005,7 @@ function fixtureStep(dt) {
 }
 if (CARDAN.length) console.warn(`Przeguby Cardana: kolizje — ${CARDAN.map((h) => `${h.name} przy ${h.at}°`).join('; ')}`);
 const t0Clash = performance.now(), CLASHES = interference();
-console.info(`Kontrola zahaczeń: ${CLASHES.length ? CLASHES.map((c) => `${c.part} × ${c.fixed} ${(c.depth * 1000).toFixed(2)} mm`).join('; ') : 'brak'} (${Math.round(performance.now() - t0Clash)} ms)`);
+console.info(tr(`Kontrola zahaczeń: ${CLASHES.length ? CLASHES.map((c) => `${c.part} × ${c.fixed} ${(c.depth * 1000).toFixed(2)} mm`).join('; ') : 'brak'}`) + ` (${Math.round(performance.now() - t0Clash)} ms)`);
 
 function buildHit() {
   hitItems = [];
@@ -1095,7 +1099,7 @@ function itemList() {
 }
 function itemSettings() {
   const def = ITEMS.find((i) => i.id === S.item) || ITEMS[0], p = itemParams(def), box0 = $('itemSet');
-  const fmtV = (q, v) => (q.unit === 'mm' ? `${Math.round(v * 1000)} mm` : q.unit === 'mm×2' ? `${Math.round(v * 1000)} mm` : q.unit === '°' ? `${v}°` : q.unit ? `${String(v).replace('.', ',')} ${q.unit}` : String(v));
+  const fmtV = (q, v) => (q.unit === 'mm' ? `${Math.round(v * 1000)} mm` : q.unit === 'mm×2' ? `${Math.round(v * 1000)} mm` : q.unit === '°' ? `${v}°` : q.unit ? `${(EN ? String(v) : String(v).replace('.', ','))} ${q.unit}` : String(v));
   const rows = def.params.map((q) => {
     const set = (v) => { (S.items[def.id] ||= {})[q.key] = v; save(); buildItem(); };
     if (q.type === 'select') {
@@ -1108,11 +1112,11 @@ function itemSettings() {
       return el('label', { className: 'row' }, el('span', { textContent: q.label }), cb, el('output'));
     }
     const r = el('input', { type: 'range', min: q.min, max: q.max, step: q.step, value: p[q.key] }), out = el('output', { textContent: fmtV(q, p[q.key]) });
-    r.oninput = () => { out.textContent = fmtV(q, +r.value); }; r.onchange = () => set(+r.value);
+    r.oninput = () => { out.textContent = tr(fmtV(q, +r.value)); }; r.onchange = () => set(+r.value);
     return el('div', { className: 'row' }, el('span', { textContent: q.label }), r, out);
   });
-  const sp = el('input', { type: 'range', min: 0, max: 120, step: 1, value: S.spin }), spo = el('output', { textContent: `${S.spin} obr/min` });
-  sp.oninput = () => { S.spin = +sp.value; spo.textContent = `${S.spin} obr/min`; save(); };
+  const sp = el('input', { type: 'range', min: 0, max: 120, step: 1, value: S.spin }), spo = el('output', { textContent: `${S.spin} ${T('obr/min', 'rpm')}` });
+  sp.oninput = () => { S.spin = +sp.value; spo.textContent = `${S.spin} ${T('obr/min', 'rpm')}`; save(); };
   const reset = el('button', { type: 'button', textContent: 'Domyślne' }); reset.onclick = () => { delete S.items[def.id]; save(); itemSettings(); buildItem(); };
   // sterowanie i zasilanie — bez obrotu podglądu; sterowanie obsługuje się na modelu
   const preview0 = def.group === 'Zasilanie i przewody' && def.id === 'wire' ? [] : ['Sterowanie', 'Zasilanie i przewody'].includes(def.group) ? [el('p', { className: 'note', textContent: 'Obsługa na modelu: klik — dźwignia, przycisk, wyłącznik, RUN / STOP; przytrzymanie — przycisk chwilowy, krańcówka; przeciąganie w górę / w dół — pokrętło.' })] : [el('h3', { textContent: 'Podgląd' }), el('div', { className: 'row' }, el('span', { textContent: 'Obrót wejścia' }), sp, spo)];
@@ -1120,12 +1124,12 @@ function itemSettings() {
 }
 function itemStats() {
   if (!item) return;
-  $('selName').textContent = itemDef.name;
+  $('selName').textContent = tr(itemDef.name);
   const rows = [...item.info, ...(item.live ? item.live() : [])];   // wartości na żywo zastępują te same pola z opisu
   const uniq = []; const seen = new Set(); for (const r of rows) { if (seen.has(r[0])) { uniq[uniq.findIndex((u) => u[0] === r[0])] = r; continue; } seen.add(r[0]); uniq.push(r); }
   $('selProps').replaceChildren(...uniq.flatMap(([a, b]) => [el('span', { textContent: a }), el('b', { textContent: String(b) })]), ...(item.warn || []).map((w) => el('p', { className: 'warn', textContent: '⚠ ' + w })));
   $('selPorts').replaceChildren(...item.ports.map((pt) => el('li', {}, el('b', { textContent: pt.name }), el('span', { textContent: ` · ${pt.kind}` }))));
-  if (window.LabPerf) window.LabPerf.modelRows([['Przedmiot', itemDef.name], ['Ustawienia', String(itemDef.params.length)], ['Porty', String(item.ports.length)]]);
+  perfRows([['Przedmiot', itemDef.name], ['Ustawienia', String(itemDef.params.length)], ['Porty', String(item.ports.length)]]);
 }
 function setMode(m) {
   const was = S.mode;
@@ -1137,19 +1141,19 @@ function setMode(m) {
   if (phy && was !== 'physics') phys.sync();   // fizyka startuje z bieżącego położenia części
   $('mBar').hidden = !mach;
   $('info').textContent = phy ? $('info').dataset.physics : mach ? $('info').dataset.machine : $('info').dataset.items;
-  if (mach) { sel = null; $('selName').textContent = 'Kliknij element maszyny'; $('selProps').replaceChildren(); $('selPorts').replaceChildren(); if (was === 'items' || !was) setCam(CAMS['Cała maszyna']); }
+  if (mach) { sel = null; $('selName').textContent = tr('Kliknij element maszyny'); $('selProps').replaceChildren(); $('selPorts').replaceChildren(); if (was === 'items' || !was) setCam(CAMS['Cała maszyna']); }
   else { buildItem(); frameItem(); }
   cams(); stats();
 }
 for (const b of document.querySelectorAll('#modes button')) b.onclick = () => setMode(b.dataset.mode);
 
 /* ---------------- UI ---------------- */
-const bind = (id, key, fmtV, after) => { $(id).value = S[key]; $(id + 'V').textContent = fmtV(S[key]); $(id).oninput = () => { S[key] = +$(id).value; $(id + 'V').textContent = fmtV(S[key]); if (after) after(); save(); }; };
-bind('rpm', 'rpm', (v) => (v ? `${v} obr/min` : 'stop'));
+const bind = (id, key, fmtV, after) => { $(id).value = S[key]; $(id + 'V').textContent = tr(fmtV(S[key])); $(id).oninput = () => { S[key] = +$(id).value; $(id + 'V').textContent = tr(fmtV(S[key])); if (after) after(); save(); }; };
+bind('rpm', 'rpm', (v) => (v ? `${v} ${T('obr/min', 'rpm')}` : 'stop'));
 bind('brake', 'brake', (v) => `${v} N·m`);
 bind('alpha', 'alpha', (v) => `${Math.round(v * 100)} %`, applyAlpha);
 function applyAlpha() { M.acrylic.opacity = S.alpha; for (const p of panes) p.visible = S.alpha > 0.01; }
-$('weather').replaceChildren(...Object.entries(WEATHER).map(([k, w]) => el('option', { value: k, textContent: w.label || k })));
+$('weather').replaceChildren(...Object.entries(WEATHER).map(([k, w]) => el('option', { value: k, textContent: T(WEATHER_PL[k] || w.label || k, w.label || k) })));
 $('weather').value = S.weather; $('weather').onchange = () => { S.weather = $('weather').value; sky(); save(); };
 for (const k of ['sunEl', 'sunAz']) { $(k).value = S[k]; $(k + 'V').textContent = S[k] + '°'; $(k).oninput = () => { S[k] = +$(k).value; $(k + 'V').textContent = S[k] + '°'; sky(); save(); }; }
 function sky() { stage.setSky({ weather: S.weather, sunEl: S.sunEl, sunAz: S.sunAz }); }
@@ -1187,7 +1191,7 @@ window.MechanicsApi = {
   // control(nazwa, 'press' | 'release' | dy) — obsługa części sterującej przedmiotu (jak myszą); zwraca stan na żywo
   control(name, act = 'press') { if (!item || !item.api) return null; if (act === 'press') item.api.press(name); else if (act === 'release') item.api.release(name); else item.api.drag(name, act); return item.live ? Object.fromEntries(item.live()) : null; },
   // liczby spoza zakresu przycinane do zakresu suwaka; nie-liczby pomijane (zostaje obecna wartość)
-  rpm(v) { if (Number.isFinite(v)) { S.rpm = clamp(v, 0, 1500); $('rpm').value = S.rpm; $('rpmV').textContent = S.rpm ? `${S.rpm} obr/min` : 'stop'; save(); } return S.rpm; },
+  rpm(v) { if (Number.isFinite(v)) { S.rpm = clamp(v, 0, 1500); $('rpm').value = S.rpm; $('rpmV').textContent = S.rpm ? `${S.rpm} ${T('obr/min', 'rpm')}` : 'stop'; save(); } return S.rpm; },
   brake(v) { if (Number.isFinite(v)) { S.brake = clamp(v, 0, 300); $('brake').value = S.brake; $('brakeV').textContent = `${S.brake} N·m`; save(); } return S.brake; },
   alpha(a) { if (Number.isFinite(a)) { S.alpha = clamp(a, 0, 1); $('alpha').value = S.alpha; $('alphaV').textContent = `${Math.round(S.alpha * 100)} %`; applyAlpha(); save(); } return S.alpha; },
   state: () => ({ ...drive.state, ok: solved.ok }),
@@ -1201,5 +1205,5 @@ window.MechanicsApi = {
 
 $('resetBolts').onclick = () => resetBolts();
 sky(); applyAlpha(); applyAngles(); itemList(); itemSettings(); setMode(S.mode); if (S.hit) setHit(true);
-if (window.LabLoad) window.LabLoad.step('Maszyna złożona', 1);
+if (window.LabLoad) window.LabLoad.step(T('Maszyna złożona', 'Machine assembled'), 1);
 requestAnimationFrame(loop);

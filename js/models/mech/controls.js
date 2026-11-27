@@ -4,6 +4,8 @@
 // Przód obudowy patrzy w +z, montaż na płycie y = 0. Wymiary prawdziwe (otwór 22,5 mm na przyciski i lampki itd.).
 import * as THREE from '../../../vendor/three/three.module.js';
 import { materials } from './mechkit.js';
+// język podpisów na modelach (tabliczki, wyświetlacze): z paska menu, gdy jest (window.LabMenu.LANG)
+const EN = typeof window !== 'undefined' && !!window.LabMenu && !!window.LabMenu.LANG && window.LabMenu.LANG !== 'pl';
 
 const TAU = Math.PI * 2;
 const mesh = (g, m, shadow = true) => { const o = new THREE.Mesh(g, m); o.castShadow = shadow; o.receiveShadow = true; return o; };
@@ -72,7 +74,7 @@ export function switchUnit({ kind = 'cam', poles = 3, amps = 16 } = {}) {
     const plate = canvasTex(256, 256, (c, w, h) => {
       c.fillStyle = pc; c.fillRect(0, 0, w, h); c.fillStyle = '#111'; c.font = 'bold 44px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
       c.fillText('0', 128, 34); c.fillText('I', 222, 128);   // 0 u góry, I w prawo (obrót o 90° w prawo)
-      if (main) { c.font = 'bold 18px sans-serif'; c.fillText('WYŁĄCZNIK GŁÓWNY', 128, 228); }
+      if (main) { c.font = 'bold 18px sans-serif'; c.fillText(EN ? 'MAIN SWITCH' : 'WYŁĄCZNIK GŁÓWNY', 128, 228); }
     });
     const s = main ? 0.064 : 0.048;
     const pl = mesh(new THREE.BoxGeometry(s, s, 0.0015), [Pm.grey, Pm.grey, Pm.grey, Pm.grey, new THREE.MeshStandardMaterial({ map: plate.t, roughness: 0.5 }), Pm.grey]); pl.position.z = 0.00075; pivot.add(pl);
@@ -179,7 +181,7 @@ export function inverter({ kW = 1.1, fmax = 50, ramp = 5 } = {}) {
   const kb = mesh(new THREE.CylinderGeometry(0.009 * k + 0.002, 0.0095 * k + 0.002, 0.008, 32).rotateX(Math.PI / 2), Pm.dark); kb.position.z = 0.004; kn.add(kb);
   const kl = mesh(new THREE.BoxGeometry(0.0014, 0.006 * k + 0.002, 0.0006), Pm.white); kl.position.set(0, 0.004 * k + 0.001, 0.0083); kn.add(kl);
   for (const o of [kb, kl]) o.userData.control = 'knob';
-  const label = canvasTex(256, 64, (c, w, h) => { c.fillStyle = '#16181a'; c.fillRect(0, 0, w, h); c.fillStyle = '#c8cccf'; c.font = 'bold 22px sans-serif'; c.textAlign = 'center'; c.fillText(`${String(kW).replace('.', ',')} kW  3 × 400 V`, w / 2, 40); });
+  const label = canvasTex(256, 64, (c, w, h) => { c.fillStyle = '#16181a'; c.fillRect(0, 0, w, h); c.fillStyle = '#c8cccf'; c.font = 'bold 22px sans-serif'; c.textAlign = 'center'; c.fillText(`${EN ? String(kW) : String(kW).replace('.', ',')} kW  3 × 400 V`, w / 2, 40); });
   const lab = mesh(new THREE.PlaneGeometry(W * 0.7, W * 0.7 / 4), new THREE.MeshStandardMaterial({ map: label.t, roughness: 0.6 })); lab.position.set(0, H * 0.2, fz + 0.0005); g.add(lab);
   const term = mesh(new THREE.BoxGeometry(W * 0.9, H * 0.12, 0.006), Pm.dark); term.position.set(0, H * 0.07, fz); g.add(term);
   let set = 0.6, f = 0, run = false, dir = 1;   // f ze znakiem: + przód (FWD), − wstecz (REV)
@@ -340,7 +342,7 @@ export function contactor({ amps = 12, coil = '230AC', aux = '1NO' } = {}) {
   const body = mesh(new THREE.BoxGeometry(w, 0.082, 0.07), Pm.grey); body.position.set(0, 0.041, 0.0425); g.add(body);
   const front = mesh(new THREE.BoxGeometry(w * 0.86, 0.04, 0.016), Pm.grey); front.position.set(0, 0.041, 0.0855); g.add(front);
   for (const y of [0.0065, 0.0755]) for (let i = 0; i < 3; i++) { const sc = mesh(new THREE.CylinderGeometry(0.0028, 0.0028, 0.002, 12).rotateX(Math.PI / 2), M.steel); sc.position.set((i - 1) * w * 0.3, y, 0.0778); g.add(sc); }
-  const lab = canvasTex(256, 128, (c, ww, hh) => { c.fillStyle = '#d4d4cc'; c.fillRect(0, 0, ww, hh); c.fillStyle = '#111'; c.font = 'bold 24px sans-serif'; c.textAlign = 'center'; c.fillText(`AC-3 ${amps} A`, 128, 40); c.font = '20px sans-serif'; c.fillText(coil === '230AC' ? 'cewka 230 V AC' : 'cewka 24 V DC', 128, 76); c.fillText('1 3 5  →  2 4 6', 128, 108); });
+  const lab = canvasTex(256, 128, (c, ww, hh) => { c.fillStyle = '#d4d4cc'; c.fillRect(0, 0, ww, hh); c.fillStyle = '#111'; c.font = 'bold 24px sans-serif'; c.textAlign = 'center'; c.fillText(`AC-3 ${amps} A`, 128, 40); c.font = '20px sans-serif'; c.fillText(`${EN ? 'coil' : 'cewka'} ${coil === '230AC' ? '230 V AC' : '24 V DC'}`, 128, 76); c.fillText('1 3 5  →  2 4 6', 128, 108); });
   const lh = Math.min(w * 0.4, 0.017), lb = mesh(new THREE.PlaneGeometry(w * 0.8, lh), new THREE.MeshStandardMaterial({ map: lab.t, roughness: 0.6 })); lb.position.set(0, 0.022 + lh / 2, 0.0942); g.add(lb);   // mieści się na froncie (0,021…0,061)   // tabliczka 0,7 mm przed frontem — bez migotania
   const win = mesh(new THREE.BoxGeometry(0.012, 0.012, 0.0015), Pm.black); win.position.set(0, 0.055, 0.0938); g.add(win);
   const ind = mesh(new THREE.BoxGeometry(0.008, 0.004, 0.002), Pm.yellow); ind.position.set(0, 0.058, 0.0945); g.add(ind);
@@ -431,7 +433,7 @@ export function powerSource({ kind = 'AC', volts = 230, phases = 1, hz = 50, amp
     const c = disp.c.getContext('2d'); c.fillStyle = '#071017'; c.fillRect(0, 0, 256, 112);
     c.fillStyle = on ? '#7fd8ff' : '#2c5566'; c.font = 'bold 30px monospace'; c.textAlign = 'left';
     c.fillText(ac ? `${volts} V ~${hz} Hz` : `${volts.toFixed(1)} V =`, 8, 34);
-    c.font = '18px monospace'; c.fillText(on ? `WŁ  maks. ${amps} A` : 'WYŁ', 8, 104);
+    c.font = '18px monospace'; c.fillText(on ? (EN ? `ON  max. ${amps} A` : `WŁ  maks. ${amps} A`) : (EN ? 'OFF' : 'WYŁ'), 8, 104);
     if (ac && on) {   // przebieg: ćwierć sekundy przewija się w czasie (umownie zwolniony 25 ×)
       for (let ph = 0; ph < phases; ph++) {
         c.strokeStyle = ['#ffb066', '#9fe8ff', '#d0d0d0'][ph]; c.lineWidth = 2; c.beginPath();

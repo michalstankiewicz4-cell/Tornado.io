@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self'; base-uri 'none'; form-action 'none'">
-<title>Laboratorium mechaniki — transmisja ruchu: zębatki, przekładnie, łańcuch, pas, wały, sprzęgła | Tornado.io</title>
+<title data-en="Mechanics lab — motion transmission, motion conversion, bearings, electric circuit, physics | Tornado.io">Laboratorium mechaniki — transmisja ruchu: zębatki, przekładnie, łańcuch, pas, wały, sprzęgła | Tornado.io</title>
 <meta name="description" content="Tornado.io: laboratorium mechaniki — maszyna z elementów połączonych portami: silnik, sprzęgło kłowe, zębatki o zarysie ewolwentowym, przekładnia dwustopniowa, łańcuch rolkowy, pas klinowy, przeguby Cardana, przekładnia planetarna i hamulec.">
 <link rel="icon" type="image/png" href="../assets/favicon-32.png">
 <link rel="stylesheet" href="../ui/style/sea.css">
@@ -20,22 +20,22 @@
 <script src="../ui/shell/loader.js"></script>
 <div id="view"></div>
 <div class="bar">
-  <div class="seg" id="modes"><button type="button" data-mode="items" title="Każdy przedmiot osobno, z ustawieniami">Przedmioty</button><button type="button" data-mode="machine" title="Maszyna złożona z przedmiotów, połączonych portami">Maszyna</button><button type="button" data-mode="physics" title="Ta sama maszyna liczona fizycznie: każda część ma własny ruch, połączenia to wiązania (luz w zazębieniach); prędkość z regulatora przy silniku">Fizyka</button></div>
+  <div class="seg" id="modes"><button type="button" data-mode="items" title="Każdy przedmiot osobno, z ustawieniami" data-title-en="Each item on its own, with settings" data-en="Items">Przedmioty</button><button type="button" data-mode="machine" title="Maszyna złożona z przedmiotów, połączonych portami" data-title-en="A machine built from the items, connected by ports" data-en="Machine">Maszyna</button><button type="button" data-mode="physics" title="Ta sama maszyna liczona fizycznie: każda część ma własny ruch, połączenia to wiązania (luz w zazębieniach); prędkość z regulatora przy silniku" data-title-en="The same machine computed physically: every part moves on its own, connections are constraints (backlash in gear meshes); speed from the drive at the motor" data-en="Physics">Fizyka</button></div>
   <span id="mBar">
-  <label class="ctl" id="rpmCtl" title="Prędkość silnika ustawiana falownikiem (od zera — silnik stoi)">Silnik <input type="range" id="rpm" min="0" max="1500" step="10" aria-label="Prędkość silnika"><output id="rpmV"></output></label>
-  <label class="ctl" title="Moment hamulca na wale wyjściowym">Hamulec <input type="range" id="brake" min="0" max="300" step="5" aria-label="Moment hamulca"><output id="brakeV"></output></label>
-  <label class="ctl" title="Przezroczystość obudów z akrylu (0 — bez szyb)">Obudowy <input type="range" id="alpha" min="0" max="1" step="0.05" aria-label="Przezroczystość obudów"><output id="alphaV"></output></label>
-  <button type="button" id="resetBolts" title="Dokręca wszystkie śruby mocujące i stawia luźne części na miejsce (kliknięcie śruby na scenie — odkręca ją)">Reset mocowań</button>
-  <label class="chk" title="Pokaż bryły zderzeń części: walce wzdłuż osi obrotu (obracają się z częścią) i prostopadłościany części nieruchomych"><input type="checkbox" id="hit"> Hitboksy</label>
+  <label class="ctl" id="rpmCtl" title="Prędkość silnika ustawiana falownikiem (od zera — silnik stoi)" data-title-en="Motor speed set by the frequency inverter (zero — motor stopped)"><span data-en="Motor">Silnik</span> <input type="range" id="rpm" min="0" max="1500" step="10" aria-label="Prędkość silnika" data-aria-en="Motor speed"><output id="rpmV"></output></label>
+  <label class="ctl" title="Moment hamulca na wale wyjściowym" data-title-en="Brake torque on the output shaft"><span data-en="Brake">Hamulec</span> <input type="range" id="brake" min="0" max="300" step="5" aria-label="Moment hamulca" data-aria-en="Brake torque"><output id="brakeV"></output></label>
+  <label class="ctl" title="Przezroczystość obudów z akrylu (0 — bez szyb)" data-title-en="Opacity of the acrylic housings (0 — no panes)"><span data-en="Housings">Obudowy</span> <input type="range" id="alpha" min="0" max="1" step="0.05" aria-label="Przezroczystość obudów" data-aria-en="Housing opacity"><output id="alphaV"></output></label>
+  <button type="button" id="resetBolts" title="Dokręca wszystkie śruby mocujące i stawia luźne części na miejsce (kliknięcie śruby na scenie — odkręca ją)" data-title-en="Tightens all mounting bolts and puts loose parts back (clicking a bolt in the scene unscrews it)" data-en="Reset mountings">Reset mocowań</button>
+  <label class="chk" title="Pokaż bryły zderzeń części: walce wzdłuż osi obrotu (obracają się z częścią) i prostopadłościany części nieruchomych" data-title-en="Show collision bodies: tooth bodies, cylinders along rotation axes (they turn with the part) and boxes of fixed parts"><input type="checkbox" id="hit"> <span data-en="Hitboxes">Hitboksy</span></label>
   </span>
   <span class="sp"></span>
 </div>
 <aside class="panel" data-std="info">
-  <h2 class="stdName">Transmisja ruchu</h2>
-  <p class="stdText" id="info" data-items="Każdy przedmiot osobno na stole: wybierz go w oknie Przedmioty, ustaw parametry (liczba zębów, moduł, profil, moc silnika…) w oknie Ustawienia. Okno Element pokazuje wyliczone dane, ostrzeżenia i porty, przez które przedmiot łączy się z innymi." data-physics="Ta sama maszyna liczona fizycznie: każda część ma własny kąt i prędkość, a połączenia są wiązaniami — silnik napędza wirnik, reszta rusza, bo wiązania nie pozwalają się rozjechać. Zazębienia mają prawdziwy luz z geometrii zębów: przy zmianie kierunku napędzane koło stoi, aż ząb przejdzie luz. Prędkość i kierunek — regulatorem (falownik) przed silnikiem: pokrętło, RUN / STOP, FWD / REV. Kolejne punkty fizyki będą dochodzić tutaj." data-machine="Jedna maszyna z elementów połączonych portami: silnik, sprzęgło kłowe, para zębatek, przekładnia dwustopniowa w obudowie z akrylu, łańcuch rolkowy, pas klinowy, sprzęgło kołnierzowe, wał z dwoma przegubami Cardana, przekładnia planetarna i hamulec tarczowy. Prędkość, kierunek i moment każdego elementu wynikają z połączeń.">Jedna maszyna z elementów połączonych portami: silnik, sprzęgło kłowe, para zębatek, przekładnia dwustopniowa w obudowie z akrylu, łańcuch rolkowy, pas klinowy, sprzęgło kołnierzowe, wał z dwoma przegubami Cardana, przekładnia planetarna i hamulec tarczowy. Prędkość, kierunek i moment każdego elementu wynikają z połączeń.</p>
+  <h2 class="stdName" data-en="Mechanics">Mechanika</h2>
+  <p class="stdText" id="info" data-items-en="Each item on its own on the table: choose it in the Items window (sorted into the plan's categories), set its parameters (number of teeth, module, profile, motor power…) in the Settings window. The Element window shows computed data, warnings and the ports through which the item connects to others." data-machine-en="One machine built from elements connected by ports: motor, jaw coupling, gear pair, two-stage gearbox in an acrylic housing, roller chain, V-belt, flange coupling, shaft with two Cardan joints, planetary gear, disc brake and a crank with a rack and a ball screw. Speed, direction and torque of every element follow from the connections. Every fixed part is bolted to the bed — click a bolt to unscrew it." data-physics-en="The same machine computed physically: every part has its own angle and speed, connections are constraints — the motor drives the rotor and the rest moves because the constraints do not let it drift apart. Gear meshes have real backlash from the tooth geometry, couplings and shafts are elastic, the belt slips, the chain runs unevenly. Power: source → main switch → contactor (START / STOP, emergency stop) → inverter (potentiometer, direction switch) → motor. Loose parts react to the forces of the drive." data-items="Każdy przedmiot osobno na stole: wybierz go w oknie Przedmioty, ustaw parametry (liczba zębów, moduł, profil, moc silnika…) w oknie Ustawienia. Okno Element pokazuje wyliczone dane, ostrzeżenia i porty, przez które przedmiot łączy się z innymi." data-physics="Ta sama maszyna liczona fizycznie: każda część ma własny kąt i prędkość, a połączenia są wiązaniami — silnik napędza wirnik, reszta rusza, bo wiązania nie pozwalają się rozjechać. Zazębienia mają prawdziwy luz z geometrii zębów: przy zmianie kierunku napędzane koło stoi, aż ząb przejdzie luz. Prędkość i kierunek — regulatorem (falownik) przed silnikiem: pokrętło, RUN / STOP, FWD / REV. Kolejne punkty fizyki będą dochodzić tutaj." data-machine="Jedna maszyna z elementów połączonych portami: silnik, sprzęgło kłowe, para zębatek, przekładnia dwustopniowa w obudowie z akrylu, łańcuch rolkowy, pas klinowy, sprzęgło kołnierzowe, wał z dwoma przegubami Cardana, przekładnia planetarna i hamulec tarczowy. Prędkość, kierunek i moment każdego elementu wynikają z połączeń.">Jedna maszyna z elementów połączonych portami: silnik, sprzęgło kłowe, para zębatek, przekładnia dwustopniowa w obudowie z akrylu, łańcuch rolkowy, pas klinowy, sprzęgło kołnierzowe, wał z dwoma przegubami Cardana, przekładnia planetarna i hamulec tarczowy. Prędkość, kierunek i moment każdego elementu wynikają z połączeń.</p>
   <div class="stats" id="bDrive"></div>
-  <h3>Jak to liczy</h3>
-  <p class="note">Kąt każdego elementu liczony jest od kąta silnika po połączeniach: zazębienie (stosunek zębów, zmiana kierunku), łańcuch i pas (ten sam kierunek), przegub Cardana (z geometrii krzyżaka — przełożenie zmienia się w czasie obrotu), przekładnia planetarna (wzór Willisa). Silnik przyspiesza bezwładność zredukowaną całej maszyny; hamulec obciąża wyjście, moment w każdym elemencie wynika z mocy i sprawności połączeń.</p>
+  <h3 data-en="How it is computed">Jak to liczy</h3>
+  <p class="note" data-en="Each element's angle is computed from the motor angle along the connections: gear mesh (tooth ratio, direction change), chain and belt (same direction), Cardan joint (from the cross geometry — the ratio changes during a revolution), planetary gear (Willis formula), rack, lead screw and crank (rotation ↔ translation). The motor accelerates the reduced inertia of the whole machine; the brake loads the output, the torque in every element follows from power and connection efficiencies. In Physics mode every part has its own motion and the connections are constraints with backlash, elasticity and friction.">Kąt każdego elementu liczony jest od kąta silnika po połączeniach: zazębienie (stosunek zębów, zmiana kierunku), łańcuch i pas (ten sam kierunek), przegub Cardana (z geometrii krzyżaka — przełożenie zmienia się w czasie obrotu), przekładnia planetarna (wzór Willisa). Silnik przyspiesza bezwładność zredukowaną całej maszyny; hamulec obciąża wyjście, moment w każdym elemencie wynika z mocy i sprawności połączeń.</p>
 </aside>
 <aside class="panel" data-window="items" data-title="Items" data-title-pl="Przedmioty" data-side="left">
   <div id="itemList"></div>
@@ -44,23 +44,23 @@
   <div id="itemSet"></div>
 </aside>
 <aside class="panel" data-window="element" data-title="Element" data-title-pl="Element" data-side="left">
-  <h3 id="selName">Kliknij element maszyny</h3>
+  <h3 id="selName" data-en="Click a machine element">Kliknij element maszyny</h3>
   <div class="stats" id="selProps"></div>
-  <h3>Porty</h3>
+  <h3 data-en="Ports">Porty</h3>
   <ul class="ports" id="selPorts"></ul>
 </aside>
 <aside class="panel" data-window="drive" data-title="Drive" data-title-pl="Napęd" data-side="right">
   <div class="stats list" id="bList"></div>
-  <p class="note">↺ / ↻ — kierunek obrotu patrząc wzdłuż osi. Kliknij nazwę, by wybrać element.</p>
+  <p class="note" data-en="↺ / ↻ — rotation direction looking along the axis. Click a name to select the element.">↺ / ↻ — kierunek obrotu patrząc wzdłuż osi. Kliknij nazwę, by wybrać element.</p>
 </aside>
 <aside class="panel" data-std="camera">
   <div class="btns" id="cams"></div>
-  <p class="note">Przeciągnij — obrót, kółko — odległość, W A S D — przesuwanie. Kliknij element — jego właściwości i porty.</p>
+  <p class="note" data-en="Drag — rotate, wheel — distance, W A S D — pan. Click an element — its properties and ports; click a bolt — unscrew it.">Przeciągnij — obrót, kółko — odległość, W A S D — przesuwanie. Kliknij element — jego właściwości i porty; kliknij śrubę — odkręć ją.</p>
 </aside>
 <aside class="panel" data-std="light">
-  <div class="row"><span>Pogoda</span><select id="weather"></select><output></output></div>
-  <div class="row"><span>Słońce</span><input type="range" id="sunEl" min="-6" max="70" step="1"><output id="sunElV"></output></div>
-  <div class="row"><span>Kierunek</span><input type="range" id="sunAz" min="0" max="360" step="2"><output id="sunAzV"></output></div>
+  <div class="row"><span data-en="Weather">Pogoda</span><select id="weather"></select><output></output></div>
+  <div class="row"><span data-en="Sun">Słońce</span><input type="range" id="sunEl" min="-6" max="70" step="1"><output id="sunElV"></output></div>
+  <div class="row"><span data-en="Direction">Kierunek</span><input type="range" id="sunAz" min="0" max="360" step="2"><output id="sunAzV"></output></div>
 </aside>
 <aside class="panel" data-std="perf">
   <div class="stats" id="stats"></div>

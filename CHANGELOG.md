@@ -1,5 +1,14 @@
 # Zmiany
 
+## 0.28.2 — 2026-11-27
+- Laboratorium mechaniki 0.14.0 — **dwa języki: polski i angielski** (wybór z paska menu: Opcje → Język, albo
+  `?lang=en` / `?lang=pl`). Przetłumaczone wszystko: pasek narzędzi, opisy trybów, okna, przedmioty i ich ustawienia,
+  nazwy elementów, właściwości, porty, ostrzeżenia, wiersze fizyki i obwodu, mocowania, kamery, pogoda, okno
+  Wydajność, komunikaty w konsoli. Liczby w zapisie danego języka (przecinek / kropka). Język laboratorium:
+  `js/labs/mechanics/lang.js` (`T(pl, en)`, `tr()` — słownik `lang-en.js`, całe teksty i fragmenty), teksty strony
+  w `data-en` / `data-title-en`.
+- ControlKit: podpisy na modelach (wyłącznik główny, tabliczka stycznika i silnika, wyświetlacz źródła) w języku strony.
+
 ## 0.28.1 — 2026-11-27
 - Laboratorium mechaniki 0.13.1 — **siły promieniowe w łożyskach i luźne oprawy**: siły z zazębień (obwodowa i rozpór),
   łańcucha i pasa oraz ciężar wałów rozdzielone na podpory; luźna oprawa pełznie albo się unosi, wał i koła razem z nią.

@@ -303,3 +303,16 @@ Fizyka luźnej części (tryb Fizyka) — moment reakcji z fizyki napędu:
   unosi, a z nią wał i koła. Skutki: pas — rozstaw osi maleje → napięcie EA·2Δa/L spada → moment graniczny maleje
   (luźny dolny wał pasa unosi się ok. 4 mm, napięcie 300 → ok. 40 N, pas się ślizga); łańcuch — skrócenie rozstawu
   o 4 mm → przeskakuje po zębach; zazębienie — rozsunięcie ponad 1,2·m → zęby wychodzą z przyporu.
+
+## Języki (polski i angielski)
+
+- Język z paska menu (`window.LabMenu.LANG`: Opcje → Język albo `?lang=en` / `?lang=pl`); strona pisana po polsku.
+- `js/labs/mechanics/lang.js`: `T(pl, en)` — tekst w kodzie w obu językach; `tr(tekst)` — tekst polski tłumaczony
+  słownikiem `lang-en.js` (najpierw cały, potem fragmentami, najdłuższe pierwsze, na granicach słów; wynik w pamięci
+  podręcznej); `LOC` — zapis liczb; `translateDom()` — teksty strony z `data-en`, `data-title-en`, `data-aria-en`,
+  opisy trybów z `data-items-en` / `data-machine-en` / `data-physics-en`.
+- `tr` działa przy wyświetlaniu: pomocnik `el()` (treść i podpowiedź), nazwa wybranego elementu, wyjścia suwaków,
+  wiersze okna Wydajność (`perfRows`). Nowy tekst po polsku w nazwie, właściwości albo wierszu — wpis w `lang-en.js`
+  (albo `T(pl, en)` w kodzie, gdy zdanie składa się z liczb i słów, jak „82 z 82”).
+- Podpisy na modelach ControlKit (tabliczki, wyświetlacze) czytają `window.LabMenu.LANG` same.
+- API (`MechanicsApi`) zwraca nazwy po polsku, niezależnie od języka strony.

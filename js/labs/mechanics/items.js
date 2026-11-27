@@ -6,18 +6,19 @@ import * as MK from '../../models/mech/mechkit.js';
 import { createDrive, ujointEta } from '../../behaviors/mech/drive.js';
 import { meshClash } from '../../behaviors/mech/contact.js';
 import * as CK from '../../models/mech/controls.js';
+import { LOC } from './lang.js';
 
 const TAU = Math.PI * 2, X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0);
-const mm = (v, d = 1) => `${(v * 1000).toLocaleString('pl', { maximumFractionDigits: d })} mm`;
-const kg = (v) => `${v.toLocaleString('pl', { maximumFractionDigits: v < 1 ? 3 : 2 })} kg`;
-const kgcm2 = (J) => `${(J * 1e4).toLocaleString('pl', { maximumFractionDigits: 3 })} kg·cm²`;
+const mm = (v, d = 1) => `${(v * 1000).toLocaleString(LOC, { maximumFractionDigits: d })} mm`;
+const kg = (v) => `${v.toLocaleString(LOC, { maximumFractionDigits: v < 1 ? 3 : 2 })} kg`;
+const kgcm2 = (J) => `${(J * 1e4).toLocaleString(LOC, { maximumFractionDigits: 3 })} kg·cm²`;
 const P = (id, name, kind = 'obrót') => ({ id, name, kind });
 const MATS = [['gear', 'stal 42CrMo4 ulepszona'], ['steel', 'stal C45 szlifowana'], ['brass', 'mosiądz CuZn39Pb3'], ['iron', 'żeliwo EN-GJL-250'], ['dark', 'stal czerniona'], ['alu', 'aluminium EN AW-6082']];
 const matName = (k) => (MATS.find((m) => m[0] === k) || [0, k])[1];
 const CHAINS = { '06B': { p: 0.009525, d1: 0.00635 }, '08A': { p: 0.0127, d1: 0.00792 }, '10A': { p: 0.015875, d1: 0.01016 }, '12A': { p: 0.01905, d1: 0.01191 } };
 const shaftBit = (len, r = 0.0125) => { const s = MK.shaft({ len, r }); s.position.x = -len / 2; return s; };   // krótki wał na podglądzie
 const spinAll = (...gs) => (t) => { for (const g of gs) g.userData.spin.rotation.x = t; };
-const num = (v, d = 0) => v.toLocaleString('pl', { maximumFractionDigits: d });
+const num = (v, d = 0) => v.toLocaleString(LOC, { maximumFractionDigits: d });
 // porty z danych modelu (userData.ports: nazwa, dziedzina, złącze) — lista do okna
 const portsOf = (...gs) => gs.flatMap((g) => Object.entries(g.userData.ports || {}).map(([id, q]) => ({ id, name: `${q.name} — ${q.iface}`, kind: q.domain })));
 // kategorie planu (docs/labs/mechanics.md): grupa przedmiotu → kategoria
@@ -188,7 +189,7 @@ export const ITEMS = [
       const d = createDrive(), ea = d.add({ id: 'a', J: 0, frame: { o: a.position.clone(), axis: X, ref: Y } }), eb = d.add({ id: 'b', J: 0, frame: { o: b.position.clone(), axis: X, ref: Y } });
       d.connect('a', 'mesh', 'b', 'mesh', 'mesh', { za: p.z1, zb: p.z2 }); d.solve('a');
       return { group: g, view: { yaw: 1.2, pitch: 0.25 }, update: (t) => { d.pose(t); a.userData.spin.rotation.x = ea.theta; b.userData.spin.rotation.x = eb.theta; },
-        info: [['Przełożenie', `i = ${p.z2}/${p.z1} = ${(p.z2 / p.z1).toLocaleString('pl', { maximumFractionDigits: 3 })}`], ['Odległość osi', mm(a0)], ['Kierunek', 'przeciwny'], ['Wskaźnik przyporu (ok.)', contactRatio(p.z1, p.z2).toLocaleString('pl', { maximumFractionDigits: 2 })], ['Masa razem', kg(a.userData.mass + b.userData.mass)]],
+        info: [['Przełożenie', `i = ${p.z2}/${p.z1} = ${(p.z2 / p.z1).toLocaleString(LOC, { maximumFractionDigits: 3 })}`], ['Odległość osi', mm(a0)], ['Kierunek', 'przeciwny'], ['Wskaźnik przyporu (ok.)', contactRatio(p.z1, p.z2).toLocaleString(LOC, { maximumFractionDigits: 2 })], ['Masa razem', kg(a.userData.mass + b.userData.mass)]],
         ports: [P('in', 'Wał zębnika (wejście)'), P('out', 'Wał koła (wyjście)')] };
     },
   },
@@ -203,10 +204,10 @@ export const ITEMS = [
     ],
     build(p) {
       const g = MK.planetary(p), u = g.userData, warn = [];
-      if (!u.assemblyOk) warn.push(`(zs + zr) / n = ${u.assembly.toLocaleString('pl', { maximumFractionDigits: 2 })} — niecałkowite: satelitów nie da się rozstawić równo.`);
+      if (!u.assemblyOk) warn.push(`(zs + zr) / n = ${u.assembly.toLocaleString(LOC, { maximumFractionDigits: 2 })} — niecałkowite: satelitów nie da się rozstawić równo.`);
       if (!u.clearanceOk) warn.push('Satelity zachodzą na siebie — za dużo satelitów albo za duże.');
       return { group: g, warn, view: { yaw: -0.9, pitch: 0.25 }, update: (t) => u.update(t),
-        info: [['Koło koronowe', `${u.zr} zębów (zr = zs + 2·zp)`], ['Przełożenie (korona stała)', `i = 1 + zr/zs = ${u.ratio.toLocaleString('pl', { maximumFractionDigits: 3 })}`], ['Kierunek wyjścia', 'ten sam co wejście'], ['Promień jarzma', mm(u.RC)], ['Średnica zewnętrzna', mm(u.R * 2)], ['Masa', kg(u.mass)]],
+        info: [['Koło koronowe', `${u.zr} zębów (zr = zs + 2·zp)`], ['Przełożenie (korona stała)', `i = 1 + zr/zs = ${u.ratio.toLocaleString(LOC, { maximumFractionDigits: 3 })}`], ['Kierunek wyjścia', 'ten sam co wejście'], ['Promień jarzma', mm(u.RC)], ['Średnica zewnętrzna', mm(u.R * 2)], ['Masa', kg(u.mass)]],
         ports: [P('sun', 'Koło słoneczne (wejście)'), P('ring', 'Koło koronowe', 'podparcie'), P('carrier', 'Jarzmo (wyjście)')] };
     },
   },
@@ -255,7 +256,7 @@ export const ITEMS = [
       s1.userData.spin.children.forEach((c) => { c.rotation.x = path.a1; }); s2.userData.spin.children.forEach((c) => { c.rotation.x = path.a2 - path.U2 * TAU / p.z2; });
       const ch = MK.chainLoop(path, D.N, { p: C.p, d1: C.d1, type: p.type }); g.add(ch);
       return { group: g, view: { yaw: 1.25, pitch: 0.2 }, update: (t) => { s1.userData.spin.rotation.x = t; s2.userData.spin.rotation.x = t * p.z1 / p.z2 + path.seat.phase2; ch.userData.update(t * p.z1 / TAU); },
-        info: [['Przełożenie', `i = ${p.z2}/${p.z1} = ${(p.z2 / p.z1).toLocaleString('pl', { maximumFractionDigits: 3 })}`], ['Kierunek', 'ten sam'], ['Liczba ogniw', `${D.N} (parzysta — bez ogniwa przejściowego)`], ['Odległość osi (dobrana)', mm(D.D)], ['Długość łańcucha', mm(D.N * C.p, 0)], ['Masa łańcucha', kg(ch.userData.mass)]],
+        info: [['Przełożenie', `i = ${p.z2}/${p.z1} = ${(p.z2 / p.z1).toLocaleString(LOC, { maximumFractionDigits: 3 })}`], ['Kierunek', 'ten sam'], ['Liczba ogniw', `${D.N} (parzysta — bez ogniwa przejściowego)`], ['Odległość osi (dobrana)', mm(D.D)], ['Długość łańcucha', mm(D.N * C.p, 0)], ['Masa łańcucha', kg(ch.userData.mass)]],
         ports: [P('in', 'Wał koła czynnego (wejście)'), P('out', 'Wał koła biernego (wyjście)')] };
     },
   },
@@ -291,7 +292,7 @@ export const ITEMS = [
       const wrap = Math.PI - 2 * Math.asin((p.d2 - p.d1) / (2 * a));
       return { group: g, view: { yaw: 1.25, pitch: 0.2 }, update: (t) => { q1.userData.spin.rotation.x = t; q2.userData.spin.rotation.x = t * p.d1 / p.d2; belt.userData.update(t * p.d1 / 2); },
         warn: wrap < 120 * Math.PI / 180 ? ['Kąt opasania koła czynnego poniżej 120° — pas może się ślizgać.'] : [],
-        info: [['Przełożenie', `i = ${Math.round(p.d2 * 1000)}/${Math.round(p.d1 * 1000)} = ${(p.d2 / p.d1).toLocaleString('pl', { maximumFractionDigits: 3 })}`], ['Kierunek', 'ten sam'], ['Długość pasa (skuteczna)', `${L} mm`], ['Kąt opasania (koło czynne)', `${Math.round(wrap * 180 / Math.PI)}°`], ['Masa pasów', kg(belt.userData.mass)]],
+        info: [['Przełożenie', `i = ${Math.round(p.d2 * 1000)}/${Math.round(p.d1 * 1000)} = ${(p.d2 / p.d1).toLocaleString(LOC, { maximumFractionDigits: 3 })}`], ['Kierunek', 'ten sam'], ['Długość pasa (skuteczna)', `${L} mm`], ['Kąt opasania (koło czynne)', `${Math.round(wrap * 180 / Math.PI)}°`], ['Masa pasów', kg(belt.userData.mass)]],
         ports: [P('in', 'Wał koła czynnego (wejście)'), P('out', 'Wał koła biernego (wyjście)')] };
     },
   },
@@ -306,7 +307,7 @@ export const ITEMS = [
     build(p) {
       const g = MK.shaft({ len: p.len, r: p.d / 2, mat: p.mat, key: p.key }); g.position.x = -p.len / 2; const h = new THREE.Group(); h.add(g); const u = g.userData;
       const kt = u.phys.k;   // G·J_p / L — z danych wału (MechKit.PHYS, G wg materiału)
-      return { group: h, update: spinAll(g), info: [['Masa', kg(u.mass)], ['Bezwładność', kgcm2(u.J)], ['Materiał', matName(p.mat)], ['Sztywność skrętna', `${Math.round(kt).toLocaleString('pl')} N·m/rad (${(kt * Math.PI / 180).toLocaleString('pl', { maximumFractionDigits: 1 })} N·m na 1°)`], ['Smukłość l/d', Math.round(p.len / p.d).toString()]],
+      return { group: h, update: spinAll(g), info: [['Masa', kg(u.mass)], ['Bezwładność', kgcm2(u.J)], ['Materiał', matName(p.mat)], ['Sztywność skrętna', `${Math.round(kt).toLocaleString(LOC)} N·m/rad (${(kt * Math.PI / 180).toLocaleString(LOC, { maximumFractionDigits: 1 })} N·m na 1°)`], ['Smukłość l/d', Math.round(p.len / p.d).toString()]],
         ports: [P('a', 'Koniec A'), P('b', 'Koniec B'), P('mid', 'Osadzenie (koła, sprzęgła, łożyska)')] };
     },
   },
@@ -332,7 +333,7 @@ export const ITEMS = [
       const r = p.r / 2, c = MK.jawCoupling({ r, bore: Math.min(0.0125, r * 0.4), spider: p.spider }), g = new THREE.Group(), spin = new THREE.Group(); g.add(spin); spin.add(c.a, c.spider, c.b);
       const sa = shaftBit(0.12, Math.min(0.0125, r * 0.4)), sb = shaftBit(0.12, Math.min(0.0125, r * 0.4)); sa.position.x = -0.12 - 0.04; sb.position.x = 0.04; g.add(sa, sb);
       return { group: g, update: (t) => { spin.rotation.x = t; sa.userData.spin.rotation.x = t; sb.userData.spin.rotation.x = t; },
-        info: [['Rodzaj', 'podatne, kłowe (3 kły na piaście)'], ['Gwiazda', MK.SPIDER[p.spider].name], ['Sztywność skrętna (wielkość 19)', `${c.phys.k.toLocaleString('pl')} N·m/rad`], ['Tłumienie', p.spider === '64D' ? 'małe (twarda)' : 'duże (miękka)'], ['Kompensuje', 'niewspółosiowość, tłumi drgania'], ['Masa', kg(c.mass)]],
+        info: [['Rodzaj', 'podatne, kłowe (3 kły na piaście)'], ['Gwiazda', MK.SPIDER[p.spider].name], ['Sztywność skrętna (wielkość 19)', `${c.phys.k.toLocaleString(LOC)} N·m/rad`], ['Tłumienie', p.spider === '64D' ? 'małe (twarda)' : 'duże (miękka)'], ['Kompensuje', 'niewspółosiowość, tłumi drgania'], ['Masa', kg(c.mass)]],
         ports: [P('a', 'Piasta A'), P('b', 'Piasta B')] };
     },
   },
@@ -381,14 +382,14 @@ export const ITEMS = [
         const a = pinA.clone().applyAxisAngle(axA, ta), bb = pinB.clone().applyAxisAngle(axB, tb); bb.addScaledVector(a, -bb.dot(a)).normalize();
         cr.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(a, bb), a, bb));
       };
-      const out = p.double ? e.c : e.b, f3 = (v) => v.toLocaleString('pl', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+      const out = p.double ? e.c : e.b, f3 = (v) => v.toLocaleString(LOC, { minimumFractionDigits: 3, maximumFractionDigits: 3 });
       // fizyka przegubu: sprawność od kąta (dane krzyżaka), luz w łożyskach igiełkowych, kolizje w pełnym obrocie, kąt graniczny
       const ph = cr1.userData.phys, eta = ujointEta(b, ph), chk = cardanCheck(p.beta), mx = cardanMax();
       const phys = [['Sprawność (od kąta)', `${f3(eta * 100).replace(/0$/, '')} %${p.double ? ` na przegub, ${f3(eta * eta * 100).replace(/0$/, '')} % razem` : ''}`],
-        ['Luz kątowy (łożyska krzyżaka)', `${(2 * ph.clear / ph.R * 180 / Math.PI).toLocaleString('pl', { maximumFractionDigits: 3 })}° (luz promieniowy ${ph.clear * 1e6} µm)`],
-        ['Kolizje w obrocie', chk.clash ? `TAK — ${chk.pair} przy ${chk.at}°` : 'brak (widełki i krzyżak, 24 położenia)'], ['Największy kąt łamania', `${mx.beta.toLocaleString('pl', { maximumFractionDigits: 1 })}°${mx.pair ? ` (dalej: ${mx.pair})` : ''}`]];
+        ['Luz kątowy (łożyska krzyżaka)', `${(2 * ph.clear / ph.R * 180 / Math.PI).toLocaleString(LOC, { maximumFractionDigits: 3 })}° (luz promieniowy ${ph.clear * 1e6} µm)`],
+        ['Kolizje w obrocie', chk.clash ? `TAK — ${chk.pair} przy ${chk.at}°` : 'brak (widełki i krzyżak, 24 położenia)'], ['Największy kąt łamania', `${mx.beta.toLocaleString(LOC, { maximumFractionDigits: 1 })}°${mx.pair ? ` (dalej: ${mx.pair})` : ''}`]];
       const info = () => [['Kąt łamania', `${p.beta}°`], ['Przełożenie chwilowe', `ω₂/ω₁ = ${f3(Math.abs(out.r || 1))}`], ['Wał pośredni / bierny (pojedynczy)', `${f3(Math.cos(b))} … ${f3(1 / Math.cos(b))} × ω₁`], ['Wyjście', p.double ? 'równomierne — układ Z znosi nierównomierność' : 'nierównomierne — przyspiesza i zwalnia 2 razy na obrót']];
-      return { group: g, live: () => [...info(), ...phys], info: [...info(), ...phys], warn: chk.clash ? [`Widełki i krzyżak kolidują przy ${p.beta}° — największy kąt bez kolizji: ${mx.beta.toLocaleString('pl', { maximumFractionDigits: 1 })}°.`] : [], view: { yaw: 0.35, pitch: 0.55 }, ports: [P('in', 'Wał czynny'), P('out', 'Wał bierny')],
+      return { group: g, live: () => [...info(), ...phys], info: [...info(), ...phys], warn: chk.clash ? [`Widełki i krzyżak kolidują przy ${p.beta}° — największy kąt bez kolizji: ${mx.beta.toLocaleString(LOC, { maximumFractionDigits: 1 })}°.`] : [], view: { yaw: 0.35, pitch: 0.55 }, ports: [P('in', 'Wał czynny'), P('out', 'Wał bierny')],
         update: (t) => {
           d.pose(t); sA.userData.spin.rotation.x = e.a.theta; sB.userData.spin.rotation.x = e.b.theta;
           pose(cr1, Y, e.a.theta, X, zq, e.b.theta, dir);
@@ -406,7 +407,7 @@ export const ITEMS = [
     build(p) {
       const g = MK.motor(p), u = g.userData, h = new THREE.Group(); g.position.y = -u.H; h.add(g);
       return { group: h, rest: true, update: spinAll(g),
-        info: [['Wielkość mechaniczna', `${u.spec.frame} (oś ${mm(u.H, 0)} nad łapami)`], ['Obroty synchroniczne', `${Math.round(u.nSync)} obr/min`], ['Obroty znamionowe (ok.)', `${Math.round(u.nRated)} obr/min`], ['Moment znamionowy', `${u.Tn.toLocaleString('pl', { maximumFractionDigits: 1 })} N·m`], ['Wał', `Ø ${mm(u.shaftD, 0)} × ${mm(u.shaftL, 0)}`], ['Masa', kg(u.mass)], ['Bezwładność wirnika', kgcm2(u.J)]],
+        info: [['Wielkość mechaniczna', `${u.spec.frame} (oś ${mm(u.H, 0)} nad łapami)`], ['Obroty synchroniczne', `${Math.round(u.nSync)} obr/min`], ['Obroty znamionowe (ok.)', `${Math.round(u.nRated)} obr/min`], ['Moment znamionowy', `${u.Tn.toLocaleString(LOC, { maximumFractionDigits: 1 })} N·m`], ['Wał', `Ø ${mm(u.shaftD, 0)} × ${mm(u.shaftL, 0)}`], ['Masa', kg(u.mass)], ['Bezwładność wirnika', kgcm2(u.J)]],
         ports: [P('out', 'Wał wyjściowy'), P('power', 'Zasilanie 3 × 400 V', 'energia elektryczna'), P('base', 'Łapy (mocowanie)', 'mocowanie')] };
     },
   },
@@ -447,10 +448,10 @@ export const ITEMS = [
       { key: 'knob', label: 'Pokrętło', type: 'select', options: [['black', 'czarne'], ['grey', 'szare'], ['red', 'czerwone'], ['blue', 'niebieskie']], def: 'black' },
     ],
     build(p) {
-      const g = CK.potentiometer(p), a = g.userData.api, f2 = (v) => v.toLocaleString('pl', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      const live = () => { const r = a.ratio(); return [['Położenie', `${f2(a.pos * 10)} / 10 (${Math.round(a.pos * 270)}° z 270°)`], ['Napięcie suwaka (zasilanie 10 V)', `${f2(10 * r)} V`], ['Rezystancja suwak–początek', `${Math.round(p.ohms * r).toLocaleString('pl')} Ω`]]; };
+      const g = CK.potentiometer(p), a = g.userData.api, f2 = (v) => v.toLocaleString(LOC, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const live = () => { const r = a.ratio(); return [['Położenie', `${f2(a.pos * 10)} / 10 (${Math.round(a.pos * 270)}° z 270°)`], ['Napięcie suwaka (zasilanie 10 V)', `${f2(10 * r)} V`], ['Rezystancja suwak–początek', `${Math.round(p.ohms * r).toLocaleString(LOC)} Ω`]]; };
       return { group: g, controls: true, rest: true, view: { yaw: 0.25, pitch: 0.2 }, update() {}, tick: () => {}, api: a, live,
-        info: [['Obsługa', 'przeciągnij pokrętło w górę / w dół'], ['Rezystancja', `${(p.ohms / 1000).toLocaleString('pl')} kΩ`], ['Charakterystyka', p.taper === 'log' ? 'logarytmiczna (A) — ok. 10 % przy połowie obrotu' : 'liniowa (B)'], ['Moc', '0,5 W'], ...live()],
+        info: [['Obsługa', 'przeciągnij pokrętło w górę / w dół'], ['Rezystancja', `${(p.ohms / 1000).toLocaleString(LOC)} kΩ`], ['Charakterystyka', p.taper === 'log' ? 'logarytmiczna (A) — ok. 10 % przy połowie obrotu' : 'liniowa (B)'], ['Moc', '0,5 W'], ...live()],
         ports: [P('u', 'Zacisk 1 (+10 V)', 'energia elektryczna'), P('gnd', 'Zacisk 3 (masa)', 'energia elektryczna'), P('wiper', 'Zacisk 2 — suwak (0–10 V)', 'sygnał analogowy'), P('base', 'Obudowa (mocowanie)', 'mocowanie')] };
     },
   },
@@ -480,7 +481,7 @@ export const ITEMS = [
       { key: 'poles', label: 'Silnik — bieguny', type: 'select', options: [[2, '2'], [4, '4'], [6, '6']], def: 4 },
     ],
     build(p) {
-      const g = CK.inverter(p), a = g.userData.api, f1 = (v) => v.toLocaleString('pl', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+      const g = CK.inverter(p), a = g.userData.api, f1 = (v) => v.toLocaleString(LOC, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
       const live = () => {
         const nSync = 120 * a.f / p.poles, U = Math.min(400, 400 * a.f / 50);
         return [['Stan', a.run ? 'RUN — praca' : 'STOP'], ['Kierunek', a.dir > 0 ? 'FWD — w przód' : 'REV — wstecz'], ['Zadana', `${f1(a.set)} Hz`], ['Wyjściowa', `${f1(a.f)} Hz`], ['Napięcie wyjściowe (U/f)', `${Math.round(Math.abs(U))} V`], ['Obroty silnika (synchroniczne)', `${Math.round(nSync)} obr/min`]];
@@ -565,7 +566,7 @@ export const ITEMS = [
       { key: 'len', label: 'Długość', type: 'range', min: 0.1, max: 3, step: 0.05, unit: 'm', def: 0.6 },
     ],
     build(p) {
-      const g = CK.wire(p), u = g.userData, IZ = { 0.5: 7.5, 0.75: 10, 1: 13.5, 1.5: 17.5, 2.5: 24, 4: 32, 6: 41, 10: 57, 16: 76 }[p.mm2], f = (v, d = 3) => v.toLocaleString('pl', { maximumFractionDigits: d });
+      const g = CK.wire(p), u = g.userData, IZ = { 0.5: 7.5, 0.75: 10, 1: 13.5, 1.5: 17.5, 2.5: 24, 4: 32, 6: 41, 10: 57, 16: 76 }[p.mm2], f = (v, d = 3) => v.toLocaleString(LOC, { maximumFractionDigits: d });
       return { group: g, rest: true, view: { yaw: 0.2, pitch: 0.45 }, update() {},
         info: [['Rodzaj', 'linka Cu H07V-K, izolacja PVC'], ['Średnica z izolacją', mm(u.dIns, 1)], ['Rezystancja (20 °C)', `${f(u.R * 1000, 1)} mΩ`], ['Obciążalność (ułożenie B2)', `${IZ} A`], ['Spadek napięcia przy ' + IZ + ' A (tam i z powrotem)', `${f(2 * IZ * u.R, 2)} V`], ['Tulejki', 'zaciskane, kolor wg DIN 46228-4'], ['Masa', kg(u.mass)]],
         ports: [P('a', 'Koniec A (tulejka)', 'energia elektryczna'), P('b', 'Koniec B (tulejka)', 'energia elektryczna')] };
@@ -583,7 +584,7 @@ export const ITEMS = [
       const g = CK.powerSource({ kind: 'AC', ...p }), a = g.userData.api, Uf = p.phases === 3 ? (p.volts === 400 ? 230 : p.volts / Math.sqrt(3)) : p.volts;
       const live = () => [['Wyjście', a.on ? 'załączone' : 'wyłączone'], ['Napięcie szczytowe', a.on ? `±${Math.round(Uf * Math.SQRT2)} V (faza)` : '0 V']];
       return { group: g, controls: true, rest: true, view: { yaw: 0.25, pitch: 0.25 }, update() {}, tick: (dt) => a.tick(dt), api: a, live,
-        info: [['Obsługa', 'kliknij wyłącznik — załącz / wyłącz'], ['Rodzaj', 'umowne źródło (sieć, rozdzielnica) — nie konkretne urządzenie'], ['Napięcie skuteczne', p.phases === 3 ? `${Math.round(Uf)} V fazowe, ${p.volts === 400 ? 400 : Math.round(Uf * Math.sqrt(3))} V międzyfazowe` : `${p.volts} V`], ['Częstotliwość', `${p.hz} Hz (okres ${(1000 / p.hz).toLocaleString('pl', { maximumFractionDigits: 1 })} ms)`], ['Moc maks.', `${(p.phases === 3 ? Math.sqrt(3) * Uf * Math.sqrt(3) * p.amps : p.volts * p.amps).toLocaleString('pl', { maximumFractionDigits: 0 })} VA`], ...live()],
+        info: [['Obsługa', 'kliknij wyłącznik — załącz / wyłącz'], ['Rodzaj', 'umowne źródło (sieć, rozdzielnica) — nie konkretne urządzenie'], ['Napięcie skuteczne', p.phases === 3 ? `${Math.round(Uf)} V fazowe, ${p.volts === 400 ? 400 : Math.round(Uf * Math.sqrt(3))} V międzyfazowe` : `${p.volts} V`], ['Częstotliwość', `${p.hz} Hz (okres ${(1000 / p.hz).toLocaleString(LOC, { maximumFractionDigits: 1 })} ms)`], ['Moc maks.', `${(p.phases === 3 ? Math.sqrt(3) * Uf * Math.sqrt(3) * p.amps : p.volts * p.amps).toLocaleString(LOC, { maximumFractionDigits: 0 })} VA`], ...live()],
         ports: [...(p.phases === 3 ? ['L1', 'L2', 'L3'] : ['L']).map((t) => P(t.toLowerCase(), `Wyjście ${t}`, 'energia elektryczna')), P('n', 'Przewód neutralny N', 'energia elektryczna'), P('pe', 'Przewód ochronny PE', 'energia elektryczna')] };
     },
   },
@@ -595,9 +596,9 @@ export const ITEMS = [
     ],
     build(p) {
       const g = CK.powerSource({ kind: 'DC', ...p }), a = g.userData.api;
-      const live = () => [['Wyjście', a.on ? `załączone — ${p.volts.toLocaleString('pl')} V` : 'wyłączone']];
+      const live = () => [['Wyjście', a.on ? `załączone — ${p.volts.toLocaleString(LOC)} V` : 'wyłączone']];
       return { group: g, controls: true, rest: true, view: { yaw: 0.25, pitch: 0.25 }, update() {}, tick: (dt) => a.tick(dt), api: a, live,
-        info: [['Obsługa', 'kliknij wyłącznik — załącz / wyłącz'], ['Rodzaj', 'umowne źródło napięcia stałego (zasilacz, akumulator)'], ['Napięcie', `${p.volts.toLocaleString('pl')} V`], ['Prąd maks.', `${String(p.amps).replace('.', ',')} A — ograniczenie prądu`], ['Moc maks.', `${Math.round(p.volts * p.amps)} W`], ...live()],
+        info: [['Obsługa', 'kliknij wyłącznik — załącz / wyłącz'], ['Rodzaj', 'umowne źródło napięcia stałego (zasilacz, akumulator)'], ['Napięcie', `${p.volts.toLocaleString(LOC)} V`], ['Prąd maks.', `${String(p.amps).replace('.', ',')} A — ograniczenie prądu`], ['Moc maks.', `${Math.round(p.volts * p.amps)} W`], ...live()],
         ports: [P('plus', 'Wyjście +', 'energia elektryczna'), P('minus', 'Wyjście −', 'energia elektryczna')] };
     },
   },
