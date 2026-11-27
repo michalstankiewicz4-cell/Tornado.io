@@ -179,3 +179,95 @@ Każda część niesie swoje dane — laboratorium tylko je czyta i dokłada geo
   `physics.js`, `contact.js`, `circuit.js` — bez stałych części.
 - **Tylko w laboratorium** (dane tej maszyny, nie części): rozmieszczenie, połączenia napędu, schemat instalacji
   elektrycznej (lista połączeń zacisków), długości kabli wynikające z ułożenia.
+
+## Plan — kolejne elementy (2026-11-27)
+
+Oznaczenia: ✅ jest (model, właściwości, porty, fizyka), 🟡 częściowo, ⬜ brak.
+
+### Zasada: każdy element ma własne właściwości i porty
+
+Element = model (`js/models/…`, dane w `userData.phys` / `userData.elec`) + porty z **rodzajem** + zachowanie
+w fizyce. Połączyć można tylko porty tego samego rodzaju (albo przez element, który zamienia jeden rodzaj na drugi).
+Wtedy kombinacje, których nikt nie zaprogramował jako gotowych urządzeń, działają same — np. wahadło → zapadka →
+przekładnia → sprężyna → (próg napięcia) → wyzwolenie kolejnego mechanizmu.
+
+Rodzaje portów (dziedziny) i co przenoszą:
+
+| Port | Wielkości (wysiłek · przepływ) | Teraz |
+|---|---|---|
+| obrót | moment · prędkość kątowa | ✅ `drive.js` (porty `a`, `b`, `bore`, `mesh`, `chain`, `belt`), `physics.js` |
+| przesuw | siła · prędkość liniowa | ⬜ |
+| prąd | napięcie · natężenie | ✅ zaciski w `circuit.js` |
+| sygnał | wartość logiczna / analogowa (0–10 V, 24 V) | 🟡 wejścia falownika DI / AI; brak ogólnego portu |
+| płyn | ciśnienie · przepływ objętościowy | ⬜ |
+| światło | promień (kierunek, moc, długość fali) | ⬜ |
+
+Każdy element opisuje w danych: porty wejścia i wyjścia, ich rodzaj, przełożenie / funkcję wejście → wyjście,
+straty (sprawność), magazyn energii (jeśli ma), ograniczenia (zakres ruchu, próg, kierunek).
+
+### Do zrobienia w silniku (przed nowymi kategoriami)
+
+1. ⬜ Wspólny opis portów w danych modelu (`userData.ports`: nazwa, rodzaj, położenie, oś) — dziś porty obrotu są
+   w laboratorium (`drive.add`), zaciski elektryczne — w schemacie laboratorium.
+2. ⬜ Fizyka wielu dziedzin: stopień swobody przesuwu obok obrotu (wiązania przesuw ↔ obrót), ograniczenia
+   jednostronne (zapadka, krzywka, zderzak), progi i wyzwalanie (zatrzask), grawitacja dla wahadła.
+3. ⬜ Ogólny sygnał (port sygnału + elementy logiczne), łączący czujniki, przekaźniki i wykonawcze.
+4. ⬜ Laboratorium jako warsztat: wstawianie przedmiotów z katalogu, łączenie portów, ustawienia w miejscu —
+   zamiast jednej zbudowanej maszyny.
+
+### 1. Transmisja ruchu
+
+- Zębatki ✅ walcowe; ⬜ stożkowe, ślimak i ślimacznica, listwa zębata (obrót ↔ przesuw), zębatki o zębach skośnych.
+- Przekładnie ✅ para walcowa, planetarna; ⬜ ślimakowa, stożkowa, cierna, wielostopniowa skrzynia z biegami.
+- Łańcuchy ✅ 08A z kołami (ISO 606, efekt wielokąta); ⬜ inne podziałki, napinacz.
+- Pasy napędowe ✅ klinowy SPA (poślizg, pełzanie); ⬜ zębaty, płaski, napinacz.
+- Wały ✅ z łożyskami w oprawach, sztywność; ⬜ wał wielowypustowy (przesuw osiowy), łożyska skośne / wzdłużne.
+- Sprzęgła ✅ kłowe, kołnierzowe, przegub Cardana; ⬜ cierne (włączane), jednokierunkowe, przeciążeniowe, elektromagnetyczne.
+- Zamiana ruchu ⬜ korba i korbowód, mimośród, krzywka z popychaczem, śruba pociągowa.
+- Napęd ✅ silnik indukcyjny z falownikiem, hamulec tarczowy.
+
+### 2. Magazynowanie energii
+
+- Sprężyny naciskowe ⬜ (przesuw: sztywność, długość swobodna, zblokowanie zwojów, energia ½kx²).
+- Sprężyny skrętne ⬜ (obrót; także spiralna jak w zegarze — naciąg zapadką).
+- Koła zamachowe ⬜ (dziś tylko bezwładność części; osobny element z J, energią ½Jω², granicą prędkości).
+- Akumulatory ⬜ elektryczne (pojemność, napięcie od stanu naładowania, ładowanie / rozładowanie przez obwód);
+  hydrauliczne — przy kategorii 4.
+- Zbiorniki ciśnienia ⬜ (płyn: objętość, ciśnienie, zawór bezpieczeństwa).
+
+### 3. Ruch i sterowanie
+
+- Wahadła ⬜ (grawitacja, okres z długości; wychwyt — impuls i rytm).
+- Regulatory ⬜ odśrodkowy (Watta) — mechaniczny; 🟡 elektryczny: falownik + potencjometr; ⬜ regulator PID jako element sygnału.
+- Dźwignie ⬜ (przesuw / obrót z ramionami, przełożenie siły).
+- Zawory ⬜ (płyn: odcinający, zwrotny, dławiący, bezpieczeństwa).
+- Przekaźniki 🟡 stycznik z cewką i stykami (obwód); ⬜ przekaźnik czasowy, przekaźnik sygnału.
+- Mechanizmy zapadkowe ⬜ zapadka i koło zapadkowe (obrót w jedną stronę), wychwyt, zatrzask z wyzwalaczem.
+- Sterowanie elektryczne ✅ wyłącznik, przyciski, grzybek, przełącznik, potencjometr, lampka, krańcówka (model),
+  stycznik, falownik z wejściami DI / AI.
+
+### 4. Przepływ i transport
+
+- Przewody ✅ elektryczne (pojedyncze, wielożyłowe kable z rezystancją); ⬜ węże (płyn).
+- Rury ⬜ (średnica, długość, opór przepływu, spadek ciśnienia).
+- Pompy ⬜ (obrót → przepływ: zębata, tłokowa, odśrodkowa z charakterystyką).
+- Tłoki ⬜ siłowniki (płyn → przesuw, siła = ciśnienie × pole).
+- Dysze ⬜ (przepływ → strumień / siła odrzutu).
+- Rozdzielacze ⬜ (płyn: 3/2, 4/3, sterowane sygnałem lub ręcznie).
+- Transport ⬜ przenośnik taśmowy / rolkowy (obrót → przesuw ładunku).
+
+### 5. Optyka i sygnały
+
+- Soczewki ⬜ (ogniskowa, skupianie promienia), lustra ⬜ (odbicie), pryzmaty ⬜ (załamanie, rozszczepienie).
+- Czujniki 🟡 krańcówka (model); ⬜ indukcyjny, optyczny (światło → sygnał), enkoder (obrót → impulsy), czujnik ciśnienia.
+- Emitery ⬜ (dioda / laser: sygnał → światło).
+- Odbiorniki ⬜ (fotodioda: światło → sygnał).
+
+### Kolejność (propozycja)
+
+1. Porty w danych modeli + przesuw w fizyce + listwa zębata, korba, śruba (zamiana obrót ↔ przesuw).
+2. Sprężyny, koło zamachowe, zapadka, wahadło z wychwytem — pierwsza maszyna „sama z siebie” (przykład z zasady).
+3. Port sygnału, czujniki, przekaźnik czasowy, regulator.
+4. Płyn: rury, pompa, zawory, siłownik, zbiornik, rozdzielacz.
+5. Optyka: promienie, soczewki, lustra, pryzmaty, emitery i odbiorniki.
+6. Warsztat: składanie maszyn z katalogu w laboratorium.
