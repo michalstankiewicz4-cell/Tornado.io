@@ -263,10 +263,20 @@ straty (sprawność), magazyn energii (jeśli ma), ograniczenia (zakres ruchu, p
 
 ### 5. Optyka i sygnały
 
-- Soczewki ⬜ (ogniskowa, skupianie promienia), lustra ⬜ (odbicie), pryzmaty ⬜ (załamanie, rozszczepienie).
+- Lustra ✅ (przedmiot „Lustro”, grupa Optyka): płaskie, wklęsłe i wypukłe (sferyczne), Ø 1/2" / 1" / 2", powłoki Al, Ag,
+  Au i dielektryczna (odbicie zależne od długości fali), podłoże N-BK7 / UVFS / Zerodur, uchwyt kinematyczny na słupku;
+  promienie śledzone geometrycznie (prawo odbicia, bez przybliżenia przyosiowego): ognisko z promieni, aberracja sferyczna,
+  astygmatyzm pod kątem. Model: OptiKit `js/models/mech/optics.js`; promienie: `js/behaviors/mech/optics.js`.
+- Soczewki ⬜ (ogniskowa, skupianie promienia), pryzmaty ⬜ (załamanie, rozszczepienie).
 - Czujniki 🟡 krańcówka (model); ⬜ indukcyjny, optyczny (światło → sygnał), enkoder (obrót → impulsy), czujnik ciśnienia.
 - Emitery ⬜ (dioda / laser: sygnał → światło).
 - Odbiorniki ⬜ (fotodioda: światło → sygnał).
+
+### 6. Elektronika i sprzęt
+
+- Kamery ⬜.
+- Monitory ⬜.
+- Kolejne części elektroniczne i sprzęt — do dopisania.
 
 ### Kolejność (propozycja)
 

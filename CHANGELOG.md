@@ -1,5 +1,16 @@
 # Zmiany
 
+## 0.29.0 — 2026-11-27
+- Laboratorium mechaniki 0.15.0 — **lustro** (kategoria Optyka i sygnały, tryb Przedmioty): płaskie, wklęsłe albo
+  wypukłe (sferyczne), Ø 1/2" / 1" / 2", promień krzywizny, powłoka (aluminium, srebro, złoto, dielektryczna — odbicie
+  zależne od długości fali), podłoże (N-BK7, krzemionka topiona, Zerodur), w uchwycie kinematycznym na słupku z tuleją
+  i podstawą. Wiązka równoległa (405 / 532 / 633 / 1064 nm) śledzona promień po promieniu prawem odbicia na prawdziwej
+  czaszy: ognisko z promieni (porównane z f·cos θ), rozrzut ognisk (aberracja sferyczna), astygmatyzm przy padaniu pod
+  kątem, ognisko pozorne lustra wypukłego. Nowe: OptiKit `js/models/mech/optics.js`, promienie `js/behaviors/mech/optics.js`.
+- Plan: nowa kategoria 6 — Elektronika i sprzęt (kamery, monitory…), w oknie Przedmioty jako „w planie”.
+- Poprawka: wiersze „Luz undefined : undefined / NaN mm” w trybie Fizyka — luz przegubów Cardana pokazany osobno
+  (luz kątowy łożysk igiełkowych krzyżaka i strona docisku czopów).
+
 ## 0.28.2 — 2026-11-27
 - Laboratorium mechaniki 0.14.0 — **dwa języki: polski i angielski** (wybór z paska menu: Opcje → Język, albo
   `?lang=en` / `?lang=pl`). Przetłumaczone wszystko: pasek narzędzi, opisy trybów, okna, przedmioty i ich ustawienia,

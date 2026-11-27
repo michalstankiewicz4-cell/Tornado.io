@@ -74,6 +74,7 @@ const MECH_VARIANTS = {
   cardan: [{}, { beta: 0 }, { beta: 45, double: true }],
   rackpinion: [{}, { m: 0.003, z: 12, n: 20 }, { m: 0.001, z: 40, n: 80 }], crank: [{}, { r: 0.02, l: 0.1 }, { r: 0.08, l: 0.4 }], leadscrew: [{}, { kind: 'trap', d: 0.032, lead: 0.004, len: 1 }],
   rolling: [{}, { type: 'roller' }, { type: 'taper', d: 0.04 }, { type: 'thrust' }, { type: 'needle', d: 0.02 }, { type: 'plain' }],
+  mirror: [{}, { shape: 'flat', D: 0.0127 }, { shape: 'convex', D: 0.0508, R: 0.1, angle: 45 }, { coating: 'au', substrate: 'zerodur', R: 1 }],
   switch: [{}, { kind: 'main' }, { kind: 'lever', poles: 1 }], estop: [{}], lamp: [{}, { color: 'red' }], selector: [{}, { positions: '0-I', handle: 'long' }], limit: [{}, { actuator: 'plunger' }], contactor: [{}, { amps: 32, coil: '24DC' }],
   wire: [{}, { mm2: 16, color: 'pe', len: 3 }, { mm2: 0.5, color: 'black', len: 0.1 }], ac: [{}, { phases: 3, volts: 400 }], dc: [{}, { volts: 60, amps: 20 }], pot: [{}, { taper: 'log', knob: 'red' }], button: [{}, { lit: true, mode: 'latch' }, { mushroom: true, color: 'red', contact: 'NC' }], vfd: [{}, { kW: 7.5 }, { kW: 0.18 }], motor: [{}, { kW: 0.18, poles: 2 }, { kW: 7.5, poles: 6, paint: 'paintRed' }], brake: [{}, { d: 0.35, t: 0.02, vents: 24 }],
 };

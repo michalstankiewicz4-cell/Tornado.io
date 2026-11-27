@@ -601,7 +601,10 @@ function physStats() {
     const Z = ZONES.get('rack'), mm = (x) => fmt(Math.abs(x) * Z.rp * 1000, 3);
     rows.push(['Luz listwa : zębnik', `z brył zębów ${mm(c.hi - c.lo)} mm (wzdłuż przyporu ${fmt(Z.z.width.min * 1000, 3)}–${fmt(Z.z.width.max * 1000, 3)}) · ${c.contact > 0 ? 'przylega flanką przednią' : c.contact < 0 ? 'przylega flanką tylną' : 'w luzie'}`]);
   }
-  for (const c of phys.edges) if (c.dead && c.e.type !== 'rack') {
+  for (const c of phys.edges) if (c.dead && c.e.type === 'ujoint') {   // luz kątowy łożysk igiełkowych krzyżaka (bez zębów)
+    rows.push([`Luz przegubu: ${c.e.a.name} → ${c.e.b.name}`, `${fmt((c.hi - c.lo) * 180 / Math.PI, 3)}° (łożyska igiełkowe krzyżaka) · ${c.contact > 0 ? 'czopy dociśnięte w przód' : c.contact < 0 ? 'czopy dociśnięte w tył' : 'w luzie'}`]);
+  }
+  for (const c of phys.edges) if (c.dead && c.e.type === 'mesh') {
     const ga = c.e.a.group.userData, gb = c.e.b.group.userData, Z = ZONES.get(`${ga.z}:${gb.z}`), mm = (x) => fmt(x * gb.rp * 1000, 3);
     const zone = Z ? `z brył zębów ${mm(c.hi - c.lo)} mm (wzdłuż przyporu ${mm(Z.z.width.min)}–${mm(Z.z.width.max)})` : `${fmt((ga.phys.luz + gb.phys.luz) * 1000, 2)} mm`;
     rows.push([`Luz ${ga.z} : ${gb.z}`, `${zone} · ${c.contact > 0 ? 'przylega flanką przednią' : c.contact < 0 ? 'przylega flanką tylną' : 'w luzie — zęby się nie dotykają'}`]);
@@ -1119,7 +1122,7 @@ function itemSettings() {
   sp.oninput = () => { S.spin = +sp.value; spo.textContent = `${S.spin} ${T('obr/min', 'rpm')}`; save(); };
   const reset = el('button', { type: 'button', textContent: 'Domyślne' }); reset.onclick = () => { delete S.items[def.id]; save(); itemSettings(); buildItem(); };
   // sterowanie i zasilanie — bez obrotu podglądu; sterowanie obsługuje się na modelu
-  const preview0 = def.group === 'Zasilanie i przewody' && def.id === 'wire' ? [] : ['Sterowanie', 'Zasilanie i przewody'].includes(def.group) ? [el('p', { className: 'note', textContent: 'Obsługa na modelu: klik — dźwignia, przycisk, wyłącznik, RUN / STOP; przytrzymanie — przycisk chwilowy, krańcówka; przeciąganie w górę / w dół — pokrętło.' })] : [el('h3', { textContent: 'Podgląd' }), el('div', { className: 'row' }, el('span', { textContent: 'Obrót wejścia' }), sp, spo)];
+  const preview0 = def.group === 'Zasilanie i przewody' && def.id === 'wire' ? [] : ['Sterowanie', 'Zasilanie i przewody', 'Optyka'].includes(def.group) ? def.group === 'Optyka' ? [] : [el('p', { className: 'note', textContent: 'Obsługa na modelu: klik — dźwignia, przycisk, wyłącznik, RUN / STOP; przytrzymanie — przycisk chwilowy, krańcówka; przeciąganie w górę / w dół — pokrętło.' })] : [el('h3', { textContent: 'Podgląd' }), el('div', { className: 'row' }, el('span', { textContent: 'Obrót wejścia' }), sp, spo)];
   box0.replaceChildren(el('h3', { textContent: def.name }), ...rows, ...preview0, el('div', { className: 'btns' }, reset));
 }
 function itemStats() {
