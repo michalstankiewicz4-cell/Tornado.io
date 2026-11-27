@@ -282,9 +282,25 @@ export function screwNut({ d = 0.02, lead = 0.02, kind = 'ball', hc = 0.06, trav
   const car = mesh(box(0.06, hc - ro - 0.022, 0.05), M.alu); car.position.y = -(ro + (hc - ro - 0.022) / 2); slide.add(car);
   const shoe = mesh(box(0.066, 0.014, 0.04), M.steel); shoe.position.y = -hc + 0.019; slide.add(shoe);
   const rail = mesh(box(travel + 0.08, 0.012, 0.02), M.steel); rail.position.y = -hc + 0.006; g.add(rail);
+  g.userData.mounts = [-1, 1].map((sx) => ({ p: new THREE.Vector3(sx * (travel / 2 + 0.03), -hc + 0.012, 0), d: 0.006 }));
   const mass = 0.35 + ALU_RHO * 0.06 * 0.05 * (hc - ro), ph = PHYS.screw[kind] || PHYS.screw.ball;
-  Object.assign(g.userData, { slide, slideAxis: 'x', d, lead, kind, hc, travel, mass, J: mass, phys: { ...ph, ...PHYS.slide },
+  Object.assign(g.userData, { mounts: g.userData.mounts, slide, slideAxis: 'x', d, lead, kind, hc, travel, mass, J: mass, phys: { ...ph, ...PHYS.slide },
     ports: { thread: port('Gwint nakrętki', DOMAIN.lin, 'gwint'), mount: port('Wózek — mocowanie', DOMAIN.lin, 'mocowanie') } });
+  return g;
+}
+
+/* ---------------- śruba mocująca ---------------- */
+// śruba z łbem sześciokątnym ISO 4017 z podkładką (klasa 8.8): początek układu — płaszczyzna pod podkładką, oś +y.
+// Napięcie wstępne F_p = 0,7·R_p0,2·A_s (R_p0,2 = 640 MPa); siła tarcia złącza μ·F_p (μ = 0,15) trzyma część na stole.
+const BOLTS = { 6: { s: 0.01, k: 0.004, As: 20.1e-6 }, 8: { s: 0.013, k: 0.0053, As: 36.6e-6 }, 10: { s: 0.016, k: 0.0064, As: 58e-6 }, 12: { s: 0.018, k: 0.0075, As: 84.3e-6 }, 16: { s: 0.024, k: 0.01, As: 157e-6 } };
+export function bolt({ d = 0.01, len = 0.03, name } = {}) {
+  const M = materials(), D = BOLTS[Math.round(d * 1000)] || BOLTS[10], g = new THREE.Group(); g.name = name || `Śruba M${Math.round(d * 1000)} × ${Math.round(len * 1000)}`;
+  const wt = d * 0.2, wr = d * 1.05;
+  const washer = mesh(ringY(d * 0.54, wr, wt, 24), M.steel); washer.position.y = wt / 2; g.add(washer);
+  const head = mesh(new THREE.CylinderGeometry(D.s / 2 / Math.cos(Math.PI / 6), D.s / 2 / Math.cos(Math.PI / 6), D.k, 6), M.dark); head.position.y = wt + D.k / 2; g.add(head);
+  const shank = mesh(new THREE.CylinderGeometry(d / 2, d / 2, len, 16), M.dark); shank.position.y = -len / 2 + wt * 0.5; g.add(shank);   // trzpień (w otworze, widać po odkręceniu)
+  const Fp = 0.7 * 640e6 * D.As;
+  Object.assign(g.userData, { d, len, Fp, mu: 0.15, mass: STEEL_RHO * (Math.PI * d * d / 4 * len + D.s * D.s * 0.87 * D.k), bolt: true });
   return g;
 }
 
@@ -589,7 +605,9 @@ export function pillowBlock({ h = 0.12, r = 0.0125, name = 'Łożysko w oprawie 
     for (const s of [-1, 1]) { const rib = mesh(box(0.006, 0.08, 0.07), M.paintGrey); rib.position.set(0, 0.052, s * 0.065); g.add(rib); }
   } else if (base > 0.002) { const ped = mesh(box(0.05, base, 0.19), M.iron); ped.position.y = base / 2; g.add(ped); }
   for (const z of [-0.064, 0.064]) { const b = mesh(new THREE.CylinderGeometry(0.0085, 0.0085, 0.008, 6), M.dark); b.position.set(0, 0.02, z); top.add(b); }
-  g.userData = { phys: { ...PHYS.bearing }, ports: { bore: port('Gniazdo wału', DOMAIN.rot, 'łożysko') }, h, r, k, mass: 0.8 * k * k * k + (base > 0 ? IRON_RHO * 0.05 * 0.19 * base * 0.4 : 0) };
+  // miejsca śrub mocujących (oś +y, płaszczyzna pod podkładką): wysoka podpora — płyta podstawy, niska — łapy oprawy
+  const mounts = base > 0.12 ? [-1, 1].flatMap((sx) => [-1, 1].map((sz) => ({ p: new THREE.Vector3(sx * 0.035, 0.012, sz * 0.08), d: 0.01 }))) : [-1, 1].map((sz) => ({ p: new THREE.Vector3(0, base + 0.016 * k, sz * 0.064 * k), d: k >= 0.9 ? 0.012 : 0.01 }));
+  g.userData = { mounts, phys: { ...PHYS.bearing }, ports: { bore: port('Gniazdo wału', DOMAIN.rot, 'łożysko') }, h, r, k, mass: 0.8 * k * k * k + (base > 0 ? IRON_RHO * 0.05 * 0.19 * base * 0.4 : 0) };
   return g;
 }
 
@@ -698,7 +716,7 @@ export function motor({ kW = 1.1, poles = 4, paint = 'paintBlue', name } = {}) {
   g.userData.spin.position.y = spec.H;
   if (paint !== 'paintBlue') body0.traverse((o) => { if (o.material === M.paintBlue) o.material = M[paint] || M.paintBlue; });
   const nSync = 6000 / poles, nRated = nSync * (1 - 0.034 - 0.02 / Math.sqrt(spec.kW));
-  Object.assign(g.userData, { ports: { out: port('Wał wyjściowy', DOMAIN.rot, 'wał'), power: port('Zaciski U V W', DOMAIN.el, 'zaciski') }, elec: { ...MOTOR_ELEC, kW: spec.kW, In: spec.kW * 1000 / (Math.sqrt(3) * MOTOR_ELEC.U * MOTOR_ELEC.eta * MOTOR_ELEC.cosPhi) }, H: spec.H, mass: spec.mass, J: spec.J * (poles >= 6 ? 1.6 : poles <= 2 ? 0.55 : 1), spec, poles, nSync, nRated, Tn: spec.kW * 1000 / (nRated * TAU / 60), shaftD: sr * 2, shaftL: sl });
+  Object.assign(g.userData, { mounts: [-0.08, -0.25].flatMap((x) => [-0.07, 0.07].map((z) => ({ p: new THREE.Vector3(x, 0.012, z), d: 0.01 }))), base: { x0: -0.27, x1: -0.06, z: 0.09 }, ports: { out: port('Wał wyjściowy', DOMAIN.rot, 'wał'), power: port('Zaciski U V W', DOMAIN.el, 'zaciski') }, elec: { ...MOTOR_ELEC, kW: spec.kW, In: spec.kW * 1000 / (Math.sqrt(3) * MOTOR_ELEC.U * MOTOR_ELEC.eta * MOTOR_ELEC.cosPhi) }, H: spec.H, mass: spec.mass, J: spec.J * (poles >= 6 ? 1.6 : poles <= 2 ? 0.55 : 1), spec, poles, nSync, nRated, Tn: spec.kW * 1000 / (nRated * TAU / 60), shaftD: sr * 2, shaftL: sl });
   return g;
 }
 
@@ -778,4 +796,4 @@ export function discBrake({ d = 0.2, t = 0.008, vents = 12 } = {}) {
   return g;
 }
 
-export const MechKit = { materials, gear, ringGear, sprocket, pulley, loopPath, chainDistance, chainLoop, beltLoop, shaft, pillowBlock, jawCoupling, flangeCoupling, yoke, cross, motor, housing, tubeHousing, involuteOutline, toothHulls, convexParts, sprocketOutline, sprocketHulls, ringHulls, planetary, discBrake, planetPhase, PHYS, MOTOR_ELEC, G_STEEL, G_MAT, DOMAIN, rack, rackHulls, slider, conRod, leadScrew, screwNut, rollingBearing, BEARINGS };
+export const MechKit = { bolt, materials, gear, ringGear, sprocket, pulley, loopPath, chainDistance, chainLoop, beltLoop, shaft, pillowBlock, jawCoupling, flangeCoupling, yoke, cross, motor, housing, tubeHousing, involuteOutline, toothHulls, convexParts, sprocketOutline, sprocketHulls, ringHulls, planetary, discBrake, planetPhase, PHYS, MOTOR_ELEC, G_STEEL, G_MAT, DOMAIN, rack, rackHulls, slider, conRod, leadScrew, screwNut, rollingBearing, BEARINGS };

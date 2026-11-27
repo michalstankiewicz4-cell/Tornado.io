@@ -1,5 +1,15 @@
 # Zmiany
 
+## 0.28.0 — 2026-11-27
+- Laboratorium mechaniki 0.13.0 — **śruby mocujące i luźne części**:
+  - `MechKit.bolt` (śruba z łbem sześciokątnym i podkładką, M6…M16, 8.8 — napięcie wstępne), miejsca śrub w modelach
+    (`userData.mounts`: oprawy łożysk, silnik, wózek nakrętki); podpory laboratorium dostały stopy ze śrubami.
+    74 śruby w maszynie; kliknięcie śruby odkręca ją / dokręca (animacja), przycisk **Reset mocowań**.
+  - Fizyka luźnych części z momentu reakcji: silnik (przewraca się ponad m·g·b, rozłącza sprzęgło), obudowa
+    przekładni planetarnej (wahadło na wałach — obraca się, jarzmo bez momentu), wspornik zacisku (zacisk schodzi
+    z tarczy). Okno Opis: śruby, części luźne, moment reakcji i granica z ciężaru. `MechanicsApi.bolts()`.
+  - Fizyka: `setBroken` — rozłączanie połączeń; ponowne połączenie w bieżącym położeniu (przesunięcie fazy).
+
 ## 0.27.2 — 2026-11-27
 - Przegub Cardana fizycznie (laboratorium mechaniki 0.12.2):
   - Sprawność zależna od kąta łamania (`drive.ujointEta`: straty łożysk igiełkowych krzyżaka, η = 1 − (2/π)·μ·(r_c/R)·

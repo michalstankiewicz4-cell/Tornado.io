@@ -278,3 +278,23 @@ straty (sprawność), magazyn energii (jeśli ma), ograniczenia (zakres ruchu, p
 4. Płyn: rury, pompa, zawory, siłownik, zbiornik, rozdzielacz.
 5. Optyka: promienie, soczewki, lustra, pryzmaty, emitery i odbiorniki.
 6. Warsztat: składanie maszyn z katalogu w laboratorium.
+
+
+## Mocowania (śruby) i luźne części
+
+Każda część stała ma śruby mocujące (`MechKit.bolt`, M6…M12, klasa 8.8; miejsca w danych modelu `userData.mounts` —
+oprawy łożysk, silnik, wózek nakrętki; podpory laboratorium — w narożnikach stóp). Kliknięcie śruby w trybie Maszyna
+lub Fizyka odkręca ją (albo dokręca), przycisk **Reset mocowań** dokręca wszystkie i stawia części na miejsce;
+`MechanicsApi.bolts('reset' | 'unscrew' | 'screw', nazwa)`.
+
+Fizyka luźnej części (tryb Fizyka) — moment reakcji z fizyki napędu:
+- **Silnik** — moment stojana −T_m; przewraca się wokół krawędzi łap, gdy przekroczy m·g·b (15,5 kg, b = 90 mm →
+  11,9 N·m); przechylony > 3° rozłącza sprzęgło kłowe. W tej maszynie pas ślizga się przy ok. 21 N·m na małym kole,
+  więc moment silnika nie dochodzi do tej granicy — luźny silnik stoi.
+- **Obudowa przekładni planetarnej** — wisi na wałach (łożyska w deklach): moment korony 0,75·T_jarzma kręci nią jak
+  wahadłem; ponad m·g·d obraca się na wałach, a jarzmo traci moment (wyjście staje).
+- **Wspornik zacisku hamulca** — moment hamowania przewraca go wokół krawędzi stopy; uniesiony > 2° — zacisk schodzi
+  z tarczy, hamulec przestaje działać.
+- Ponowne połączenie (Reset) — w bieżącym położeniu (sprzęgło / korona chwyta tam, gdzie stoją: przesunięcie fazy).
+- Części bez momentu reakcji (oprawy łożysk, podpory, stopy obudowy) po odkręceniu stoją — sił promieniowych
+  w łożyskach (napięcie pasa i łańcucha, rozpór zębów) fizyka jeszcze nie liczy.
