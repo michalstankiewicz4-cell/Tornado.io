@@ -236,10 +236,11 @@ straty (sprawność), magazyn energii (jeśli ma), ograniczenia (zakres ruchu, p
 - Sprężyny naciskowe ✅ (przedmiot: sztywność G·d⁴/(8D³n), zblokowanie zwojów, naprężenie z poprawką Wahla, częstotliwość własna,
   wyboczenie; podgląd — ściskanie z przebudową zwojów).
 - Sprężyna spiralna w bębnie ✅ (przedmiot i zegar: k = E·b·h³/(12L), zwoje rozwinięte / nawinięte, wypełnienie bębna,
-  naprężenie; naciąg zapadką). Sprężyny skrętne śrubowe ⬜.
+  naprężenie; naciąg zapadką). Sprężyny skrętne śrubowe ✅ (k = E·d⁴/(64·D·n), naprężenie z Ki, zacieśnianie zwojów na
+  trzpieniu; podgląd — skręcanie ramienia; w zatrzasku stanowiska).
 - Koła zamachowe ✅ (przedmiot: J z wieńca, ramion i piasty, energia ½Jω², naprężenie ρv², prędkość dopuszczalna).
-- Akumulatory ⬜ elektryczne (pojemność, napięcie od stanu naładowania, ładowanie / rozładowanie przez obwód);
-  hydrauliczne — przy kategorii 4.
+- Akumulatory ✅ elektryczne (AGM, NMC, LiFePO4: napięcie od stanu naładowania, rezystancja wewnętrzna, rozładowanie
+  z przyspieszeniem czasu, odcięcie; w stanowisku G1 zasila obwód); ⬜ hydrauliczne — przy kategorii 4.
 - Zbiorniki ciśnienia ⬜ (płyn: objętość, ciśnienie, zawór bezpieczeństwa).
 
 ### 3. Ruch i sterowanie
@@ -247,11 +248,13 @@ straty (sprawność), magazyn energii (jeśli ma), ograniczenia (zakres ruchu, p
 - Wahadła ✅ z wychwytem Grahama (przedmiot i zegar; fizyka kontaktu zębów z paletami — `js/behaviors/mech/escapement.js`).
 - Regulatory ✅ odśrodkowy (Watta) — mechaniczny (przedmiot); ✅ PID jako element sygnału (przedmiot z obiektem; w maszynie U1:
   enkoder → PID → wejście AI falownika, tryb A/M); falownik + potencjometr.
-- Dźwignie ⬜ (przesuw / obrót z ramionami, przełożenie siły).
+- Dźwignie ✅ (rodzaje 1, 2, 3: przełożenie siły i drogi, reakcja podpory; w stanowisku — napinanie zatrzasku).
 - Zawory ⬜ (płyn: odcinający, zwrotny, dławiący, bezpieczeństwa).
 - Przekaźniki ✅ stycznik z cewką i stykami (obwód); ✅ przekaźnik czasowy (E, Wi, Bp, R; w maszynie KT1 — RUN falownika po 2 s
-  od START, lampka H1 ostrzega); ⬜ przekaźnik sygnału.
-- Mechanizmy zapadkowe ✅ zapadka i koło zapadkowe (kąt zapadki z geometrii zarysu), ✅ wychwyt; ⬜ zatrzask z wyzwalaczem.
+  od START, lampka H1 ostrzega); ✅ przekaźnik sygnałowy (wtykowy w gnieździe na szynie DIN, kotwica z czasem zadziałania
+  i odpadania, napięcie zadziałania; w stanowisku K2).
+- Mechanizmy zapadkowe ✅ zapadka i koło zapadkowe (kąt zapadki z geometrii zarysu), ✅ wychwyt; ✅ zatrzask z wyzwalaczem
+  (sprężyna skrętna, zaczep i zapadka z tarciem, elektromagnes; uderzenie w zderzak z odbiciami).
 - Sterowanie elektryczne ✅ wyłącznik, przyciski, grzybek, przełącznik, potencjometr, lampka, krańcówka (model),
   stycznik, falownik z wejściami DI / AI.
 
@@ -366,6 +369,17 @@ Fizyka luźnej części (tryb Fizyka) — moment reakcji z fizyki napędu:
   `timer-relay.js`, `pid.js` (anti-windup, przejście bezuderzeniowe), `governor.js`. Modele: `js/models/mech/sensors/`,
   `relays/`, `regulators/`, wspólne pomocniki i materiały `js/models/mech/common.js`.
 - API: `MechanicsApi.simulate(s)` (bieżący tryb bez rysowania), `pid('auto' | 'sv', v)`.
+
+## Stanowisko zatrzasku (tryby Maszyna i Fizyka)
+
+- `js/labs/mechanics/trigger.js`: płyta z wspornikiem, zatrzask z wyzwalaczem, dźwignia napinająca na osi ramienia,
+  akumulator G1 (2 × 12 V AGM 7 Ah), szyna DIN z przekaźnikiem K2, żółty przycisk S4 (WYZWÓL).
+- Obwód: G1 + → S4 13–14 → cewka K2 A1–A2; styk K2 11–14 → elektromagnes Y1 (20 W) — zwalnia zapadkę.
+- Fizyka: rozładowanie G1 (`js/behaviors/mech/battery.js`), kotwica K2 z czasami (`relay.js`), ramię zatrzasku ze sprężyną,
+  zaczepem, zapadką i zderzakiem (`latch.js`). Maszyna: 5-sekundowy cykl kinematyczny (napięcie → wyzwolenie).
+- Obsługa na modelu: klik dźwigni — napnij, przytrzymanie S4 — wyzwól.
+- Modele: `js/models/mech/mechanisms/` (dźwignia, zatrzask), `power/` (akumulator), `relays/signal.js`, sprężyna skrętna
+  w `clock/springs.js`.
 
 ## Doktor — złożenie (czy modele nie wchodzą jeden w drugi)
 

@@ -66,3 +66,28 @@ export function mainspringBarrel({ b = 0.012, h = 0.0004, L = 1.2, r1 = 0.005, r
     ports: { mesh: port('Wieniec bębna — zazębienie', DOMAIN.rot, 'zazębienie'), arbor: port('Wałek (nakręcanie, zapadka)', DOMAIN.rot, 'wał') } };
   return g;
 }
+
+/* ---------------- sprężyna skrętna śrubowa ---------------- */
+// zwoje wokół osi z (od z = 0 w +z), dwa ramiona styczne; setAngle(φ) — drugie ramię obrócone o φ względem swobodnego
+// położenia (przebudowa drutu: zwoje się zaciskają, średnica maleje D' = D·n / (n + φ/2π))
+export function torsionSpring({ d = 0.002, D = 0.02, n = 5, leg = 0.03, legAngle = Math.PI * 0.75, mat = 'spring', name } = {}) {
+  const M = materials(), g = new THREE.Group(); g.name = name || `${EN ? 'Torsion spring' : 'Sprężyna skrętna'} ${d * 1000}×${D * 1000}`;
+  let phi = 0, wire = null;
+  const caps = [0, 1].map(() => { const c = mesh(new THREE.SphereGeometry(d / 2, 10, 8), M[mat]); g.add(c); return c; });
+  const build = () => {
+    const turns = n + legAngle / TAU + phi / TAU, R = D / 2 * n / (n + phi / TAU), L = (n + 1) * d * 1.05, pts = [];
+    const a1 = 0, p1 = new THREE.Vector3(R, 0, 0);
+    pts.push(p1.clone().add(new THREE.Vector3(0, -leg, 0)));   // ramię 1 (styczne, w −y)
+    for (let i = 0; i <= 120; i++) { const f = i / 120, a = a1 + f * turns * TAU; pts.push(new THREE.Vector3(R * Math.cos(a), R * Math.sin(a), f * L)); }
+    const ae = a1 + turns * TAU, pe = new THREE.Vector3(R * Math.cos(ae), R * Math.sin(ae), L), te = new THREE.Vector3(-Math.sin(ae), Math.cos(ae), 0);
+    pts.push(pe.clone().addScaledVector(te, leg));   // ramię 2 (styczne)
+    const curve = new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.05);
+    if (wire) { wire.geometry.dispose(); g.remove(wire); }
+    wire = mesh(new THREE.TubeGeometry(curve, 400, d / 2, 8, false), M[mat]); g.add(wire);
+    caps[0].position.copy(pts[0]); caps[1].position.copy(pts[pts.length - 1]);
+  };
+  build();
+  g.userData = { d, D, n, leg, mass: Math.PI * D * n * Math.PI * d * d / 4 * 7850, setAngle: (p) => { phi = p; build(); },
+    ports: { leg1: port(EN ? 'Leg 1 (fixed)' : 'Ramię 1 (stałe)', DOMAIN.rot, 'ramię'), leg2: port(EN ? 'Leg 2 (torque)' : 'Ramię 2 (moment)', DOMAIN.rot, 'ramię'), arbor: port(EN ? 'Arbor (inside the coils)' : 'Trzpień (wewnątrz zwojów)', DOMAIN.rot, 'wał') } };
+  return g;
+}

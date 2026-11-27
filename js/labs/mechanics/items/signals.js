@@ -12,6 +12,7 @@ import { createInductive, createEncoder, createBarrier, TARGETS, profileRadius }
 import { createTimerRelay, FUNCTIONS } from '../../../behaviors/mech/timer-relay.js';
 import { createPID } from '../../../behaviors/mech/pid.js';
 import { createGovernor } from '../../../behaviors/mech/governor.js';
+import { createRelay } from '../../../behaviors/mech/relay.js';
 import { T } from '../lang.js';
 import { TAU, mm, kg, P, num, portsOf } from './util.js';
 
@@ -96,6 +97,24 @@ export const SIGNALS = [
         tick: (dt) => { api.tick(dt); if (ra.fn !== L.fn || Math.abs(ra.T - L.T) > 1e-6) { L.fn = ra.fn; L.T = ra.T; } logic.tick(dt, bS.userData.api.closed ? 230 : 0, bB.userData.api.closed); r.userData.setLeds(L.powered, L.closed); },
         info: [['Obsługa', 'zielony przycisk — zasilanie A1–A2, czarny — wejście B1; klik pokrętła funkcji — następna, przeciąganie pokrętła czasu'], ['Zakres czasu', '0,1–10 s'], ['Dokładność powtarzania', '±0,2 %'], ['Styk', '1 przełączny 16 A / 250 V AC'], ['Szerokość', '17,5 mm (1 moduł)'], ...live()],
         ports: [P('coil', 'Zasilanie A1–A2', 'prąd'), P('b1', 'Wejście sterujące B1', 'sygnał'), P('out', 'Styk 15–16 / 15–18', 'prąd'), P('rail', 'Szyna DIN 35 mm (mocowanie)', 'mocowanie')] };
+    },
+  },
+  {
+    id: 'relay', name: 'Przekaźnik sygnałowy', group: 'Przekaźniki',
+    params: [{ key: 'U', label: 'Napięcie zasilania cewki', type: 'range', min: 0, max: 30, step: 0.5, unit: 'V', def: 24 }],
+    build(p) {
+      const r = RL.signalRelay(), logic = createRelay({ Un: 24 }), L = logic.state, g = new THREE.Group(); g.add(r);
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.035, 0.0075), clockMats().steel); rail.position.set(0.02, 0.04, -0.004); g.add(rail);
+      const btn = CK.pushButton({ color: 'black', mode: 'momentary', contact: 'NO' }); btn.position.set(0.04, 0, 0.02); btn.traverse((o) => { if (o.userData.control) o.userData.control = 'coil'; }); g.add(btn);
+      const api = { press: (n) => (n === 'coil' || n === 'test') && btn.userData.api.press('button'), release: (n) => (n === 'coil' || n === 'test') && btn.userData.api.release('button'), drag() {}, tick: (dt) => btn.userData.api.tick(dt) };
+      const warn = [];
+      if (p.U < 0.7 * 24) warn.push(T(`Napięcie ${num(p.U, 1)} V poniżej napięcia zadziałania ${num(0.7 * 24, 1)} V — przekaźnik nie zadziała.`, `Voltage ${num(p.U, 1)} V below the pick-up voltage ${num(0.7 * 24, 1)} V — the relay will not operate.`));
+      if (p.U > 1.1 * 24) warn.push(T('Napięcie powyżej 110 % znamionowego — cewka się przegrzeje.', 'Voltage above 110 % of rated — the coil will overheat.'));
+      const live = () => [['Napięcie na cewce', `${num(L.U, 1)} V`], ['Prąd cewki', `${num(L.I * 1000, 1)} mA`], ['Stan', L.phase], ['Liczba zadziałań', String(L.ops)]];
+      return { group: g, controls: true, api, rest: true, view: { yaw: 0.25, pitch: 0.2 }, live, update() {},
+        tick: (dt) => { api.tick(dt); logic.tick(dt, btn.userData.api.closed ? p.U : 0); r.userData.setState(L.U > 0.1, L.on); },
+        info: [['Obsługa', 'przytrzymaj przycisk — napięcie na cewkę'], ['Cewka', `24 V DC, ${num(logic.Rc)} Ω, ${num(logic.P, 2)} W`], ['Zadziałanie / odpadanie', '≥ 70 % / ≤ 10 % Un'], ['Czas zadziałania / odpadania', '8 ms / 4 ms'], ['Styk', '1 przełączny, 6 A / 250 V AC, złocony (sygnały)'], ['Trwałość mechaniczna', '10 mln zadziałań'], ...live()],
+        ports: portsOf(r) };
     },
   },
   {

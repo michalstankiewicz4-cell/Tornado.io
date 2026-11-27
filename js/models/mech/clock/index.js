@@ -9,7 +9,7 @@
 export { materials } from '../common.js';
 export { clockWheel, pinion, arbor } from './wheels.js';
 export { escapeWheel, anchor, pendulum } from './escapement.js';
-export { compressionSpring, mainspringBarrel } from './springs.js';
+export { compressionSpring, mainspringBarrel, torsionSpring } from './springs.js';
 export { ratchet } from './ratchet.js';
 export { flywheel } from './flywheel.js';
 export { dialTexture, hand } from './dial.js';

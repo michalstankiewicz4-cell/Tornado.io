@@ -1,5 +1,14 @@
 # Zmiany
 
+## 0.32.0 — 2026-11-28
+- Laboratorium mechaniki 0.18.0 — **dźwignie, zatrzask z wyzwalaczem, sprężyny skrętne śrubowe, przekaźnik sygnałowy,
+  akumulator**. Przedmioty: dźwignia (rodzaje 1–3), zatrzask z wyzwalaczem (napnij / wyzwól, siła wyzwalania, energia
+  uderzenia), sprężyna skrętna śrubowa (sztywność, naprężenie z Ki, zacieśnianie na trzpieniu), akumulator (AGM, NMC,
+  LiFePO4 — rozładowanie z przyspieszeniem czasu), przekaźnik sygnałowy (zadziałanie i odpadanie kotwicy). Maszyna i
+  Fizyka: stanowisko zatrzasku — G1 → S4 → K2 → elektromagnes Y1 zwalnia zapadkę, dźwignia napina ramię.
+- Modele `js/models/mech/mechanisms/`, `power/`, `relays/signal.js`, sprężyna skrętna; zachowania `battery.js`,
+  `relay.js`, `latch.js`. Złożenie sceny bez kolizji (doktor), teksty po angielsku.
+
 ## 0.31.0 — 2026-11-27
 - Laboratorium mechaniki 0.17.0 — **etap 3: sygnały, czujniki, przekaźnik czasowy, regulatory**. Przedmioty: czujnik
   indukcyjny, enkoder inkrementalny, bariera optyczna, przekaźnik czasowy (E, Wi, Bp, R), regulator PID z obiektem,

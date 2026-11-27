@@ -15,6 +15,7 @@ import { createCircuit } from '../../behaviors/mech/circuit.js';
 import * as CK from '../../models/mech/controls.js';
 import { createClock } from './clock.js';
 import { createAutomation } from './automation.js';
+import { createTrigger } from './trigger.js';
 import { ITEMS, CATS, cardanMax } from './items.js';
 import { loadState, valid } from '../shared/saved.js';
 import { T, tr, LOC, EN, translateDom } from './lang.js';
@@ -55,7 +56,7 @@ for (const [x, z] of [[-5, 1.6], [-1.5, 1.8], [2, 1.6]]) {   // lampy warsztatow
 const drive = createDrive();
 const parts = [];   // { el, group } — do wybierania kliknięciem
 let CLOCK = { parts: [], devices: [], step: () => {}, rows: () => {} };
-let AUTO = null;   // czujniki, przekaźnik czasowy, regulator PID (js/labs/mechanics/automation.js)   // zegar — regulator (osobny mechanizm obok łoża; sekcja „zegar” niżej)
+let AUTO = null, TRIG = null;   // TRIG — stanowisko wyzwalania (js/labs/mechanics/trigger.js)   // czujniki, przekaźnik czasowy, regulator PID (js/labs/mechanics/automation.js)   // zegar — regulator (osobny mechanizm obok łoża; sekcja „zegar” niżej)
 const panes = [];   // szyby obudów (przezroczystość)
 function element(id, name, type, group, { J = group.userData.J || 0, props = [], ports, frame, onAngle } = {}) {
   const u = group.userData, dof = u.slide ? 'lin' : 'rot';   // część przesuwna (listwa, suwak, nakrętka): współrzędna w metrach, J = masa
@@ -292,7 +293,7 @@ const selBox = new THREE.BoxHelper(new THREE.Object3D(), 0xf2c14e); selBox.visib
 function simStep(dt) {
   if (S.mode === 'machine') { drive.step(dt, { rpm: S.rpm, brake: S.brake }); applyAngles(); }
   else if (S.mode === 'physics') { ELEC.tick(dt); reg.api.tick(dt); const on = reg.api.powered && (reg.api.run || Math.abs(reg.api.f) > 0.05); phys.step(dt, { w0: reg.api.f * 4 * Math.PI / 4, brake: FX.brakeLoose() ? 0 : S.brake, on }); ELEC.power(phys.state.Tm, phys.state.omega, on); applyAngles(); }
-  if (S.mode !== 'items') { fixtureStep(dt); bearingStep(dt); CLOCK.step(dt); if (AUTO) AUTO.step(dt); }   // silnik 4-biegunowy: ω_syn = 4π f / p
+  if (S.mode !== 'items') { fixtureStep(dt); bearingStep(dt); CLOCK.step(dt); if (AUTO) AUTO.step(dt); if (TRIG) TRIG.step(dt); }   // silnik 4-biegunowy: ω_syn = 4π f / p
   else if (item) { itemTheta += S.spin * TAU / 60 * dt; item.update(itemTheta); if (item.tick) item.tick(dt); }
 }
 function loop(now) {
@@ -320,9 +321,9 @@ function stats() {
   const rows = [['Silnik', `${fmt(rpmOf(st.omega))} obr/min`], ['Moment silnika', `${fmt(st.Tm, 1)} N·m`], ['Moc silnika', `${fmt(st.P)} W`], ['Moc na hamulcu', `${fmt(st.Pout || 0)} W`],
     ['Sprawność całkowita', `${fmt(eDisc.eta * 100, 1)} %`], ['Przełożenie całkowite', `${fmt(Math.abs(1 / (eDisc.r || 1e-9)), 2)} : 1`], ['Bezwładność zredukowana', `${fmt(st.Jeff * 1e4, 1)} kg·cm²`], ['Wyjście', `${fmt(rpmOf(eDisc.omega), 1)} obr/min, ${fmt(eDisc.T, 1)} N·m`]];
   if (typeof boltRows === 'function' && FIXT.length) boltRows(rows);
-  CLOCK.rows(rows); if (AUTO) AUTO.rows(rows);
+  CLOCK.rows(rows); if (AUTO) AUTO.rows(rows); if (TRIG) TRIG.rows(rows);
   $('bDrive').replaceChildren(...rows.flatMap(([a, b]) => [el('span', { textContent: a }), el('b', { textContent: b })]));
-  $('bList').replaceChildren(...[...parts, ...CLOCK.parts, ...(AUTO ? AUTO.parts : [])].flatMap((e) => { const s = el('span', { textContent: e.name }); s.onclick = () => select(e); return [s, el('b', { textContent: `${speedTxt(e)} · ${loadTxt(e.T, e)}` })]; }));
+  $('bList').replaceChildren(...[...parts, ...CLOCK.parts, ...(AUTO ? AUTO.parts : []), ...(TRIG ? TRIG.parts : [])].flatMap((e) => { const s = el('span', { textContent: e.name }); s.onclick = () => select(e); return [s, el('b', { textContent: `${speedTxt(e)} · ${loadTxt(e.T, e)}` })]; }));
   if (sel) showSel();
   perfRows([['Elementy', String(parts.length)], ['Połączenia', String(drive.edges.length)], ['Ogniwa łańcucha', String(CH.N)]]);
 }
@@ -347,7 +348,7 @@ function pick(e) {
   const r = renderer.domElement.getBoundingClientRect(); ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera);
   const bh = ray.intersectObject(boltG, true)[0];   // śruba mocująca — odkręć / dokręć
   if (bh) { let o = bh.object; while (o && !o.userData.bolt) o = o.parent; if (o) { toggleBolt(o); return; } }
-  const hits = ray.intersectObjects([...parts, ...CLOCK.parts, ...(AUTO ? AUTO.parts : [])].map((p) => p.group), true);
+  const hits = ray.intersectObjects([...parts, ...CLOCK.parts, ...(AUTO ? AUTO.parts : []), ...(TRIG ? TRIG.parts : [])].map((p) => p.group), true);
   for (const h of hits) { let o = h.object; while (o && !o.userData.el) o = o.parent; if (o) { select(o.userData.el); return; } }
   sel = null; selBox.visible = false; $('selName').textContent = tr('Kliknij element maszyny'); $('selProps').replaceChildren(); $('selPorts').replaceChildren();
 }
@@ -366,7 +367,7 @@ const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
 // sterowanie na modelu (tryb Przedmioty): część z userData.control — klik / przytrzymanie / przeciąganie zamiast obrotu kamery
 let ctl = null;
 // obiekt z obsługą w bieżącym trybie: przedmiot ze sterowaniem (Przedmioty) albo regulator przy silniku (Fizyka)
-const ctlTarget = () => (S.mode === 'items' ? (item && item.controls ? [{ group: item.group, api: item.api }] : null) : S.mode === 'physics' ? [...ELEC.devices, ...CLOCK.devices, ...(AUTO ? AUTO.devices : [])] : null);
+const ctlTarget = () => (S.mode === 'items' ? (item && item.controls ? [{ group: item.group, api: item.api }] : null) : S.mode === 'physics' ? [...ELEC.devices, ...CLOCK.devices, ...(AUTO ? AUTO.devices : []), ...(TRIG ? TRIG.devices : [])] : null);
 function controlAt(e) {
   const tgs = ctlTarget(); if (!tgs) return null;
   const r = renderer.domElement.getBoundingClientRect(); ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera);
@@ -628,9 +629,9 @@ function physStats() {
   LIVE.planets.forEach((p, k) => rows.push([`Satelita ${k + 1} — zęby`, ['sun', 'ring'].map((key) => `${key === 'sun' ? 'ze słonecznym' : 'z koroną'} ${p[key].pen ? 'PRZENIKANIE' : `luz −${mmS(p[key].lo)} / +${mmS(p[key].hi)} mm`}`).join(' · ')]));
   for (const r of LIVE.rollers) rows.push([`Rolki łańcucha — ${r.name}`, `${r.near} rolek na kole · ${r.pen ? `PRZENIKANIE ${r.pen} rolek` : 'bez przenikania (zarys ISO 606: gniazdo, bok r_e, głowa)'}`]);
   rows.push(['Zahaczenia o obudowy i łożyska', CLASHES.length ? CLASHES.map((c) => `${c.part} × ${c.fixed} ${mmS(c.depth)} mm`).join('; ') : `brak (sprawdzone ${parts.filter((e) => e.spin).length} części obrotowych, dla każdego kąta)`]);
-  CLOCK.rows(rows); if (AUTO) AUTO.rows(rows);
+  CLOCK.rows(rows); if (AUTO) AUTO.rows(rows); if (TRIG) TRIG.rows(rows);
   $('bDrive').replaceChildren(...rows.flatMap(([x, y]) => [el('span', { textContent: x }), el('b', { textContent: y })]));
-  $('bList').replaceChildren(...[...parts, ...CLOCK.parts, ...(AUTO ? AUTO.parts : [])].flatMap((e) => { const sp = el('span', { textContent: e.name }); sp.onclick = () => select(e); return [sp, el('b', { textContent: `${speedTxt(e)} · ${loadTxt(e.T, e)}` })]; }));
+  $('bList').replaceChildren(...[...parts, ...CLOCK.parts, ...(AUTO ? AUTO.parts : []), ...(TRIG ? TRIG.parts : [])].flatMap((e) => { const sp = el('span', { textContent: e.name }); sp.onclick = () => select(e); return [sp, el('b', { textContent: `${speedTxt(e)} · ${loadTxt(e.T, e)}` })]; }));
   if (sel) showSel();
   perfRows([['Stopnie swobody', String(phys.nodes.length)], ['Wiązania', String(phys.edges.length)], ['Zazębienia z luzem', String(phys.edges.filter((c) => c.dead).length)], ['Bryły zderzeń zębów', `${[...ZONES.values()].reduce((a, v) => a + (v.ua ? v.ua.z + v.ub.z : ZB.z + RK.n), 0)} wielokątów wypukłych (${ZONES.size} zazębienia)`]]);
 }
@@ -1135,7 +1136,7 @@ function itemSettings() {
   sp.oninput = () => { S.spin = +sp.value; spo.textContent = `${S.spin} ${T('obr/min', 'rpm')}`; save(); };
   const reset = el('button', { type: 'button', textContent: 'Domyślne' }); reset.onclick = () => { delete S.items[def.id]; save(); itemSettings(); buildItem(); };
   // sterowanie i zasilanie — bez obrotu podglądu; sterowanie obsługuje się na modelu
-  const preview0 = def.group === 'Zasilanie i przewody' && def.id === 'wire' ? [] : ['Sterowanie', 'Zasilanie i przewody', 'Optyka', 'Przekaźniki', 'Regulatory'].includes(def.group) ? def.group === 'Optyka' || def.id === 'governor' ? [] : [el('p', { className: 'note', textContent: 'Obsługa na modelu: klik — dźwignia, przycisk, wyłącznik, RUN / STOP; przytrzymanie — przycisk chwilowy, krańcówka; przeciąganie w górę / w dół — pokrętło.' })] : [el('h3', { textContent: 'Podgląd' }), el('div', { className: 'row' }, el('span', { textContent: 'Obrót wejścia' }), sp, spo)];
+  const preview0 = def.group === 'Zasilanie i przewody' && def.id === 'wire' ? [] : (['Sterowanie', 'Zasilanie i przewody', 'Optyka', 'Przekaźniki', 'Regulatory'].includes(def.group) || ['latch', 'battery'].includes(def.id)) ? def.group === 'Optyka' || ['governor', 'battery'].includes(def.id) ? [] : [el('p', { className: 'note', textContent: 'Obsługa na modelu: klik — dźwignia, przycisk, wyłącznik, RUN / STOP; przytrzymanie — przycisk chwilowy, krańcówka; przeciąganie w górę / w dół — pokrętło.' })] : [el('h3', { textContent: 'Podgląd' }), el('div', { className: 'row' }, el('span', { textContent: 'Obrót wejścia' }), sp, spo)];
   box0.replaceChildren(el('h3', { textContent: def.name }), ...rows, ...preview0, el('div', { className: 'btns' }, reset));
 }
 function itemStats() {
@@ -1183,6 +1184,7 @@ addEventListener('keydown', (e) => {
 CLOCK = createClock({ root, S, fmt });
 /* ---------------- etap 3: czujniki, przekaźnik czasowy, regulator PID (js/labs/mechanics/automation.js) ---------------- */
 AUTO = createAutomation({ root, elecG, S, fmt, BED_TOP, Y0, motorG, eMotor, g1: eG1.group, eG1, disc, eDisc });
+TRIG = createTrigger({ root, S, fmt, BED_TOP });
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), RUN_MAX = 120;
 // MechanicsApi.mode('items' | 'machine'), item(id, ustawienia), items(), rpm(v), brake(Nm), alpha(0–1), state(), elements(), select(id), view(…), run(sekundy)
@@ -1227,7 +1229,7 @@ window.MechanicsApi = {
   alpha(a) { if (Number.isFinite(a)) { S.alpha = clamp(a, 0, 1); $('alpha').value = S.alpha; $('alphaV').textContent = `${Math.round(S.alpha * 100)} %`; applyAlpha(); save(); } return S.alpha; },
   state: () => ({ ...drive.state, ok: solved.ok }),
   elements: () => parts.map((e) => ({ id: e.id, name: e.name, dof: e.dof, rpm: e.dof === 'lin' ? undefined : +rpmOf(e.omega).toFixed(2), v: e.dof === 'lin' ? +e.omega.toFixed(5) : undefined, T: +e.T.toFixed(3), eta: +e.eta.toFixed(4), theta: +e.theta.toFixed(4) })),
-  select(id) { const e = [...parts, ...CLOCK.parts, ...(AUTO ? AUTO.parts : [])].find((p) => p.id === id); if (e) select(e); return !!e; },
+  select(id) { const e = [...parts, ...CLOCK.parts, ...(AUTO ? AUTO.parts : []), ...(TRIG ? TRIG.parts : [])].find((p) => p.id === id); if (e) select(e); return !!e; },
   view(t = [-1.4, 0.9, 0.2], dist = 9, yaw = 0.25, pitch = 0.38) { orbit.target.set(...t); Object.assign(orbit, { dist, yaw, pitch }); },
   // run: najwyżej RUN_MAX sekund na wywołanie (Infinity / NaN nie zawieszą strony)
   // simulate(s) — bieżący tryb (Maszyna, Fizyka, Przedmioty) krokami 1/60 s, bez rysowania (testy, AI)
