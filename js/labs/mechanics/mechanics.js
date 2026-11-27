@@ -284,7 +284,7 @@ function loop(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (S.mode === 'machine') { drive.step(dt, { rpm: S.rpm, brake: S.brake }); applyAngles(); }
   else if (S.mode === 'physics') { ELEC.tick(dt); reg.api.tick(dt); const on = reg.api.powered && (reg.api.run || Math.abs(reg.api.f) > 0.05); phys.step(dt, { w0: reg.api.f * 4 * Math.PI / 4, brake: FX.brakeLoose() ? 0 : S.brake, on }); ELEC.power(phys.state.Tm, phys.state.omega, on); applyAngles(); }
-  if (S.mode !== 'items') fixtureStep(dt);   // silnik 4-biegunowy: ω_syn = 4π f / p
+  if (S.mode !== 'items') { fixtureStep(dt); bearingStep(dt); }   // silnik 4-biegunowy: ω_syn = 4π f / p
   else if (item) { itemTheta += S.spin * TAU / 60 * dt; item.update(itemTheta); if (item.tick) item.tick(dt); }
   moveKeys(dt);
   if ((statT += dt) > 0.2) { statT = 0; stats(); }
@@ -556,6 +556,10 @@ function physStats() {
   const rows = [['Regulator', `${a.run ? 'RUN' : 'STOP'} · ${a.dir > 0 ? 'FWD' : 'REV'} · ${f1(Math.abs(a.f))} Hz (zadana ${f1(a.set)} Hz)`], ['Silnik', `${dirOf(st.omega)} ${fmt(Math.abs(rpmOf(st.omega)))} obr/min (synchr. ${fmt(Math.abs(30 * a.f))})`], ['Moment silnika', `${f1(st.Tm)} N·m`],
     ['Wyjście', `${dirOf(eDisc.omega)} ${f1(Math.abs(rpmOf(eDisc.omega)))} obr/min`], ['Moment hamulca', `${f1(Math.abs(st.Tb))} N·m`]];
   boltRows(rows);
+  { const be = phys.edges.find((c) => c.belt), ch = phys.edges.find((c) => c.e.type === 'chain');
+    if (be && Math.abs(be.da || 0) > 1e-4) rows.push(['Pas — rozstaw osi', `${fmt((be.da || 0) * 1000, 1)} mm → napięcie wstępne ${fmt(SUP.F0)} N (było ${BELT_F0} N), moment graniczny ${fmt(be.belt.Tmax, 1)} N·m`]);
+    if (ch && (SUP.broken.chain || Math.abs(ch.da || 0) > 1e-4)) rows.push(['Łańcuch — rozstaw osi', SUP.broken.chain ? 'ŁAŃCUCH PRZESKOCZYŁ po zębach — napęd przerwany (Reset mocowań)' : `${fmt((ch.da || 0) * 1000, 1)} mm (przeskok przy −4 mm)`]);
+    for (const c of SUP.broken.mesh) rows.push([`Zazębienie ${c.e.a.group.userData.z} : ${c.e.b.group.userData.z}`, `ZĘBY WYSZŁY Z PRZYPORU — koła rozsunięte o ${fmt((c.da || 0) * 1000, 1)} mm (Reset mocowań)`]); }
   // punkt 5 — obwód elektryczny
   { const E = ELEC, es = E.st, onoff = (v) => (v ? 'zamknięty' : 'otwarty');
     rows.push(['Zasilanie X0', `${E.X0.api.on ? 'WŁ' : 'WYŁ'} · 3 × 400/230 V, 50 Hz (TN-S)${es.r && es.r.shorts.length ? ` · ZWARCIE: ${es.r.shorts.join(', ')}` : ''}`]);
@@ -792,7 +796,14 @@ function boltRows(rows) {
   rows.push(['Mocowania', `${all - out} z ${all} śrub dokręconych${out ? ' — kliknij śrubę, żeby ją dokręcić, albo „Reset mocowań”' : ' — kliknij śrubę, żeby ją odkręcić'}`]);
   for (const f of FIXT) {
     if (!f.loose && !f.phi && !(f.phys && f.bolts.some((b) => b.userData.target))) continue;
-    if (!f.phys) { if (f.loose) rows.push([`Luźna: ${f.name}`, 'stoi — bez momentu reakcji (siły promieniowe łożysk jeszcze nie liczone)']); continue; }
+    if (!f.phys) {
+      if (!f.loose) continue;
+      let sp = null; for (const [, S0] of SUP.shafts) for (const q of S0.sup) if (q.fix === f) sp = q;
+      if (!sp) { rows.push([`Luźna: ${f.name}`, 'stoi — nic jej nie obciąża']); continue; }
+      const m = sp.obj.userData.mass || 1, N = m * G - sp.L.y, moved = sp.d.length();
+      rows.push([`Luźna: ${f.name}`, `${moved > 0.0005 ? `PRZESUNIĘTA ${fmt(moved * 1000, 1)} mm${sp.d.y > 0.0005 ? ' (uniesiona)' : ''}` : 'stoi'} · siła z łożyska: w bok ${fmt(Math.abs(sp.L.z), 0)} N, w górę ${fmt(Math.max(0, sp.L.y), 0)} N · trzyma: tarcie ${fmt(Math.max(0, 0.2 * N), 0)} N, ciężar ${fmt(m * G, 0)} N`]);
+      continue;
+    }
     const P = f.phys, tl = f.tilt || 0, txt = P.axis && Math.abs(f.om) > 0.5 ? `OBRACA SIĘ na wałach (${fmt(Math.abs(f.om) * 60 / TAU)} obr/min) — ${P.what}` : tl > P.limit ? `${P.axis ? 'WYCHYLONA' : 'PRZEWRÓCONA'} ${fmt(tl * 180 / Math.PI, 1)}° — ${P.what}` : tl > 0 ? `przechyla się ${fmt(tl * 180 / Math.PI, 2)}°` : f.loose ? 'stoi' : `${f.bolts.filter((b) => !b.userData.target).length} śrub trzyma`;
     rows.push([`${f.loose ? 'Luźna' : 'Mocowanie'}: ${f.name}`, `${txt} · moment reakcji ${fmt(Math.abs(f.tau || 0), 1)} N·m, ciężar trzyma do ${fmt(P.axis ? P.m * G * P.d : (f.resist || P.m * G * P.b), 1)} N·m${S.mode === 'physics' ? '' : ' (siły — w trybie Fizyka)'}`]);
   }
@@ -811,7 +822,7 @@ const boltG = new THREE.Group(); root.add(boltG);
 const FIXT = [];
 function boltsOn(obj, list, d = 0.01, len = 0.03) {   // list: punkty lokalne obiektu (płaszczyzna pod łbem)
   obj.updateWorldMatrix(true, false);
-  return list.map((m) => { const b = MK.bolt({ d: m.d || d, len }); b.position.copy(obj.localToWorld(m.p ? m.p.clone() : m.clone())); b.userData.home = b.position.clone(); b.userData.out = 0; b.userData.target = 0; boltG.add(b); return b; });
+  return list.map((m) => { const b = MK.bolt({ d: m.d || d, len }); b.position.copy(obj.localToWorld(m.p ? m.p.clone() : m.clone())); b.userData.home = b.position.clone(); b.userData.out = 0; b.userData.target = 0; b.userData.set = m.set || 'all'; boltG.add(b); return b; });
 }
 const cornerPts = (o, dx, dz) => { const g = o.geometry.parameters, y = g.height / 2; return [-1, 1].flatMap((sx) => [-1, 1].map((sz) => new THREE.Vector3(sx * (g.width / 2 - dx), y, sz * (g.depth / 2 - dz)))); };
 function fixture(name, objs, bolts, phys = null) {
@@ -844,10 +855,104 @@ function fixture(name, objs, bolts, phys = null) {
   fixture('Wskaźnik tarczy', FX.post.objs, boltsOn(FX.post.foot, cornerPts(FX.post.foot, 0.01, 0.01), 0.006, 0.015));
 }
 const G = 9.81;
+
+/* ---------------- siły promieniowe w łożyskach i luźne oprawy ---------------- */
+// Siły na kołach z fizyki napędu (moment w połączeniu c.T): zazębienie — obwodowa F_t = T / r_p i rozpór F_r = F_t·tg 20°
+// (odpycha koła od siebie), łańcuch — cięgno czynne T / R ciągnie koła ku sobie, pas — 2·F0 (napięcie wstępne)
+// ciągnie koła ku sobie; do tego ciężar wału i kół. Siła na kole przechodzi na łożyska jego wału (dźwignia między dwoma
+// najbliższymi podporami). Oprawa luźna: trzyma ją ciężar i tarcie o łoże (μ = 0,2); siła większa — przesuwa się
+// (albo unosi, gdy ciągnie w górę mocniej, niż waży), a z nią wał i koła. Skutki: pas — mniejszy rozstaw osi zmniejsza
+// napięcie (EA·2Δa / L), a z nim moment graniczny (poślizg); łańcuch — luz cięgna ponad 4 mm — przeskakuje po zębach;
+// zazębienie — rozsunięcie ponad 1,2·m — zęby wychodzą z przyporu.
+const SUP = (() => {
+  const shaftOf = new Map();   // element (koło) → wał, na którym siedzi
+  for (const d of drive.edges) if (d.type === 'shaft') { const [sh, o] = d.a.type === 'shaft' ? [d.a, d.b] : d.b.type === 'shaft' ? [d.b, d.a] : [null, null]; if (sh && o.type !== 'shaft' && !shaftOf.has(o)) shaftOf.set(o, sh); }
+  const shafts = new Map();   // wał → { supports: [{ x, fix | null, obj }], mass }
+  const axisX = (e, P) => P.clone().sub(e.frame.o).dot(e.frame.axis), off = (e, P) => { const v = P.clone().sub(e.frame.o); return v.addScaledVector(e.frame.axis, -v.dot(e.frame.axis)).length(); };
+  const cands = [];
+  for (const f of FIXT) { const o = f.objs[0]; if (!f.phys && o.userData.mounts && o.userData.h) cands.push({ fix: f, obj: o, P: o.position.clone().add(new THREE.Vector3(0, o.userData.h, 0)) }); }
+  for (const o of root.children) if (/^Łożysko 6205/.test(o.name || '')) cands.push({ fix: null, obj: o, P: o.position.clone() });
+  for (const e of parts) if (e.type === 'shaft' && e.group.userData.len) {
+    const L = e.group.userData.len, sup = cands.filter((c) => off(e, c.P) < 0.004 && axisX(e, c.P) > -0.01 && axisX(e, c.P) < L + 0.01).map((c) => ({ ...c, x: axisX(e, c.P), d: new THREE.Vector3(), v: new THREE.Vector3(), L: new THREE.Vector3() }));
+    if (sup.length) { shafts.set(e, { sup, mass: e.group.userData.mass || 0 }); sup.filter((q) => q.fix).sort((p, q) => p.x - q.x).forEach((q, k) => { q.fix.name = `Oprawa łożyska ${k + 1} — ${e.name}`; }); }
+  }
+  for (const [o, sh] of shaftOf) { const S0 = shafts.get(sh); if (S0) S0.mass += o.group.userData.mass || 0; }
+  // grupy przesuwane z wałem (wał, koła na nim) — położenia bazowe
+  const movers = new Map();
+  for (const [sh] of shafts) movers.set(sh, [sh, ...[...shaftOf].filter(([, s2]) => s2 === sh).map(([o]) => o)].map((el) => ({ el, p: el.group.position.clone(), x: axisX(sh, el.group.position) })));
+  const belt0 = { F0: BELT_F0, L: belt.userData.L || 1.2 };
+  return { shaftOf, shafts, movers, axisX, belt0, broken: { chain: false, mesh: new Set() }, F0: BELT_F0 };
+})();
+const _f = new THREE.Vector3(), _u = new THREE.Vector3(), _t = new THREE.Vector3();
+function bearingStep(dt) {
+  if (S.mode !== 'physics') return;
+  for (const [, S0] of SUP.shafts) for (const sp of S0.sup) sp.L.set(0, 0, 0);
+  // siła na kole → łożyska jego wału (dźwignia), w płaszczyźnie ⟂ osi
+  const apply = (el, F) => {
+    const sh = SUP.shaftOf.get(el), S0 = sh && SUP.shafts.get(sh); if (!S0) return;
+    const sup = S0.sup, x = SUP.axisX(sh, el.group.position);
+    if (sup.length === 1) { sup[0].L.add(F); return; }
+    const srt = [...sup].sort((a, b) => Math.abs(a.x - x) - Math.abs(b.x - x)), [p1, p2] = srt;
+    const w2 = (x - p1.x) / ((p2.x - p1.x) || 1e-9); p1.L.addScaledVector(F, 1 - w2); p2.L.addScaledVector(F, w2);
+  };
+  const posOf = (el) => el.group.position;
+  for (const c of phys.edges) {
+    if (c.broken) continue;
+    const A = c.e.a, B = c.e.b, T = c.T || 0;
+    if (c.e.type === 'mesh') {
+      const ub = B.group.userData; _u.subVectors(posOf(B), posOf(A)); _u.x = 0; _u.normalize(); _t.crossVectors(X, _u).negate();
+      const Ft = T / ub.rp; _f.copy(_t).multiplyScalar(Ft).addScaledVector(_u, Math.abs(Ft) * Math.tan(20 * Math.PI / 180)); apply(B, _f.clone()); apply(A, _f.clone().negate());
+    } else if (c.e.type === 'chain' || c.e.type === 'belt') {
+      _u.subVectors(posOf(B), posOf(A)); _u.x = 0; _u.normalize();
+      const F = c.e.type === 'chain' ? Math.abs(T) / (B.group.userData.R || 0.05) : 2 * SUP.F0;
+      apply(A, _u.clone().multiplyScalar(F)); apply(B, _u.clone().multiplyScalar(-F));
+    }
+  }
+  // ciężar wału z kołami — po połowie na skrajne podpory
+  for (const [, S0] of SUP.shafts) { const w = S0.mass * G / S0.sup.length; for (const sp of S0.sup) sp.L.y -= w; }
+  // luźne oprawy: ruch pełzający (tłumienie C_D — tarcie i opory przesuwu duże w stosunku do mas): v = F_wypadkowa / C_D,
+  // F_wypadkowa = siła z łożyska + ciężar oprawy, na łożu pomniejszona o tarcie μ·N (μ = 0,2); wał przesuwa się za podporami
+  const MU = 0.2, C_D = 4000, n = 6, h = dt / n;
+  for (const [sh, S0] of SUP.shafts) {
+    for (const sp of S0.sup) {
+      if (!sp.fix || !sp.fix.loose) { sp.d.set(0, 0, 0); sp.v.set(0, 0, 0); continue; }
+      const mb = sp.obj.userData.mass || 1;
+      for (let k = 0; k < n; k++) {
+        const Fy = sp.L.y - mb * G;
+        if (sp.d.y <= 1e-6 && Fy <= 0) { const fr = MU * -Fy; sp.v.set(0, 0, Math.abs(sp.L.z) > fr ? (sp.L.z - fr * Math.sign(sp.L.z)) / C_D : 0); }   // leży: tarcie
+        else sp.v.set(0, Fy / C_D, sp.L.z / C_D);   // uniesiona: bez tarcia
+        sp.d.addScaledVector(sp.v, h); if (sp.d.y < 0) sp.d.y = 0; sp.d.clampLength(0, 0.05);
+      }
+    }
+    // położenia: oprawa, wał i koła (interpolacja przesunięcia po osi między podporami)
+    const sup = S0.sup, dAt = (x) => { if (sup.length === 1) return sup[0].d; const srt = [...sup].sort((a, b) => Math.abs(a.x - x) - Math.abs(b.x - x)), [p1, p2] = srt, w = (x - p1.x) / ((p2.x - p1.x) || 1e-9); return p1.d.clone().multiplyScalar(1 - w).addScaledVector(p2.d, w); };
+    for (const sp of sup) if (sp.fix) { const b0 = sp.fix.base[0]; sp.obj.position.copy(b0.p).add(sp.d); }
+    for (const mv of SUP.movers.get(sh)) mv.el.group.position.copy(mv.p).add(mv.el.type === 'shaft' ? dAt((sup[0].x + sup[sup.length - 1].x) / 2) : dAt(mv.x));
+  }
+  // skutki: rozstaw osi pasa, łańcucha i zazębień z przesunięć kół
+  const shift = (el) => el.group.position.clone().sub(SUP.movers.get(SUP.shaftOf.get(el)) ? SUP.movers.get(SUP.shaftOf.get(el)).find((q) => q.el === el).p : el.group.position);
+  for (const c of phys.edges) {
+    const A = c.e.a, B = c.e.b; if (!['mesh', 'chain', 'belt'].includes(c.e.type)) continue;
+    _u.subVectors(B.group.position, A.group.position); _u.x = 0; const a1 = _u.length();
+    const da = shift(B).sub(shift(A)); da.x = 0; const a0 = _u.clone().sub(da).length(), dA = a1 - a0;
+    c.da = dA;
+    if (c.e.type === 'belt') { SUP.F0 = Math.max(0, BELT_F0 + BP.EA * 2 * dA / SUP.belt0.L); const E = Math.exp(BELT_MUE * BELT_WRAP); c.belt.Tmax = 2 * SUP.F0 * 0.04 * (E - 1) / (E + 1); }
+    if (c.e.type === 'chain' && dA < -0.004 && !SUP.broken.chain) { SUP.broken.chain = true; phys.setBroken((e) => e.type === 'chain', true); }
+    if (c.e.type === 'mesh' && dA > 1.2 * B.group.userData.m && !SUP.broken.mesh.has(c)) { SUP.broken.mesh.add(c); c.broken = true; }
+  }
+}
+function bearingReset() {
+  for (const [sh, S0] of SUP.shafts) { for (const sp of S0.sup) { sp.d.set(0, 0, 0); sp.v.set(0, 0, 0); } for (const mv of SUP.movers.get(sh)) mv.el.group.position.copy(mv.p); }
+  SUP.F0 = BELT_F0; for (const c of phys.edges) if (c.belt) c.belt.Tmax = BELT_TMAX;
+  if (SUP.broken.chain) phys.setBroken((e) => e.type === 'chain', false);
+  for (const c of SUP.broken.mesh) phys.setBroken((e) => e === (c.e.base || c.e), false);
+  SUP.broken.chain = false; SUP.broken.mesh.clear();
+}
 // odkręcenie / dokręcenie śruby (animacja: obrót i wysunięcie na długość gwintu)
 function toggleBolt(b) { b.userData.target = b.userData.target ? 0 : 1; }
 function resetBolts() {
   for (const b of boltG.children) { b.userData.target = 0; b.userData.out = 0; b.position.copy(b.userData.home); b.rotation.set(0, 0, 0); }
+  bearingReset();
   for (const f of FIXT) { f.phi = 0; f.om = 0; f.side = 0; f.tilt = 0; for (const s0 of f.base) { s0.o.position.copy(s0.p); s0.o.quaternion.copy(s0.q); } if (f.phys) f.phys.effect(false); }
   stats();
 }
@@ -859,7 +964,8 @@ function fixtureStep(dt) {
     b.position.copy(u.home); b.position.y += u.out * (u.len + 0.004); b.rotation.y = -u.out * TAU * (u.len / 0.0015) / 6;   // gwint 1,5 mm — obroty skrócone ×6
   }
   for (const f of FIXT) {
-    const loose = f.bolts.every((b) => b.userData.target === 1 && b.userData.out === 1);
+    // luźna, gdy odkręcony jest cały jeden zestaw śrub (np. oprawa od słupka albo słupek od łoża)
+    const sets = new Set(f.bolts.map((b) => b.userData.set)), loose = [...sets].some((st) => f.bolts.filter((b) => b.userData.set === st).every((b) => b.userData.target === 1 && b.userData.out === 1));
     f.loose = loose;
     if (!f.phys) continue;
     const P = f.phys, tau = S.mode === 'physics' ? P.tau() : 0, resist = P.axis ? 0 : P.m * G * P.b;
@@ -1065,6 +1171,8 @@ window.MechanicsApi = {
     if (c === 'pot') { E.R1.api.pos = Number(v) || 0; } else if (map[c]) { const [d, n] = map[c]; d.api.press(n); if (c === 'start' || c === 'stop') setTimeout(() => d.api.release(n), 150); }
     const es = E.st; return { power: E.X0.api.on, main: E.Q1.api.on, k1: E.K1.api.on, estop: E.S0.api.latched, vfd: reg.api.powered, Ucoil: es.uK, Uvfd: es.uV, shorts: es.r ? es.r.shorts : [] };
   },
+  // boltsScreen() — położenia łbów śrub na ekranie (px, względem okna) — do klikania (testy, AI)
+  boltsScreen() { const r = renderer.domElement.getBoundingClientRect(), v = new THREE.Vector3(); return boltG.children.map((b, i) => { b.children[1].getWorldPosition(v); v.project(camera); return { i, fix: b.userData.fix && b.userData.fix.name, x: r.left + (v.x + 1) / 2 * r.width, y: r.top + (1 - v.y) / 2 * r.height, vis: v.z < 1 && Math.abs(v.x) < 1 && Math.abs(v.y) < 1, out: b.userData.target }; }); },
   // bolts('reset') — wszystkie śruby dokręcone; bolts('unscrew', nazwa) — odkręca śruby części o nazwie zawierającej tekst; bolts() — stan
   bolts(c, name) {
     if (c === 'reset') resetBolts();

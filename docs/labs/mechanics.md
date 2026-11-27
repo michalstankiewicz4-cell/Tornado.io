@@ -296,5 +296,10 @@ Fizyka luźnej części (tryb Fizyka) — moment reakcji z fizyki napędu:
 - **Wspornik zacisku hamulca** — moment hamowania przewraca go wokół krawędzi stopy; uniesiony > 2° — zacisk schodzi
   z tarczy, hamulec przestaje działać.
 - Ponowne połączenie (Reset) — w bieżącym położeniu (sprzęgło / korona chwyta tam, gdzie stoją: przesunięcie fazy).
-- Części bez momentu reakcji (oprawy łożysk, podpory, stopy obudowy) po odkręceniu stoją — sił promieniowych
-  w łożyskach (napięcie pasa i łańcucha, rozpór zębów) fizyka jeszcze nie liczy.
+- **Siły promieniowe w łożyskach**: z momentów w połączeniach — zazębienie (obwodowa T/r_p i rozpór F_t·tg 20°,
+  odpycha koła), łańcuch (cięgno czynne T/R ciągnie koła ku sobie), pas (2·F0), ciężar wału z kołami; siła na kole
+  dzieli się dźwignią na dwie najbliższe podpory jego wału. Luźna oprawa (odkręcony cały zestaw śrub: łapy oprawy
+  albo płyta słupka): trzyma ją ciężar i tarcie o łoże (μ = 0,2); większa siła — oprawa pełznie (v = F/C_D) albo się
+  unosi, a z nią wał i koła. Skutki: pas — rozstaw osi maleje → napięcie EA·2Δa/L spada → moment graniczny maleje
+  (luźny dolny wał pasa unosi się ok. 4 mm, napięcie 300 → ok. 40 N, pas się ślizga); łańcuch — skrócenie rozstawu
+  o 4 mm → przeskakuje po zębach; zazębienie — rozsunięcie ponad 1,2·m → zęby wychodzą z przyporu.

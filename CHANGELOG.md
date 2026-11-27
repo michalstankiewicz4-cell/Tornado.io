@@ -1,5 +1,14 @@
 # Zmiany
 
+## 0.28.1 — 2026-11-27
+- Laboratorium mechaniki 0.13.1 — **siły promieniowe w łożyskach i luźne oprawy**: siły z zazębień (obwodowa i rozpór),
+  łańcucha i pasa oraz ciężar wałów rozdzielone na podpory; luźna oprawa pełznie albo się unosi, wał i koła razem z nią.
+  Skutki w napędzie: pas traci napięcie i moment graniczny (poślizg), łańcuch przeskakuje po zębach, zęby wychodzą
+  z przyporu. Okno Opis: siła z łożyska, tarcie, ciężar, przesunięcie; rozstaw osi pasa i łańcucha.
+- Śruby: łby śrub narysowane w oprawie łożyska (UCP) zastąpione prawdziwymi śrubami — wcześniej nie dało się ich
+  odkręcić; wysokie oprawy mają dwa zestawy (łapy oprawy i płyta słupka), część jest luźna po odkręceniu jednego
+  całego zestawu (82 śruby). `MechanicsApi.boltsScreen()` — położenia łbów na ekranie.
+
 ## 0.28.0 — 2026-11-27
 - Laboratorium mechaniki 0.13.0 — **śruby mocujące i luźne części**:
   - `MechKit.bolt` (śruba z łbem sześciokątnym i podkładką, M6…M16, 8.8 — napięcie wstępne), miejsca śrub w modelach

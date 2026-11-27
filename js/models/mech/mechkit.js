@@ -604,9 +604,11 @@ export function pillowBlock({ h = 0.12, r = 0.0125, name = 'Łożysko w oprawie 
     for (const [y, t] of [[0.006, 0.012], [base - 0.006, 0.012]]) { const pl = mesh(box(0.1, t, 0.2), M.iron); pl.position.y = y; g.add(pl); }
     for (const s of [-1, 1]) { const rib = mesh(box(0.006, 0.08, 0.07), M.paintGrey); rib.position.set(0, 0.052, s * 0.065); g.add(rib); }
   } else if (base > 0.002) { const ped = mesh(box(0.05, base, 0.19), M.iron); ped.position.y = base / 2; g.add(ped); }
-  for (const z of [-0.064, 0.064]) { const b = mesh(new THREE.CylinderGeometry(0.0085, 0.0085, 0.008, 6), M.dark); b.position.set(0, 0.02, z); top.add(b); }
   // miejsca śrub mocujących (oś +y, płaszczyzna pod podkładką): wysoka podpora — płyta podstawy, niska — łapy oprawy
-  const mounts = base > 0.12 ? [-1, 1].flatMap((sx) => [-1, 1].map((sz) => ({ p: new THREE.Vector3(sx * 0.035, 0.012, sz * 0.08), d: 0.01 }))) : [-1, 1].map((sz) => ({ p: new THREE.Vector3(0, base + 0.016 * k, sz * 0.064 * k), d: k >= 0.9 ? 0.012 : 0.01 }));
+  // set: 'housing' — oprawa do podłoża / słupka (łapy), 'base' — słupek do łoża (płyta podstawy); część jest luźna, gdy
+  // odkręcone są wszystkie śruby jednego zestawu (łeb śruby dawniej rysowany w modelu — teraz prawdziwa śruba MechKit.bolt)
+  const feet = [-1, 1].map((sz) => ({ p: new THREE.Vector3(0, base + 0.016 * k, sz * 0.064 * k), d: k >= 0.9 ? 0.012 : 0.01, set: 'housing' }));
+  const mounts = base > 0.12 ? [...[-1, 1].flatMap((sx) => [-1, 1].map((sz) => ({ p: new THREE.Vector3(sx * 0.035, 0.012, sz * 0.08), d: 0.01, set: 'base' }))), ...feet] : feet;
   g.userData = { mounts, phys: { ...PHYS.bearing }, ports: { bore: port('Gniazdo wału', DOMAIN.rot, 'łożysko') }, h, r, k, mass: 0.8 * k * k * k + (base > 0 ? IRON_RHO * 0.05 * 0.19 * base * 0.4 : 0) };
   return g;
 }
