@@ -93,8 +93,9 @@ const eG5 = gearEl('g5', -3.95, YS3, 0.12, { z: 24, m: 0.003, w: 0.03, mat: 'gea
 const eG6 = gearEl('g6', -3.95, Y0, 0.12, { z: 40, m: 0.003, w: 0.03, mat: 'brass' }, 'Zębatka 6 (z = 40)');
 const eS4 = shaftEl('s4', -4.06, -2.42, Y0, 0.12, 'Wał 4');
 {
-  const hs = MK.housing([0.6, 0.34, 0.22]); hs.position.set(-4.1, 0.935, 0.12); root.add(hs); panes.push(hs.userData.panes);
-  for (const [x, y] of [[-4.4, Y0], [-4.4, YS3], [-3.8, YS3], [-3.8, Y0]]) { const b = new THREE.Mesh(MK.cyl(0.024, 0.016, 32), M.steel); b.position.set(x, y, 0.12); b.castShadow = true; root.add(b); }   // łożyska w ściankach
+  // ścianki z otworami i oprawkami; w nich łożyska kulkowe 6205-2RS (otwór 25 mm = wał) — wał przechodzi przez łożysko
+  const B0 = MK.BEARINGS.ball, hs = MK.housing([0.6, 0.34, 0.22], { bores: [[Y0 - 0.935, 0, B0.D / 2], [YS3 - 0.935, 0, B0.D / 2]] }); hs.position.set(-4.1, 0.935, 0.12); root.add(hs); panes.push(hs.userData.panes);
+  for (const [x, y] of [[-4.4, Y0], [-4.4, YS3], [-3.8, YS3], [-3.8, Y0]]) at(MK.rollingBearing({ type: 'ball', d: 0.025, seal: true, name: 'Łożysko 6205-2RS w ściance' }), x, y, 0.12);
   for (const x of [-4.36, -3.84]) { const f = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.012, 0.26), M.alu); f.position.set(x, BED_TOP + 0.006, 0.12); f.castShadow = f.receiveShadow = true; root.add(f); }
 }
 block(-3.55, Y0, 0.12); block(-2.75, Y0, 0.12);
@@ -154,12 +155,15 @@ const RC = MP * (ZS + ZPL) / 2, planets = [];
 {
   const plate = new THREE.Shape(); plate.absarc(0, 0, RC + 0.016, 0, TAU, false);
   for (let k = 0; k < 3; k++) {
-    const pl = MK.gear({ z: ZPL, m: MP, w: 0.018, mat: 'brass', hub: false, bore: 0.004, name: 'Satelita' }); pl.position.set(0, RC * Math.cos(k * TAU / 3), RC * Math.sin(k * TAU / 3));
-    carrier.userData.spin.add(pl); planets.push(pl);
+    const nb = MK.rollingBearing({ type: 'needle', d: 0.008, name: 'Łożysko igiełkowe satelity' });   // sworzeń Ø 8 → igiełki → satelita
+    const pl = MK.gear({ z: ZPL, m: MP, w: 0.018, mat: 'brass', hub: false, bore: nb.userData.D / 2, key: false, name: 'Satelita' }); pl.position.set(0, RC * Math.cos(k * TAU / 3), RC * Math.sin(k * TAU / 3));
+    carrier.userData.spin.add(pl); planets.push(pl); nb.position.copy(pl.position); carrier.userData.spin.add(nb);
     const pin = new THREE.Mesh(MK.cyl(0.004, 0.06, 12), M.steel); pin.position.copy(pl.position); pin.position.x = 0.014; carrier.userData.spin.add(pin);
   }
   for (const x of [0.03, 0.045]) { const d = new THREE.Mesh(new THREE.CylinderGeometry(RC + 0.016, RC + 0.016, 0.006, 48).rotateZ(Math.PI / 2), M.alu); d.position.x = x; d.castShadow = true; carrier.userData.spin.add(d); }
-  const ths = MK.tubeHousing({ r: ring.userData.R + 0.012, len: 0.07 }); ths.position.set(XP + 0.012, Y0, ZP); root.add(ths); panes.push(ths.userData.panes);
+  // obudowa dłuższa od jarzma (sworznie −16 mm, tarcza +48 mm), w deklach łożyska 6205-2RS: wał słonecznego i wał wyjściowy
+  const ths = MK.tubeHousing({ r: ring.userData.R + 0.012, len: 0.11, hole: MK.BEARINGS.ball.D / 2 }); ths.position.set(XP + 0.016, Y0, ZP); root.add(ths); panes.push(ths.userData.panes);
+  for (const sx of [-1, 1]) at(MK.rollingBearing({ type: 'ball', d: 0.025, seal: true, name: 'Łożysko 6205-2RS w deklu' }), XP + 0.016 + sx * 0.055, Y0, ZP);   // dekle: wał słonecznego i wał wyjściowy
   const stand = new THREE.Mesh(new THREE.BoxGeometry(0.05, Y0 - BED_TOP - ring.userData.R, 0.16), M.alu); stand.position.set(XP, BED_TOP + (Y0 - BED_TOP - ring.userData.R) / 2, ZP); stand.castShadow = true; root.add(stand);
 }
 const eCar = element('car', 'Przekładnia planetarna (jarzmo)', 'planetary', carrier, { J: 0.0012,
@@ -521,6 +525,19 @@ const BELT_MUE = BELT_MU / Math.sin(BP.groove / 2 * Math.PI / 180), BELT_E = Mat
 function polygon(z) { const p = TAU / z, s2 = 2 * Math.sin(p / 2); return (t) => { const n = Math.floor(t / p), u = t - n * p; return n * p + p * (Math.sin(u - p / 2) + Math.sin(p / 2)) / s2; }; }
 const MODIFY = (e) => { if (e.type !== 'chain') return null; const G = polygon(18), k = 18 / 27, r0 = e.rel; return (ta, tb) => r0(ta, tb) + k * (G(ta) - ta); };
 const BELT = (e) => (e.type === 'belt' ? { Tmax: BELT_TMAX, kinetic: BP.kinetic, creep: BP.creep } : null);
+// wpusty wałów tylko pod piastami: części połączone z wałem przez wpust lub sprzęgło (koła, tarcze, piasty sprzęgieł)
+{
+  const box3 = new THREE.Box3(), inv = new THREE.Matrix4();
+  for (const e of parts) if (e.type === 'shaft' && e.group.userData.setKeys) {
+    e.group.updateWorldMatrix(true, true); inv.copy(e.group.matrixWorld).invert(); const segs = [];
+    for (const d of drive.edges) {
+      if (d.type !== 'shaft' && d.type !== 'coupling') continue;
+      const o = d.a === e ? d.b : d.b === e ? d.a : null; if (!o || o.type === 'shaft' || !o.group) continue;
+      box3.setFromObject(o.spin || o.group).applyMatrix4(inv); segs.push([box3.min.x, box3.max.x]);
+    }
+    e.group.userData.setKeys(segs);
+  }
+}
 const phys = createPhysics(drive, { motorId: 'motor', brakeId: 'disc', backlash: BACKLASH, stiffness: STIFF, modify: MODIFY, belt: BELT, bearing: MK.PHYS.bearing.drag });
 function physStats() {
   const st = phys.state, f1 = (v) => fmt(v, 1), a = reg.api;
@@ -661,9 +678,10 @@ function liveChecks() {
   }
   // rolki łańcucha: wielokąt rolki w płaszczyźnie koła łańcuchowego, z częściami wypukłymi zębów (SAT)
   chain.updateWorldMatrix(true, false);
-  const R = chain.userData.rollers(chainPhase()), v = new THREE.Vector3(), inv = new THREE.Matrix4();
+  const v = new THREE.Vector3(), inv = new THREE.Matrix4();
   for (const S of SPROCKETS) {
-    const sp = S.e.spin; sp.updateWorldMatrix(true, false); inv.copy(sp.matrixWorld).invert();
+    // faza łańcucha przy tym kole z jego kąta (łańcuch sprężysty: cięgno się wydłuża, rolki leżą w gniazdach każdego koła)
+    const R = chain.userData.rollers(S.e === eC1 ? chainPhase() : (S.e.theta - chainPath.seat.phase2) * S.u.z / TAU), sp = S.e.spin; sp.updateWorldMatrix(true, false); inv.copy(sp.matrixWorld).invert();
     let near = 0, pen = 0;
     for (const [x, y, z] of R) {
       v.set(x, y, z).applyMatrix4(chain.matrixWorld).applyMatrix4(inv);

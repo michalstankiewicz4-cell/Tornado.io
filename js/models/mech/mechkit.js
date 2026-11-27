@@ -89,6 +89,9 @@ function extrude(shape, w, bevel = 0.0006, curve = 24) {
 function uvScale(g, s) { const uv = g.attributes.uv; if (uv) { for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * s, uv.getY(i) * s); } return g; }
 export const cyl = (r, len, seg = 32, r2 = r) => uvScale(new THREE.CylinderGeometry(r2, r, len, seg).rotateZ(-Math.PI / 2), 1);   // wzdłuż +x (r na −x… r2 na +x)
 const lathe = (pts, seg = 48) => uvScale(new THREE.LatheGeometry(pts.map(([r, x]) => new THREE.Vector2(r, x)), seg).rotateZ(-Math.PI / 2), 3);
+// pierścień (rura krótka) wzdłuż osi x / y: otwór ri, zewnętrzny ro, szerokość w — do opraw, oczek, tulei (zamiast brył)
+const ringX = (ri, ro, w, seg = 40) => lathe([[ri, -w / 2], [ro, -w / 2], [ro, w / 2], [ri, w / 2], [ri, -w / 2]], seg);
+const ringY = (ri, ro, h, seg = 32) => uvScale(new THREE.LatheGeometry([[ri, -h / 2], [ro, -h / 2], [ro, h / 2], [ri, h / 2], [ri, -h / 2]].map(([r, y]) => new THREE.Vector2(r, y)), seg), 3);
 const mesh = (g, m, shadow = true) => { const o = new THREE.Mesh(g, m); o.castShadow = shadow; o.receiveShadow = true; return o; };
 const circlePath = (r, n = 40, x = 0, y = 0) => { const p = new THREE.Path(); p.absarc(x, y, r, 0, TAU, true); return p; };
 // otwór z rowkiem na wpust (wpust b ≈ r/2, głębokość r/4)
@@ -239,8 +242,12 @@ export function slider({ len = 0.07, w = 0.04, h = 0.03, travel = 0.24, rack: rk
 // korbowód (oczka na obu końcach, oś wzdłuż lokalnego +x od 0 do l): położenie z punktów sworzni — pose(A, B)
 export function conRod({ l = 0.2, w = 0.014, t = 0.008, name } = {}) {
   const M = materials(), g = new THREE.Group(); g.name = name || 'Korbowód';
-  const body = mesh(box(l, w, t), M.dark); body.position.x = l / 2; g.add(body);
-  for (const x of [0, l]) { const eye = mesh(new THREE.CylinderGeometry(w * 0.85, w * 0.85, t * 1.2, 24).rotateX(Math.PI / 2), M.dark); eye.position.x = x; g.add(eye); }
+  // oczka z tulejami z brązu (łożyska ślizgowe sworzni Ø 12) — sworzeń przechodzi przez tuleję, trzon między oczkami
+  const ro = w * 0.85, rb = 0.006, rt = rb + 0.0015, body = mesh(box(l - 2 * ro + 0.004, w, t), M.dark); body.position.x = l / 2; g.add(body);
+  for (const x of [0, l]) {
+    const eye = mesh(ringY(rt, ro, t * 1.2, 28).rotateX(Math.PI / 2), M.dark); eye.position.x = x; g.add(eye);
+    const bush = mesh(ringY(rb, rt, t * 1.2, 28).rotateX(Math.PI / 2), M.brass); bush.position.x = x; g.add(bush);
+  }
   const v = new THREE.Vector3(), X1 = new THREE.Vector3(1, 0, 0);
   const pose = (A, B) => { g.position.copy(A); v.subVectors(B, A).normalize(); g.quaternion.setFromUnitVectors(X1, v); };
   const mass = STEEL_RHO * l * w * t;
@@ -269,8 +276,9 @@ export function leadScrew({ d = 0.02, lead = 0.02, len = 0.5, starts = 1, kind =
 // wózek pod nią, szyna nieruchoma na wysokości −hc (podłoże); kierunek gwintu przenosi połączenie 'screw'
 export function screwNut({ d = 0.02, lead = 0.02, kind = 'ball', hc = 0.06, travel = 0.12, name } = {}) {
   const M = materials(), g = new THREE.Group(), slide = new THREE.Group(); g.add(slide); g.name = name || `Nakrętka ${kind === 'ball' ? 'kulowa' : 'trapezowa'} z wózkiem`;
-  const ro = d * 0.85, nut = mesh(cyl(ro, 0.05, 32), M.dark); slide.add(nut);
-  const fl = mesh(cyl(ro * 1.7, 0.01, 32), M.dark); fl.position.x = -0.03; slide.add(fl);
+  // nakrętka i kołnierz jako pierścienie: otwór na śrubę (kulki w bieżni — luz 0,5 mm do gwintu)
+  const ro = d * 0.85, ri = d * 0.51 + 0.0005, nut = mesh(ringX(ri, ro, 0.05, 32), M.dark); slide.add(nut);
+  const fl = mesh(ringX(ri, ro * 1.7, 0.01, 32), M.dark); fl.position.x = -0.03; slide.add(fl);
   const car = mesh(box(0.06, hc - ro - 0.022, 0.05), M.alu); car.position.y = -(ro + (hc - ro - 0.022) / 2); slide.add(car);
   const shoe = mesh(box(0.066, 0.014, 0.04), M.steel); shoe.position.y = -hc + 0.019; slide.add(shoe);
   const rail = mesh(box(travel + 0.08, 0.012, 0.02), M.steel); rail.position.y = -hc + 0.006; g.add(rail);
@@ -294,7 +302,7 @@ export const BEARINGS = {
 };
 // łożysko toczne lub ślizgowe: pierścień zewnętrzny nieruchomy (mocowanie), wewnętrzny w spin, elementy toczne
 // w userData.cage (koszyk obraca się z prędkością ω·(1 − Dw·cos α / dm)/2); oś wzdłuż +x
-export function rollingBearing({ type = 'ball', d = 0.025, name } = {}) {
+export function rollingBearing({ type = 'ball', d = 0.025, seal = false, name } = {}) {   // seal: uszczelnienia 2RS (kulki zakryte)
   const M = materials(), b0 = BEARINGS[type] || BEARINGS.ball, k = d / 0.025, D = b0.D * k, B = b0.B * k, Dw = b0.Dw * k;
   const g = newPart(name || `Łożysko ${b0.name}${k === 1 ? '' : ` (Ø ${Math.round(d * 1000)}, ok.)`}`), sp = g.userData.spin, cage = new THREE.Group(); g.add(cage);
   const dm = (d + D) / 2, r1 = d / 2, r2 = D / 2;
@@ -318,6 +326,7 @@ export function rollingBearing({ type = 'ball', d = 0.025, name } = {}) {
       cage.add(el);
     }
     if (type !== 'needle') { const cg = mesh(new THREE.TorusGeometry(dm / 2, t * 0.12, 6, 48).rotateY(Math.PI / 2), M.brass); cg.position.x = B * 0.36; cage.add(cg); }
+    if (seal) for (const sx of [-1, 1]) { const sl = mesh(ringX(dm / 2 - Dw / 2 * 0.86, dm / 2 + Dw / 2 * 0.86, B * 0.06), M.rubber); sl.position.x = sx * B * 0.45; g.add(sl); }
   }
   const vol = Math.PI * (r2 * r2 - r1 * r1) * B * (type === 'plain' ? 1 : 0.62), mass = (type === 'plain' ? BRASS_RHO : STEEL_RHO) * vol, s = k ** 1.8;
   Object.assign(g.userData, { type, d, D, B, dm, Dw, Z: b0.Z, alpha: b0.alpha, cage, mass, J: 0.25 * mass * (r1 * r1 + dm * dm / 4),
@@ -328,10 +337,10 @@ export function rollingBearing({ type = 'ball', d = 0.025, name } = {}) {
 }
 
 /* ---------------- zębatka ---------------- */
-export function gear({ z = 20, m = 0.004, w = 0.04, bore = 0.0125, mat = 'gear', hub = true, holes: lighten = true, alpha = 20, name } = {}) {
+export function gear({ z = 20, m = 0.004, w = 0.04, bore = 0.0125, key = true, mat = 'gear', hub = true, holes: lighten = true, alpha = 20, name } = {}) {   // key: false — gładki otwór (gniazdo łożyska)
   const M = materials(), o = involuteOutline(z, m, { alpha: alpha * Math.PI / 180 }), shape = new THREE.Shape(o.pts);
   bore = Math.min(bore, (o.rf - 0.5 * m) / 1.35);   // otwór z rowkiem wpustu (do 1,28 r) mieści się pod stopą zęba
-  shape.holes.push(boreHole(bore));
+  shape.holes.push(key ? boreHole(bore) : circlePath(bore, 40));
   const hubR = Math.max(bore * 1.9, bore + 0.012), ring = o.rf - 0.006 - 1.2 * m;
   let holes = 0;
   if (lighten && ring - hubR > 0.022) {   // otwory odciążające w tarczy
@@ -542,10 +551,17 @@ export function beltLoop(path, { x = 0, label = 'SPA 1250 Lw', profile = 'SPA', 
 export function shaft({ len = 1, r = 0.0125, mat = 'steel', key: keyway = true, name } = {}) {
   const M = materials(), g = newPart(name || `Wał Ø ${Math.round(r * 2000)} mm`);
   const s = mesh(uvScale(new THREE.CylinderGeometry(r, r, len - 0.004, 32, 1, true).rotateZ(-Math.PI / 2), 1), M[mat]); s.position.x = len / 2; g.userData.spin.add(s);   // bez denek — końce zamykają fazki
-  if (keyway) { const key = mesh(box(len * 0.92, 0.0018, r * 0.5), M.dark); key.position.set(len / 2, r - 0.0006, 0); g.userData.spin.add(key); }   // rowek wpustu — widać obrót
+  // wpusty tylko tam, gdzie siedzą piasty (koła, sprzęgła, tarcze): key — true (cała długość), false albo [[x0, x1], …];
+  // setKeys(odcinki) — przebudowa po złożeniu maszyny. Poza piastą wał jest gładki (łożysko obejmuje wał, nie wpust)
+  const keys = new THREE.Group(); g.userData.spin.add(keys);
+  const setKeys = (segs) => {
+    keys.clear();
+    for (const [x0, x1] of segs) { const a = Math.max(0.004, x0), b = Math.min(len - 0.004, x1); if (b - a < 0.004) continue; const k = mesh(box(b - a, 0.0018, r * 0.5), M.dark); k.position.set((a + b) / 2, r - 0.0006, 0); keys.add(k); }
+  };
+  setKeys(keyway === true ? [[len * 0.04, len * 0.96]] : Array.isArray(keyway) ? keyway : []);   // rowek wpustu — widać obrót
   for (const e of [0, len]) { const ch = mesh(cyl(r, 0.002, 32, r * 0.86), M[mat]); ch.position.x = e ? len - 0.001 : 0.001; if (!e) ch.rotation.y = Math.PI; g.userData.spin.add(ch); }   // fazka 0,14 r na końcach
   const mass = (RHO[mat] || STEEL_RHO) * Math.PI * r * r * len;
-  Object.assign(g.userData, { ports: { a: port('Koniec A', DOMAIN.rot, 'wał'), b: port('Koniec B', DOMAIN.rot, 'wał'), mid: port('Osadzenie (wpust)', DOMAIN.rot, 'wpust') }, phys: { ...PHYS.shaft, G: G_MAT[mat] || G_STEEL, k: (G_MAT[mat] || G_STEEL) * Math.PI * (2 * r) ** 4 / 32 / len }, len, r, mass, J: 0.5 * mass * r * r });
+  Object.assign(g.userData, { setKeys, ports: { a: port('Koniec A', DOMAIN.rot, 'wał'), b: port('Koniec B', DOMAIN.rot, 'wał'), mid: port('Osadzenie (wpust)', DOMAIN.rot, 'wpust') }, phys: { ...PHYS.shaft, G: G_MAT[mat] || G_STEEL, k: (G_MAT[mat] || G_STEEL) * Math.PI * (2 * r) ** 4 / 32 / len }, len, r, mass, J: 0.5 * mass * r * r });
   return g;
 }
 // oprawa łożyska stojąca (UCP) na podstawie: oś na wysokości h nad podstawą
@@ -560,7 +576,12 @@ export function pillowBlock({ h = 0.12, r = 0.0125, name = 'Łożysko w oprawie 
   const hg = new THREE.ExtrudeGeometry(s, { depth: 0.036, bevelEnabled: true, bevelThickness: 0.002, bevelSize: 0.002, bevelSegments: 1, curveSegments: 24 });
   hg.translate(0, 0, -0.018).applyMatrix4(SM); uvScale(hg, 6);
   const hs = mesh(hg, M.paintGrey); top.add(hs);
-  const ring = mesh(cyl(0.026, 0.03, 32), M.steel); ring.position.y = 0.036; top.add(ring);
+  // wkładka łożyskowa UC (w skali 1, oprawa skalowana k): pierścień zewnętrzny w gnieździe, uszczelnienia, pierścień
+  // wewnętrzny poszerzony z otworem na wał (r = 12,5 mm × k) i dwoma wkrętami — wał przechodzi przez otwór, nie przez bryłę
+  for (const [ri, ro, w, mat, x] of [[0.019, 0.026, 0.017, M.steel, 0], [0.0155, 0.019, 0.0012, M.rubber, 0.0079], [0.0155, 0.019, 0.0012, M.rubber, -0.0079], [0.0125, 0.0155, 0.031, M.steel, 0]]) {
+    const rg = mesh(ringX(ri, ro, w), mat); rg.position.set(x, 0.036, 0); top.add(rg);
+  }
+  for (const a of [Math.PI / 2, Math.PI / 2 + 2.1]) { const ss = mesh(new THREE.CylinderGeometry(0.0022, 0.0022, 0.004, 8), M.dark); ss.position.set(0.0115, 0.036 + 0.0165 * Math.sin(a), 0.0165 * Math.cos(a)); ss.lookAt(new THREE.Vector3(0.0115, 0.036, 0)); ss.rotateX(Math.PI / 2); top.add(ss); }
   const nip = mesh(new THREE.CylinderGeometry(0.003, 0.004, 0.012, 8), M.brass); nip.position.y = 0.036 + 0.044; top.add(nip);
   if (base > 0.12) {   // wysoka podpora: słupek z rury kwadratowej 60 × 60, blacha podstawy i blacha pod oprawą
     const post = mesh(box(0.06, base - 0.024, 0.06), M.paintGrey); post.position.y = base / 2; g.add(post);
@@ -626,7 +647,7 @@ export function yoke({ r = 0.026, reach = 0.05, name = 'Widełki przegubu' } = {
   for (const s of [-1, 1]) {
     // ramię węższe od mostka, oczko wyższe od ramienia — bez wspólnych płaszczyzn
     const arm = mesh(box(reach - 0.024, 0.0087, 0.028), M.gear); arm.position.set(-(reach - 0.024) / 2 - 0.006, s * (r + 0.0025), 0); g.add(arm);
-    const eye = mesh(new THREE.CylinderGeometry(0.0145, 0.0145, 0.0126, 24), M.gear); eye.position.set(0, s * (r + 0.0041), 0); g.add(eye);
+    const eye = mesh(ringY(0.0085, 0.0145, 0.0126, 24), M.gear); eye.position.set(0, s * (r + 0.0041), 0); g.add(eye);   // oczko z otworem na kubek łożyska igiełkowego krzyżaka
   }
   return g;
 }
@@ -682,11 +703,14 @@ export function motor({ kW = 1.1, poles = 4, paint = 'paintBlue', name } = {}) {
 
 /* ---------------- obudowa z akrylu ---------------- */
 // prostopadłościan: szyby z akrylu i profile aluminiowe 20 × 20 na krawędziach; size [x, y, z], środek w (0, 0, 0)
-export function housing(size, { frame = 0.02, name = 'Obudowa (akryl, profile 20 × 20)' } = {}) {
+export function housing(size, { frame = 0.02, bores = [], name = 'Obudowa (akryl, profile 20 × 20)' } = {}) {
+  // bores: [[y, z, r]] — otwory w ściankach x (względem środka) na łożyska wałów; wokół otworu — oprawka z aluminium
   const M = materials(), g = new THREE.Group(); g.name = name;
   const [sx, sy, sz] = size, panes = new THREE.Group(); panes.name = 'szyby';
+  const wallX = () => { const sh = new THREE.Shape(); sh.moveTo(-sz / 2, -sy / 2); sh.lineTo(sz / 2, -sy / 2); sh.lineTo(sz / 2, sy / 2); sh.lineTo(-sz / 2, sy / 2); sh.closePath(); for (const [y, z, r] of bores) sh.holes.push(circlePath(r, 40, -z, y)); return new THREE.ShapeGeometry(sh, 24); };
+  for (const sx2 of [-1, 1]) for (const [y, z, r] of bores) { const seat = mesh(ringX(r, r + 0.012, 0.012), M.alu); seat.position.set(sx2 * sx / 2, y, z); g.add(seat); }
   for (const [w, h, p, r] of [[sx, sy, [0, 0, sz / 2], [0, 0, 0]], [sx, sy, [0, 0, -sz / 2], [0, 0, 0]], [sz, sy, [sx / 2, 0, 0], [0, Math.PI / 2, 0]], [sz, sy, [-sx / 2, 0, 0], [0, Math.PI / 2, 0]], [sx, sz, [0, sy / 2, 0], [Math.PI / 2, 0, 0]]]) {
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), M.acrylic); m.position.set(...p); m.rotation.set(...r); m.renderOrder = 5; panes.add(m);
+    const m = new THREE.Mesh(bores.length && r[1] ? wallX() : new THREE.PlaneGeometry(w, h), M.acrylic); m.position.set(...p); m.rotation.set(...r); m.renderOrder = 5; panes.add(m);
   }
   g.add(panes);
   const f = frame;
@@ -697,11 +721,11 @@ export function housing(size, { frame = 0.02, name = 'Obudowa (akryl, profile 20
   return g;
 }
 // cylindryczna obudowa z akrylu (rura) z aluminiowymi pierścieniami, oś wzdłuż x
-export function tubeHousing({ r = 0.1, len = 0.1, name = 'Obudowa (rura z akrylu)' } = {}) {
+export function tubeHousing({ r = 0.1, len = 0.1, hole = 0.02, name = 'Obudowa (rura z akrylu)' } = {}) {   // hole: otwór w deklach (gniazdo łożyska)
   const M = materials(), g = new THREE.Group(); g.name = name;
   const tube = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 48, 1, true).rotateZ(-Math.PI / 2), M.acrylic); tube.renderOrder = 5;
   const panes = new THREE.Group(); panes.add(tube);
-  for (const s of [-1, 1]) { const cap = new THREE.Mesh(new THREE.RingGeometry(0.02, r, 48).rotateY(Math.PI / 2), M.acrylic); cap.position.x = s * len / 2; cap.renderOrder = 5; panes.add(cap); const rg = mesh(new THREE.TorusGeometry(r, 0.005, 8, 48).rotateY(Math.PI / 2), M.alu); rg.position.x = s * len / 2; g.add(rg); }
+  for (const s of [-1, 1]) { const cap = new THREE.Mesh(new THREE.RingGeometry(hole, r, 48).rotateY(Math.PI / 2), M.acrylic); cap.position.x = s * len / 2; cap.renderOrder = 5; panes.add(cap); const rg = mesh(new THREE.TorusGeometry(r, 0.005, 8, 48).rotateY(Math.PI / 2), M.alu); rg.position.x = s * len / 2; g.add(rg); }
   g.add(panes); g.userData.panes = panes;
   return g;
 }
@@ -747,7 +771,7 @@ export function discBrake({ d = 0.2, t = 0.008, vents = 12 } = {}) {
   // zacisk pływający okracza tarczę: dwie obudowy klocków po bokach (luz 1 mm do tarczy) i mostek nad krawędzią (2 mm)
   const gap = 0.001, ht = 0.018, cx = t / 2 + gap + ht / 2;
   for (const sx of [-1, 1]) { const c = mesh(box(ht, 0.05, 0.07), M.paintRed); c.position.set(sx * cx, R - 0.015, 0); g.add(c); }
-  const bridge = mesh(box(2 * (cx + ht / 2), 0.012, 0.07), M.paintRed); bridge.position.set(0, R + 0.002 + 0.006, 0); g.add(bridge);
+  const bridge = mesh(box(2 * (cx + ht / 2) - 0.002, 0.012, 0.068), M.paintRed); bridge.position.set(0, R + 0.002 + 0.006, 0); g.add(bridge);
   const mass = STEEL_RHO * Math.PI * R * R * t * 0.9 + STEEL_RHO * Math.PI * (R * 0.32) ** 2 * 0.03;
   Object.assign(g.userData, { ports: { shaft: port('Piasta (wpust)', DOMAIN.rot, 'wpust') }, d, t, vents, mass, J: 0.5 * mass * R * R * 0.85 });
   return g;

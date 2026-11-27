@@ -1,5 +1,19 @@
 # Zmiany
 
+## 0.27.1 — 2026-11-27
+- Łożyska zamiast brył w uchwytach (laboratorium mechaniki 0.12.1, MechKit):
+  - Oprawa UCP: wkładka łożyskowa z pierścieniami (zewnętrzny, poszerzony wewnętrzny z otworem na wał, uszczelnienia,
+    wkręty) — wcześniej pełny walec, przez który przechodził wał.
+  - Obudowa przekładni dwustopniowej: ścianki z otworami i oprawkami, w nich łożyska 6205-2RS (wcześniej pełne walce).
+  - Przekładnia planetarna: satelity na łożyskach igiełkowych (gładki otwór — `gear({ key: false })`), dekle obudowy
+    z łożyskami 6205-2RS; obudowa wydłużona (sworznie jarzma i tarcza nie trą o łożyska — kontrola zahaczeń).
+  - Korbowód: oczka z tulejami z brązu; nakrętka śruby i kołnierz — pierścienie z otworem; oczka widełek przegubu
+    Cardana — pierścienie z kubkami łożysk igiełkowych w otworze.
+  - Wały: wpust tylko pod piastami (`shaft().setKeys`, laboratorium wylicza odcinki z połączeń) — łożyska obejmują
+    gładki wał. `rollingBearing({ seal })` — uszczelnienia 2RS.
+- Kontrola rolek łańcucha: faza łańcucha przy każdym kole z jego kąta (sprężyste wydłużenie cięgna nie daje
+  fałszywego przenikania). Zacisk hamulca: mostek bez wspólnej płaszczyzny z obudowami klocków.
+
 ## 0.27.0 — 2026-11-27
 - Laboratorium mechaniki 0.12.0 — plan, krok 1: **porty w danych modeli i ruch posuwisty**.
   - Porty z dziedziną i złączem w każdej części MechKit (`userData.ports`, `MechKit.DOMAIN`); `drive.connect` sprawdza
