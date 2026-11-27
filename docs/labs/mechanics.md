@@ -233,21 +233,23 @@ straty (sprawność), magazyn energii (jeśli ma), ograniczenia (zakres ruchu, p
 
 ### 2. Magazynowanie energii
 
-- Sprężyny naciskowe ⬜ (przesuw: sztywność, długość swobodna, zblokowanie zwojów, energia ½kx²).
-- Sprężyny skrętne ⬜ (obrót; także spiralna jak w zegarze — naciąg zapadką).
-- Koła zamachowe ⬜ (dziś tylko bezwładność części; osobny element z J, energią ½Jω², granicą prędkości).
+- Sprężyny naciskowe ✅ (przedmiot: sztywność G·d⁴/(8D³n), zblokowanie zwojów, naprężenie z poprawką Wahla, częstotliwość własna,
+  wyboczenie; podgląd — ściskanie z przebudową zwojów).
+- Sprężyna spiralna w bębnie ✅ (przedmiot i zegar: k = E·b·h³/(12L), zwoje rozwinięte / nawinięte, wypełnienie bębna,
+  naprężenie; naciąg zapadką). Sprężyny skrętne śrubowe ⬜.
+- Koła zamachowe ✅ (przedmiot: J z wieńca, ramion i piasty, energia ½Jω², naprężenie ρv², prędkość dopuszczalna).
 - Akumulatory ⬜ elektryczne (pojemność, napięcie od stanu naładowania, ładowanie / rozładowanie przez obwód);
   hydrauliczne — przy kategorii 4.
 - Zbiorniki ciśnienia ⬜ (płyn: objętość, ciśnienie, zawór bezpieczeństwa).
 
 ### 3. Ruch i sterowanie
 
-- Wahadła ⬜ (grawitacja, okres z długości; wychwyt — impuls i rytm).
+- Wahadła ✅ z wychwytem Grahama (przedmiot i zegar; fizyka kontaktu zębów z paletami — `js/behaviors/mech/escapement.js`).
 - Regulatory ⬜ odśrodkowy (Watta) — mechaniczny; 🟡 elektryczny: falownik + potencjometr; ⬜ regulator PID jako element sygnału.
 - Dźwignie ⬜ (przesuw / obrót z ramionami, przełożenie siły).
 - Zawory ⬜ (płyn: odcinający, zwrotny, dławiący, bezpieczeństwa).
 - Przekaźniki 🟡 stycznik z cewką i stykami (obwód); ⬜ przekaźnik czasowy, przekaźnik sygnału.
-- Mechanizmy zapadkowe ⬜ zapadka i koło zapadkowe (obrót w jedną stronę), wychwyt, zatrzask z wyzwalaczem.
+- Mechanizmy zapadkowe ✅ zapadka i koło zapadkowe (kąt zapadki z geometrii zarysu), ✅ wychwyt; ⬜ zatrzask z wyzwalaczem.
 - Sterowanie elektryczne ✅ wyłącznik, przyciski, grzybek, przełącznik, potencjometr, lampka, krańcówka (model),
   stycznik, falownik z wejściami DI / AI.
 
@@ -283,11 +285,13 @@ straty (sprawność), magazyn energii (jeśli ma), ograniczenia (zakres ruchu, p
 1. ✅ Porty w danych modeli + przesuw w fizyce + listwa zębata, korba, śruba (zamiana obrót ↔ przesuw) — wszystkie trzy
    tryby: przedmioty (grupa „Zamiana ruchu”), maszyna i fizyka (korba na tarczy z podziałką → suwak z listwą → zębnik
    na śrubie kulowej → nakrętka). Łożyska (6 rodzajów) w przedmiotach.
-2. Sprężyny, koło zamachowe, zapadka, wahadło z wychwytem — pierwsza maszyna „sama z siebie” (przykład z zasady).
+2. ✅ Sprężyny, koło zamachowe, zapadka, wahadło z wychwytem — pierwsza maszyna „sama z siebie”: zegar — regulator
+   (tryby Maszyna i Fizyka; w Fizyce wahadło i koło wychwytowe z kontaktu zębów z paletami, napęd ze sprężyny).
 3. Port sygnału, czujniki, przekaźnik czasowy, regulator.
 4. Płyn: rury, pompa, zawory, siłownik, zbiornik, rozdzielacz.
 5. Optyka: promienie, soczewki, lustra, pryzmaty, emitery i odbiorniki.
 6. Warsztat: składanie maszyn z katalogu w laboratorium.
+7. Parowóz (w planach).
 
 
 ## Mocowania (śruby) i luźne części
@@ -326,3 +330,22 @@ Fizyka luźnej części (tryb Fizyka) — moment reakcji z fizyki napędu:
   (albo `T(pl, en)` w kodzie, gdy zdanie składa się z liczb i słów, jak „82 z 82”).
 - Podpisy na modelach ControlKit (tabliczki, wyświetlacze) czytają `window.LabMenu.LANG` same.
 - API (`MechanicsApi`) zwraca nazwy po polsku, niezależnie od języka strony.
+
+## Zegar — regulator (tryby Maszyna i Fizyka)
+
+- Na posadzce za końcem łoża (kamery „Zegar” i „Wychwyt zegara”). Mechanizm między płytami z mosiądzu: bęben ze
+  sprężyną (96 zębów) → koło centralne 80 / zębnik 12 (1 obr/h, minuty) → koło trzecie 75 / zębnik 10 → koło
+  wychwytowe 30 zębów / zębnik 10 (1 obr/min, sekundnik); przekładnia wskazań 12 : 1 (tarcza godzinowa). Wahadło
+  sekundowe (okres 2 s, długość dobrana jako wahadło fizyczne), tarcza szkieletowa, okna w płycie nad paletami.
+- Maszyna: kinematyka (wahadło sinusoidalnie, koło przeskakuje pół podziałki na uderzenie). Fizyka: `createEscapement`
+  — dwa ciała (wahadło z kotwicą, koło z mechanizmem zredukowanym na jego oś), kontakt wierzchołków zębów z paletami
+  (łuk spoczynkowy, pochylnia impulsowa), uderzenie niesprężyste, tarcie; napęd — moment sprężyny przez przekładnię
+  (480 : 1, sprawność 0,82). Amplituda ustala się sama (ok. 2°); przy słabej sprężynie zegar staje. Nakręcanie —
+  klik w kwadrat wałka bębna (ćwierć obrotu, zapadka).
+- Pliki: modele `js/models/mech/clock/` (ClockKit: `shared.js` materiały i pomocniki, `wheels.js`, `escapement.js`,
+  `springs.js`, `ratchet.js`, `flywheel.js`, `dial.js`, `regulator.js`, `index.js`), fizyka wychwytu
+  `js/behaviors/mech/escapement.js`, złożenie w laboratorium `js/labs/mechanics/clock.js`.
+- Katalog przedmiotów podzielony na pliki: `js/labs/mechanics/items/` (`transmission.js`, `energy.js`,
+  `timekeeping.js`, `controls.js`, `power.js`, `optics.js`, pomocniki `util.js`, kolizje przegubu `cardan.js`);
+  `items.js` — kategorie i lista.
+- API: `MechanicsApi.clock()`, `runClock(s)`, `windClock(obroty)`.

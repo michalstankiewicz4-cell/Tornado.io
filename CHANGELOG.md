@@ -1,5 +1,18 @@
 # Zmiany
 
+## 0.30.0 — 2026-11-27
+- Laboratorium mechaniki 0.16.0 — **etap 2: sprężyny, koło zamachowe, zapadka, wahadło z wychwytem i zegar**.
+  Przedmioty: sprężyna naciskowa (ściskana na podglądzie, sztywność, zblokowanie, naprężenie z poprawką Wahla,
+  częstotliwość własna, ostrzeżenia), sprężyna spiralna w bębnie (zwoje, wypełnienie bębna, moment, naprężenie),
+  koło zamachowe (J, energia, prędkość dopuszczalna), zapadka z kołem zapadkowym (kąt zapadki z geometrii zarysu)
+  i wychwyt Grahama z wahadłem liczony fizycznie na żywo (amplituda, okres zmierzony, chód, faza: spoczynek / impuls /
+  spadek). Tryby Maszyna i Fizyka: **zegar — regulator** obok łoża (sprężyna, przekładnia 480 : 1, wychwyt Grahama
+  z paletami z rubinu, wahadło sekundowe, tarcza szkieletowa z sekundnikiem i tarczą godzinową, wskazówki oksydowane);
+  w Fizyce chodzi sam z kontaktu zębów z paletami, sprężyna się rozwija, nakręcanie kliknięciem kwadratu wałka.
+- Nowe: ClockKit `js/models/mech/clock/` (podzielony na pliki), fizyka wychwytu `js/behaviors/mech/escapement.js`,
+  zegar w laboratorium `js/labs/mechanics/clock.js`; katalog przedmiotów podzielony na pliki `js/labs/mechanics/items/`.
+- Plan: etap 2 zrobiony; dopisany parowóz.
+
 ## 0.29.0 — 2026-11-27
 - Laboratorium mechaniki 0.15.0 — **lustro** (kategoria Optyka i sygnały, tryb Przedmioty): płaskie, wklęsłe albo
   wypukłe (sferyczne), Ø 1/2" / 1" / 2", promień krzywizny, powłoka (aluminium, srebro, złoto, dielektryczna — odbicie

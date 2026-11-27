@@ -13,6 +13,7 @@ import { createPhysics } from '../../behaviors/mech/physics.js';
 import { meshZone, planeMap, contactPair, meshClash } from '../../behaviors/mech/contact.js';
 import { createCircuit } from '../../behaviors/mech/circuit.js';
 import * as CK from '../../models/mech/controls.js';
+import { createClock } from './clock.js';
 import { ITEMS, CATS, cardanMax } from './items.js';
 import { loadState, valid } from '../shared/saved.js';
 import { T, tr, LOC, EN, translateDom } from './lang.js';
@@ -52,6 +53,7 @@ for (const [x, z] of [[-5, 1.6], [-1.5, 1.8], [2, 1.6]]) {   // lampy warsztatow
 /* ---------------- napęd i elementy ---------------- */
 const drive = createDrive();
 const parts = [];   // { el, group } — do wybierania kliknięciem
+let CLOCK = { parts: [], devices: [], step: () => {}, rows: () => {} };   // zegar — regulator (osobny mechanizm obok łoża; sekcja „zegar” niżej)
 const panes = [];   // szyby obudów (przezroczystość)
 function element(id, name, type, group, { J = group.userData.J || 0, props = [], ports, frame, onAngle } = {}) {
   const u = group.userData, dof = u.slide ? 'lin' : 'rot';   // część przesuwna (listwa, suwak, nakrętka): współrzędna w metrach, J = masa
@@ -288,7 +290,7 @@ function loop(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (S.mode === 'machine') { drive.step(dt, { rpm: S.rpm, brake: S.brake }); applyAngles(); }
   else if (S.mode === 'physics') { ELEC.tick(dt); reg.api.tick(dt); const on = reg.api.powered && (reg.api.run || Math.abs(reg.api.f) > 0.05); phys.step(dt, { w0: reg.api.f * 4 * Math.PI / 4, brake: FX.brakeLoose() ? 0 : S.brake, on }); ELEC.power(phys.state.Tm, phys.state.omega, on); applyAngles(); }
-  if (S.mode !== 'items') { fixtureStep(dt); bearingStep(dt); }   // silnik 4-biegunowy: ω_syn = 4π f / p
+  if (S.mode !== 'items') { fixtureStep(dt); bearingStep(dt); CLOCK.step(dt); }   // silnik 4-biegunowy: ω_syn = 4π f / p
   else if (item) { itemTheta += S.spin * TAU / 60 * dt; item.update(itemTheta); if (item.tick) item.tick(dt); }
   moveKeys(dt);
   if ((statT += dt) > 0.2) { statT = 0; stats(); }
@@ -312,8 +314,9 @@ function stats() {
   const rows = [['Silnik', `${fmt(rpmOf(st.omega))} obr/min`], ['Moment silnika', `${fmt(st.Tm, 1)} N·m`], ['Moc silnika', `${fmt(st.P)} W`], ['Moc na hamulcu', `${fmt(st.Pout || 0)} W`],
     ['Sprawność całkowita', `${fmt(eDisc.eta * 100, 1)} %`], ['Przełożenie całkowite', `${fmt(Math.abs(1 / (eDisc.r || 1e-9)), 2)} : 1`], ['Bezwładność zredukowana', `${fmt(st.Jeff * 1e4, 1)} kg·cm²`], ['Wyjście', `${fmt(rpmOf(eDisc.omega), 1)} obr/min, ${fmt(eDisc.T, 1)} N·m`]];
   if (typeof boltRows === 'function' && FIXT.length) boltRows(rows);
+  CLOCK.rows(rows);
   $('bDrive').replaceChildren(...rows.flatMap(([a, b]) => [el('span', { textContent: a }), el('b', { textContent: b })]));
-  $('bList').replaceChildren(...parts.flatMap((e) => { const s = el('span', { textContent: e.name }); s.onclick = () => select(e); return [s, el('b', { textContent: `${speedTxt(e)} · ${loadTxt(e.T, e)}` })]; }));
+  $('bList').replaceChildren(...[...parts, ...CLOCK.parts].flatMap((e) => { const s = el('span', { textContent: e.name }); s.onclick = () => select(e); return [s, el('b', { textContent: `${speedTxt(e)} · ${loadTxt(e.T, e)}` })]; }));
   if (sel) showSel();
   perfRows([['Elementy', String(parts.length)], ['Połączenia', String(drive.edges.length)], ['Ogniwa łańcucha', String(CH.N)]]);
 }
@@ -338,14 +341,14 @@ function pick(e) {
   const r = renderer.domElement.getBoundingClientRect(); ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera);
   const bh = ray.intersectObject(boltG, true)[0];   // śruba mocująca — odkręć / dokręć
   if (bh) { let o = bh.object; while (o && !o.userData.bolt) o = o.parent; if (o) { toggleBolt(o); return; } }
-  const hits = ray.intersectObjects(parts.map((p) => p.group), true);
+  const hits = ray.intersectObjects([...parts, ...CLOCK.parts].map((p) => p.group), true);
   for (const h of hits) { let o = h.object; while (o && !o.userData.el) o = o.parent; if (o) { select(o.userData.el); return; } }
   sel = null; selBox.visible = false; $('selName').textContent = tr('Kliknij element maszyny'); $('selProps').replaceChildren(); $('selPorts').replaceChildren();
 }
 
 /* ---------------- kamera ---------------- */
 const orbit = { target: new THREE.Vector3(-1.4, 0.9, 0.2), dist: 9, yaw: 0.25, pitch: 0.38 };
-const CAMS = { 'Cała maszyna': { t: [-1.4, 0.9, 0.2], dist: 9.5, yaw: 0.25, pitch: 0.4 }, 'Zębatki': { t: [-5.3, 0.9, 0.06], dist: 1.5, yaw: 0.7, pitch: 0.35 }, 'Przekładnia': { t: [-4.1, 0.95, 0.12], dist: 1.3, yaw: 0.35, pitch: 0.3 },
+const CAMS = { 'Zegar': { t: [4.6, 1.3, 0.25], dist: 1.5, yaw: 0.2, pitch: 0.12 }, 'Wychwyt zegara': { t: [4.6, 1.537, 0.225], dist: 0.22, yaw: 0.25, pitch: 0.15 }, 'Cała maszyna': { t: [-1.4, 0.9, 0.2], dist: 9.5, yaw: 0.25, pitch: 0.4 }, 'Zębatki': { t: [-5.3, 0.9, 0.06], dist: 1.5, yaw: 0.7, pitch: 0.35 }, 'Przekładnia': { t: [-4.1, 0.95, 0.12], dist: 1.3, yaw: 0.35, pitch: 0.3 },
   'Łańcuch': { t: [-2.6, 1.07, 0.12], dist: 1.2, yaw: -1.15, pitch: 0.15 }, 'Pas': { t: [-0.95, 1.07, 0.12], dist: 1.2, yaw: -1.15, pitch: 0.15 }, 'Sprzęgła i przeguby': { t: [0.9, 0.9, 0.25], dist: 1.9, yaw: 0.2, pitch: 0.45 }, 'Planetarna': { t: [2.36, 0.87, 0.37], dist: 0.55, yaw: -1.0, pitch: 0.25 }, 'Hamulec': { t: [3.1, 0.9, 0.37], dist: 1.1, yaw: 0.8, pitch: 0.3 } };
 const setCam = (v) => { Object.assign(orbit, { yaw: v.yaw, pitch: v.pitch, dist: v.dist }); orbit.target.set(...v.t); };
 function cams() {
@@ -357,7 +360,7 @@ const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
 // sterowanie na modelu (tryb Przedmioty): część z userData.control — klik / przytrzymanie / przeciąganie zamiast obrotu kamery
 let ctl = null;
 // obiekt z obsługą w bieżącym trybie: przedmiot ze sterowaniem (Przedmioty) albo regulator przy silniku (Fizyka)
-const ctlTarget = () => (S.mode === 'items' ? (item && item.controls ? [{ group: item.group, api: item.api }] : null) : S.mode === 'physics' ? ELEC.devices : null);
+const ctlTarget = () => (S.mode === 'items' ? (item && item.controls ? [{ group: item.group, api: item.api }] : null) : S.mode === 'physics' ? [...ELEC.devices, ...CLOCK.devices] : null);
 function controlAt(e) {
   const tgs = ctlTarget(); if (!tgs) return null;
   const r = renderer.domElement.getBoundingClientRect(); ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera);
@@ -616,8 +619,9 @@ function physStats() {
   LIVE.planets.forEach((p, k) => rows.push([`Satelita ${k + 1} — zęby`, ['sun', 'ring'].map((key) => `${key === 'sun' ? 'ze słonecznym' : 'z koroną'} ${p[key].pen ? 'PRZENIKANIE' : `luz −${mmS(p[key].lo)} / +${mmS(p[key].hi)} mm`}`).join(' · ')]));
   for (const r of LIVE.rollers) rows.push([`Rolki łańcucha — ${r.name}`, `${r.near} rolek na kole · ${r.pen ? `PRZENIKANIE ${r.pen} rolek` : 'bez przenikania (zarys ISO 606: gniazdo, bok r_e, głowa)'}`]);
   rows.push(['Zahaczenia o obudowy i łożyska', CLASHES.length ? CLASHES.map((c) => `${c.part} × ${c.fixed} ${mmS(c.depth)} mm`).join('; ') : `brak (sprawdzone ${parts.filter((e) => e.spin).length} części obrotowych, dla każdego kąta)`]);
+  CLOCK.rows(rows);
   $('bDrive').replaceChildren(...rows.flatMap(([x, y]) => [el('span', { textContent: x }), el('b', { textContent: y })]));
-  $('bList').replaceChildren(...parts.flatMap((e) => { const sp = el('span', { textContent: e.name }); sp.onclick = () => select(e); return [sp, el('b', { textContent: `${speedTxt(e)} · ${loadTxt(e.T, e)}` })]; }));
+  $('bList').replaceChildren(...[...parts, ...CLOCK.parts].flatMap((e) => { const sp = el('span', { textContent: e.name }); sp.onclick = () => select(e); return [sp, el('b', { textContent: `${speedTxt(e)} · ${loadTxt(e.T, e)}` })]; }));
   if (sel) showSel();
   perfRows([['Stopnie swobody', String(phys.nodes.length)], ['Wiązania', String(phys.edges.length)], ['Zazębienia z luzem', String(phys.edges.filter((c) => c.dead).length)], ['Bryły zderzeń zębów', `${[...ZONES.values()].reduce((a, v) => a + (v.ua ? v.ua.z + v.ub.z : ZB.z + RK.n), 0)} wielokątów wypukłych (${ZONES.size} zazębienia)`]]);
 }
@@ -1102,7 +1106,7 @@ function itemList() {
 }
 function itemSettings() {
   const def = ITEMS.find((i) => i.id === S.item) || ITEMS[0], p = itemParams(def), box0 = $('itemSet');
-  const fmtV = (q, v) => (q.unit === 'mm' ? `${Math.round(v * 1000)} mm` : q.unit === 'mm×2' ? `${Math.round(v * 1000)} mm` : q.unit === '°' ? `${v}°` : q.unit ? `${(EN ? String(v) : String(v).replace('.', ','))} ${q.unit}` : String(v));
+  const fmtV = (q, v) => (q.unit === 'mm.1' ? `${fmt(v * 1000, 1)} mm` : q.unit === 'mm.2' ? `${fmt(v * 1000, 2)} mm` : q.unit === 'mm' ? `${Math.round(v * 1000)} mm` : q.unit === 'mm×2' ? `${Math.round(v * 1000)} mm` : q.unit === '°' ? `${v}°` : q.unit ? `${(EN ? String(v) : String(v).replace('.', ','))} ${q.unit}` : String(v));
   const rows = def.params.map((q) => {
     const set = (v) => { (S.items[def.id] ||= {})[q.key] = v; save(); buildItem(); };
     if (q.type === 'select') {
@@ -1166,9 +1170,15 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyH') document.querySelectorAll('[data-window]').forEach((p) => p.classList.toggle('hidden-panel'));
 });
 
+/* ---------------- zegar — regulator (js/labs/mechanics/clock.js) ---------------- */
+CLOCK = createClock({ root, S, fmt });
+
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), RUN_MAX = 120;
 // MechanicsApi.mode('items' | 'machine'), item(id, ustawienia), items(), rpm(v), brake(Nm), alpha(0–1), state(), elements(), select(id), view(…), run(sekundy)
 window.MechanicsApi = {
+  clock() { const c = CLOCK.state, e = CLOCK.esc.state; return { time: CLOCK.hms(), amp: +(c.amp * 180 / Math.PI).toFixed(3), period: +(+c.period).toFixed(4), wind: +c.wind.toFixed(3), contact: e.contact, face: e.face, escRev: +(-c.te / TAU).toFixed(3) }; },
+  runClock(sec = 10) { const n = Math.round(clamp(sec, 0, 600) * 60); for (let i = 0; i < n; i++) CLOCK.step(1 / 60); return this.clock(); },
+  windClock(n = 1) { for (let i = 0; i < n * 4; i++) CLOCK.devices[0].api.press('wind'); return CLOCK.state.wind; },
   mode(m) { setMode(m); return S.mode; },
   // regulator(nazwa) — obsługa regulatora przy silniku w trybie Fizyka: 'run' | 'stop' | 'dir' | liczba (przeciągnięcie pokrętła, px)
   // circuit(nazwa) — obsługa instalacji w trybie Fizyka: circuit('dir', 'I' | '0' | 'II') — przełącznik S3, 'power' (X0), 'main' (Q1), 'start' / 'stop' (chwilowe), 'estop' (zatrzask / odblokowanie), 'test' (K1 ręcznie); circuit('pot', 0–1)
@@ -1199,7 +1209,7 @@ window.MechanicsApi = {
   alpha(a) { if (Number.isFinite(a)) { S.alpha = clamp(a, 0, 1); $('alpha').value = S.alpha; $('alphaV').textContent = `${Math.round(S.alpha * 100)} %`; applyAlpha(); save(); } return S.alpha; },
   state: () => ({ ...drive.state, ok: solved.ok }),
   elements: () => parts.map((e) => ({ id: e.id, name: e.name, dof: e.dof, rpm: e.dof === 'lin' ? undefined : +rpmOf(e.omega).toFixed(2), v: e.dof === 'lin' ? +e.omega.toFixed(5) : undefined, T: +e.T.toFixed(3), eta: +e.eta.toFixed(4), theta: +e.theta.toFixed(4) })),
-  select(id) { const e = parts.find((p) => p.id === id); if (e) select(e); return !!e; },
+  select(id) { const e = [...parts, ...CLOCK.parts].find((p) => p.id === id); if (e) select(e); return !!e; },
   view(t = [-1.4, 0.9, 0.2], dist = 9, yaw = 0.25, pitch = 0.38) { orbit.target.set(...t); Object.assign(orbit, { dist, yaw, pitch }); },
   // run: najwyżej RUN_MAX sekund na wywołanie (Infinity / NaN nie zawieszą strony)
   run(sec = 1) { const n = Math.round(clamp(Number.isFinite(sec) ? sec : 0, 0, RUN_MAX) * 60); for (let i = 0; i < n; i++) drive.step(1 / 60, { rpm: S.rpm, brake: S.brake }); applyAngles(); stats(); return this.state(); },
