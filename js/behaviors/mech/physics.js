@@ -45,7 +45,10 @@ export function createPhysics(drive, { motorId, brakeId, backlash = () => 0, sti
     const sp = stiffness(e); if (!sp || !(sp.k > 0)) return { soft: false, k: Infinity, name: '' };
     const ia = idx.get(e.a), ib = idx.get(e.b), eps = 1e-5, ga = (e.rel(e.a.theta + eps, e.b.theta) - e.rel(e.a.theta - eps, e.b.theta)) / (2 * eps);
     const Jr = 1 / (w[ia] * ga * ga + w[ib]), c = 2 * (sp.zeta ?? 0.03) * Math.sqrt(sp.k * Jr);
-    return { soft: sp.k < SOFT, kc: c, k: sp.k, zeta: sp.zeta ?? 0.03, name: sp.name || '' };
+    // miękka (jawna sprężyna) tylko, gdy krok ją rozwiązuje stabilnie: ω·h < 0,5 (ω = √(k / J_zred)); sprężyna szybsza niż
+    // krok (np. lekki zębnik na listwie) — jak sztywna, ze strefą luzu. Próg dla współrzędnej liniowej (N/m) — SOFT·10.
+    const h = 1 / (60 * substeps), stable = Math.sqrt(sp.k / Jr) * h < 0.5, lim = e.b.dof === 'lin' ? SOFT * 10 : SOFT;
+    return { soft: sp.k < lim && stable, kc: c, k: sp.k, zeta: sp.zeta ?? 0.03, name: sp.name || '' };
   }
   const RIGID = E.filter((c) => !c.soft), SOFTS = E.filter((c) => c.soft);
   const st = { omega: 0, Tm: 0, Tb: 0, P: 0, t: 0 };

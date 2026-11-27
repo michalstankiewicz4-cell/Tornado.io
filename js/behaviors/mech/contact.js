@@ -15,9 +15,9 @@
 const TAU = Math.PI * 2;
 
 // macierz płaszczyzny: punkt (u, v) koła b (lokalne y, z części wirującej przy θ = 0) → (y, z) w układzie koła a
-export function planeMap(spinA, spinB) {
-  const base = (s) => { const r = s.rotation.x; s.rotation.x = 0; s.updateWorldMatrix(true, false); const m = s.matrixWorld.clone(); s.rotation.x = r; s.updateWorldMatrix(true, false); return m; };
-  const M = base(spinA).invert().multiply(base(spinB)), e = M.elements;   // kolumnami: e[4..6] — oś y koła b, e[8..10] — oś z, e[12..14] — początek
+export function planeMap(spinA, spinB, { slideB = null } = {}) {   // slideB: oś przesuwu części b ('x' | 'y' | 'z') — zero przesuwu zamiast zera kąta
+  const base = (s, ax) => { const r = ax ? s.position[ax] : s.rotation.x; if (ax) s.position[ax] = 0; else s.rotation.x = 0; s.updateWorldMatrix(true, false); const m = s.matrixWorld.clone(); if (ax) s.position[ax] = r; else s.rotation.x = r; s.updateWorldMatrix(true, false); return m; };
+  const M = base(spinA).invert().multiply(base(spinB, slideB)), e = M.elements;   // kolumnami: e[4..6] — oś y koła b, e[8..10] — oś z, e[12..14] — początek
   return { a00: e[5], a01: e[9], a10: e[6], a11: e[10], tx: e[13], ty: e[14], parallel: Math.abs(Math.abs(e[0]) - 1) < 1e-6, dx: e[12] };
 }
 
@@ -46,12 +46,12 @@ function teeth(h, z) {
     return { parts, buf: parts.map((q) => new Float64Array(q.length)), cx, cy, r, ro, wx: 0, wy: 0, placed: false };
   });
 }
-export function contactPair({ hullsA, hullsB, za, zb, map }) {
+export function contactPair({ hullsA, hullsB, za, zb, map, slideB = false, pitchB: pB }) {   // slideB: część b przesuwa się wzdłuż swojego u (listwa), tb w metrach
   const { a00, a01, a10, a11, tx, ty } = map;
   const TA = teeth(hullsA, za), TB = teeth(hullsB, zb), roB = Math.max(...TB.map((t) => t.ro)), rtA = Math.max(...TA.map((t) => t.r));
   const pickA = [];
   function hit(ta, tb) {
-    const ca = Math.cos(ta), sa = Math.sin(ta), cb = Math.cos(tb), sb = Math.sin(tb);
+    const ca = Math.cos(ta), sa = Math.sin(ta), cb = slideB ? 1 : Math.cos(tb), sb = slideB ? 0 : Math.sin(tb), db = slideB ? tb : 0;
     pickA.length = 0;
     for (const t of TA) {
       t.wx = t.cx * ca - t.cy * sa; t.wy = t.cx * sa + t.cy * ca;
@@ -61,16 +61,16 @@ export function contactPair({ hullsA, hullsB, za, zb, map }) {
     }
     if (!pickA.length) return false;
     for (const t of TB) {
-      const u = t.cx * cb - t.cy * sb, v = t.cx * sb + t.cy * cb; t.wx = a00 * u + a01 * v + tx; t.wy = a10 * u + a11 * v + ty; t.placed = false;
+      const u = t.cx * cb - t.cy * sb + db, v = t.cx * sb + t.cy * cb; t.wx = a00 * u + a01 * v + tx; t.wy = a10 * u + a11 * v + ty; t.placed = false;
       for (const s of pickA) {
         if (Math.hypot(s.wx - t.wx, s.wy - t.wy) > s.r + t.r) continue;
-        if (!t.placed) { t.parts.forEach((q, n) => { const d = t.buf[n]; for (let k = 0; k < q.length; k += 2) { const x = q[k] * cb - q[k + 1] * sb, y = q[k] * sb + q[k + 1] * cb; d[k] = a00 * x + a01 * y + tx; d[k + 1] = a10 * x + a11 * y + ty; } }); t.placed = true; }
+        if (!t.placed) { t.parts.forEach((q, n) => { const d = t.buf[n]; for (let k = 0; k < q.length; k += 2) { const x = q[k] * cb - q[k + 1] * sb + db, y = q[k] * sb + q[k + 1] * cb; d[k] = a00 * x + a01 * y + tx; d[k + 1] = a10 * x + a11 * y + ty; } }); t.placed = true; }
         for (const P of s.buf) for (const Q of t.buf) if (overlap(P, P.length, Q, Q.length)) return true;
       }
     }
     return false;
   }
-  const pitchB = TAU / zb;
+  const pitchB = pB || TAU / zb;
   function gap(ta, tb0, s) {   // krok po kroku, potem połowienie przedziału do ~10⁻⁸ rad
     const step = pitchB / 64; let a = 0, b = 0;
     for (let d = step; d <= pitchB; d += step) { if (hit(ta, tb0 + s * d)) { b = d; break; } a = d; }
@@ -81,8 +81,8 @@ export function contactPair({ hullsA, hullsB, za, zb, map }) {
   return { hit, gap, parts: TA.reduce((n, t) => n + t.parts.length, 0) + TB.reduce((n, t) => n + t.parts.length, 0), rtA };
 }
 
-export function meshZone({ hullsA, hullsB, za, zb, map, rel, samples = 48 }) {
-  const pair = contactPair({ hullsA, hullsB, za, zb, map }), { hit, gap } = pair;
+export function meshZone({ hullsA, hullsB, za, zb, map, rel, samples = 48, slideB = false, pitchB }) {
+  const pair = contactPair({ hullsA, hullsB, za, zb, map, slideB, pitchB }), { hit, gap } = pair;
   const { tx, ty } = map;
   // strefa swobody z brył: od położenia nominalnego w przód / w tył do dotyku zębów
   const period = TAU / za, lo = new Float64Array(samples), hi = new Float64Array(samples);

@@ -1,5 +1,22 @@
 # Zmiany
 
+## 0.27.0 — 2026-11-27
+- Laboratorium mechaniki 0.12.0 — plan, krok 1: **porty w danych modeli i ruch posuwisty**.
+  - Porty z dziedziną i złączem w każdej części MechKit (`userData.ports`, `MechKit.DOMAIN`); `drive.connect` sprawdza
+    złącza (`COMPAT`, zamiana ruchu `CONVERT`).
+  - Napęd i fizyka: stopień swobody przesuwu (`dof: 'lin'`, współrzędna w metrach, J = masa), połączenia `rack`
+    (koło ↔ listwa, faza z geometrii), `screw` (śruba ↔ nakrętka, gwint prawy / lewy), `crank` (korba → suwak, oba
+    pierwiastki, ciągłość). Sprężyna szybsza niż krok liczona jak sztywna (stabilność).
+  - Nowe części: listwa zębata (bryły zębów trapezowych — luz z brył jak w kołach), suwak w prowadnicy (z listwą),
+    korbowód, śruba pociągowa (kulowa / trapezowa, czopy łożyskowe), nakrętka z wózkiem.
+  - Maszyna i Fizyka: korba na tarczy z podziałką → korbowód → suwak z listwą → zębnik na śrubie kulowej Ø 20 × 20 →
+    nakrętka (±13 mm). Okno Opis: położenia, prędkości, siły w korbowodzie i na nakrętce, luz listwy z brył.
+  - Przedmioty: kategorie planu (1–5, puste — „w planie”), grupa „Zamiana ruchu” (listwa z zębnikiem, mechanizm
+    korbowy, śruba pociągowa — sprawność, samohamowność), grupa „Łożyska” (kulkowe, walcowe, stożkowe, wzdłużne,
+    igiełkowe, tuleja — nośność, trwałość L10, moment tarcia, prędkość graniczna, koszyk).
+- Poprawka MechKit: oprawa łożyska (UCP) o innej średnicy niż 25 mm miała otwór przesunięty względem osi wału
+  (kształt liczony z promieniem już przeskalowanym) — wykryte kontrolą zahaczeń.
+
 ## 0.26.2 — 2026-11-26
 - Dane fizyczne i elektryczne przypisane do części (przygotowanie do przeniesienia do GameLaboratory):
   - MechKit: `userData.phys` (tabela `PHYS`: sztywność, tłumienie, sprawność, luz zęba, łańcuch, pas z napięciem

@@ -196,7 +196,7 @@ Rodzaje portów (dziedziny) i co przenoszą:
 | Port | Wielkości (wysiłek · przepływ) | Teraz |
 |---|---|---|
 | obrót | moment · prędkość kątowa | ✅ `drive.js` (porty `a`, `b`, `bore`, `mesh`, `chain`, `belt`), `physics.js` |
-| przesuw | siła · prędkość liniowa | ⬜ |
+| przesuw | siła · prędkość liniowa | ✅ `el.dof = 'lin'` (współrzędna w m, J = masa) — listwa, suwak, nakrętka |
 | prąd | napięcie · natężenie | ✅ zaciski w `circuit.js` |
 | sygnał | wartość logiczna / analogowa (0–10 V, 24 V) | 🟡 wejścia falownika DI / AI; brak ogólnego portu |
 | płyn | ciśnienie · przepływ objętościowy | ⬜ |
@@ -207,9 +207,11 @@ straty (sprawność), magazyn energii (jeśli ma), ograniczenia (zakres ruchu, p
 
 ### Do zrobienia w silniku (przed nowymi kategoriami)
 
-1. ⬜ Wspólny opis portów w danych modelu (`userData.ports`: nazwa, rodzaj, położenie, oś) — dziś porty obrotu są
-   w laboratorium (`drive.add`), zaciski elektryczne — w schemacie laboratorium.
-2. ⬜ Fizyka wielu dziedzin: stopień swobody przesuwu obok obrotu (wiązania przesuw ↔ obrót), ograniczenia
+1. ✅ Wspólny opis portów w danych modelu (`userData.ports`: nazwa, dziedzina `MechKit.DOMAIN`, złącze) — części
+   MechKit; `drive.connect` sprawdza złącza (`COMPAT`, zamiana ruchu `CONVERT`) i ostrzega w konsoli. 🟡 zaciski
+   elektryczne — jeszcze w schemacie laboratorium.
+2. 🟡 Fizyka wielu dziedzin: ✅ stopień swobody przesuwu obok obrotu (wiązania przesuw ↔ obrót: listwa, śruba, korba);
+   ⬜ ograniczenia
    jednostronne (zapadka, krzywka, zderzak), progi i wyzwalanie (zatrzask), grawitacja dla wahadła.
 3. ⬜ Ogólny sygnał (port sygnału + elementy logiczne), łączący czujniki, przekaźniki i wykonawcze.
 4. ⬜ Laboratorium jako warsztat: wstawianie przedmiotów z katalogu, łączenie portów, ustawienia w miejscu —
@@ -217,13 +219,16 @@ straty (sprawność), magazyn energii (jeśli ma), ograniczenia (zakres ruchu, p
 
 ### 1. Transmisja ruchu
 
-- Zębatki ✅ walcowe; ⬜ stożkowe, ślimak i ślimacznica, listwa zębata (obrót ↔ przesuw), zębatki o zębach skośnych.
+- Zębatki ✅ walcowe, ✅ listwa zębata z zębnikiem (obrót ↔ przesuw, bryły zębów listwy); ⬜ stożkowe, ślimak i ślimacznica, o zębach skośnych.
 - Przekładnie ✅ para walcowa, planetarna; ⬜ ślimakowa, stożkowa, cierna, wielostopniowa skrzynia z biegami.
 - Łańcuchy ✅ 08A z kołami (ISO 606, efekt wielokąta); ⬜ inne podziałki, napinacz.
 - Pasy napędowe ✅ klinowy SPA (poślizg, pełzanie); ⬜ zębaty, płaski, napinacz.
-- Wały ✅ z łożyskami w oprawach, sztywność; ⬜ wał wielowypustowy (przesuw osiowy), łożyska skośne / wzdłużne.
+- Wały ✅ z łożyskami w oprawach, sztywność; ⬜ wał wielowypustowy (przesuw osiowy).
+- Łożyska ✅ kulkowe 6205, walcowe NU, stożkowe 30205, wzdłużne 51105, igiełkowe NK, tuleja ślizgowa (dane katalogowe,
+  trwałość L10, moment tarcia, koszyk); ⬜ łożyska w maszynie z rodzajem i obciążeniem z fizyki.
 - Sprzęgła ✅ kłowe, kołnierzowe, przegub Cardana; ⬜ cierne (włączane), jednokierunkowe, przeciążeniowe, elektromagnetyczne.
-- Zamiana ruchu ⬜ korba i korbowód, mimośród, krzywka z popychaczem, śruba pociągowa.
+- Zamiana ruchu ✅ korba i korbowód z suwakiem, ✅ śruba pociągowa (kulowa / trapezowa, samohamowność) z nakrętką na wózku,
+  ✅ listwa zębata; ⬜ mimośród, krzywka z popychaczem.
 - Napęd ✅ silnik indukcyjny z falownikiem, hamulec tarczowy.
 
 ### 2. Magazynowanie energii
@@ -265,7 +270,9 @@ straty (sprawność), magazyn energii (jeśli ma), ograniczenia (zakres ruchu, p
 
 ### Kolejność (propozycja)
 
-1. Porty w danych modeli + przesuw w fizyce + listwa zębata, korba, śruba (zamiana obrót ↔ przesuw).
+1. ✅ Porty w danych modeli + przesuw w fizyce + listwa zębata, korba, śruba (zamiana obrót ↔ przesuw) — wszystkie trzy
+   tryby: przedmioty (grupa „Zamiana ruchu”), maszyna i fizyka (korba na tarczy z podziałką → suwak z listwą → zębnik
+   na śrubie kulowej → nakrętka). Łożyska (6 rodzajów) w przedmiotach.
 2. Sprężyny, koło zamachowe, zapadka, wahadło z wychwytem — pierwsza maszyna „sama z siebie” (przykład z zasady).
 3. Port sygnału, czujniki, przekaźnik czasowy, regulator.
 4. Płyn: rury, pompa, zawory, siłownik, zbiornik, rozdzielacz.

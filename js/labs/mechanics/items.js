@@ -16,8 +16,109 @@ const matName = (k) => (MATS.find((m) => m[0] === k) || [0, k])[1];
 const CHAINS = { '06B': { p: 0.009525, d1: 0.00635 }, '08A': { p: 0.0127, d1: 0.00792 }, '10A': { p: 0.015875, d1: 0.01016 }, '12A': { p: 0.01905, d1: 0.01191 } };
 const shaftBit = (len, r = 0.0125) => { const s = MK.shaft({ len, r }); s.position.x = -len / 2; return s; };   // krótki wał na podglądzie
 const spinAll = (...gs) => (t) => { for (const g of gs) g.userData.spin.rotation.x = t; };
+const num = (v, d = 0) => v.toLocaleString('pl', { maximumFractionDigits: d });
+// porty z danych modelu (userData.ports: nazwa, dziedzina, złącze) — lista do okna
+const portsOf = (...gs) => gs.flatMap((g) => Object.entries(g.userData.ports || {}).map(([id, q]) => ({ id, name: `${q.name} — ${q.iface}`, kind: q.domain })));
+// kategorie planu (docs/labs/mechanics.md): grupa przedmiotu → kategoria
+export const CATS = [
+  ['Transmisja ruchu', ['Zębatki i przekładnie', 'Łańcuchy', 'Pasy', 'Wały i łożyska', 'Łożyska', 'Sprzęgła', 'Zamiana ruchu', 'Napęd']],
+  ['Magazynowanie energii', []],
+  ['Ruch i sterowanie', ['Sterowanie']],
+  ['Przepływ i transport', ['Zasilanie i przewody']],
+  ['Optyka i sygnały', []],
+];
 
 export const ITEMS = [
+  /* ---------------- zamiana ruchu ---------------- */
+  {
+    id: 'rackpinion', name: 'Listwa zębata z zębnikiem', group: 'Zamiana ruchu',
+    params: [
+      { key: 'm', label: 'Moduł', type: 'select', options: [[0.001, 'm 1'], [0.0015, 'm 1,5'], [0.002, 'm 2'], [0.003, 'm 3']], def: 0.0015 },
+      { key: 'z', label: 'Zęby zębnika', type: 'range', min: 12, max: 40, step: 1, def: 16 },
+      { key: 'n', label: 'Zęby listwy', type: 'range', min: 16, max: 80, step: 1, def: 40 },
+    ],
+    build(p) {
+      const g = new THREE.Group(), rk = MK.rack({ m: p.m, n: p.n, w: 0.012 }), pin = MK.gear({ z: p.z, m: p.m, w: 0.012, bore: Math.min(0.008, p.m * p.z / 2 * 0.4) }), rp = p.m * p.z / 2, L = rk.userData.L;
+      rk.rotation.x = -Math.PI / 2; rk.position.z = L / 2; pin.position.y = rp; g.add(rk, pin);
+      const d = createDrive(), eg = d.add({ id: 'g', J: 0, frame: { o: new THREE.Vector3(0, rp, 0), axis: X, ref: Y } }), er = d.add({ id: 'r', J: 0, dof: 'lin', frame: { o: new THREE.Vector3(0, 0, L / 2), axis: new THREE.Vector3(0, 0, -1), ref: Y } });
+      d.connect('g', 'mesh', 'r', 'mesh', 'rack', { m: p.m, z: p.z, y0: 0 }); d.solve('g');
+      const A = Math.max(0.3, (L / 2 - Math.PI * p.m * 3) / rp);   // obrót wahadłowy: listwa nie zjeżdża z zębnika
+      return { group: g, update: (t) => { d.pose(A * Math.sin(t / A)); pin.userData.spin.rotation.x = eg.theta; rk.userData.slide.position.y = er.theta; },
+        info: [['Zębnik', `z = ${p.z}, d_p = ${mm(2 * rp)}`], ['Listwa', `${p.n} zębów, ${mm(L, 0)}, podziałka ${mm(Math.PI * p.m, 2)}`], ['Przesuw na obrót zębnika', mm(Math.PI * p.m * p.z, 1)], ['Przełożenie', `${num(rp * 1000, 2)} mm/rad (siła = moment / r_p)`],
+          ['Sprawność', `${num(rk.userData.phys.eta * 100)} %`], ['Luz (z pocienienia zębów)', mm(2 * rk.userData.phys.luz, 2)], ['Masa listwy', kg(rk.userData.mass)]],
+        ports: portsOf(pin, rk) };
+    },
+  },
+  {
+    id: 'crank', name: 'Mechanizm korbowy', group: 'Zamiana ruchu',
+    params: [
+      { key: 'r', label: 'Promień korby', type: 'range', min: 0.02, max: 0.08, step: 0.005, unit: 'mm', def: 0.05 },
+      { key: 'l', label: 'Korbowód', type: 'range', min: 0.1, max: 0.4, step: 0.01, unit: 'mm', def: 0.22 },
+    ],
+    build(p) {
+      const g = new THREE.Group(), r = p.r, l = Math.max(p.l, 2.2 * r), xr = 0.03;
+      const disc = MK.shaft({ len: 0.012, r: r + 0.015 }); disc.position.x = -0.006; g.add(disc);   // tarcza korby
+      const pin = new THREE.Mesh(MK.cyl(0.006, 0.026, 20), MK.materials().steel); pin.position.set(0.006 + 0.013 - disc.position.x, r, 0); disc.userData.spin.add(pin);
+      const rod = MK.conRod({ l }); g.add(rod);
+      const sl = MK.slider({ len: 0.06, w: 0.04, h: 0.03, travel: 2 * r + 0.02 });
+      sl.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 1, 0)));
+      sl.position.set(xr + sl.userData.pin.x, 0, l); g.add(sl);
+      const d = createDrive(), ec = d.add({ id: 'c', J: 0, frame: { o: new THREE.Vector3(), axis: X, ref: Y } }), es = d.add({ id: 's', J: 0, dof: 'lin', frame: { o: new THREE.Vector3(xr, 0, l), axis: new THREE.Vector3(0, 0, 1), ref: Y } });
+      d.connect('c', 'b', 's', 'pin', 'crank', { r, l }); d.solve('c');
+      const lam = r / l, A = new THREE.Vector3(), B = new THREE.Vector3();
+      return { group: g, update: (t) => { d.pose(t); disc.userData.spin.rotation.x = t; sl.userData.slide.position.y = es.theta; pin.getWorldPosition(A); g.worldToLocal(A).setX(xr); rod.userData.pose(A, B.set(xr, 0, l + es.theta)); },
+        info: [['Skok', mm(2 * r, 0)], ['λ = r / l', num(lam, 3)], ['Przyspieszenie suwaka (maks.)', `r·ω²·(1 + λ) = ${num(r * (1 + lam), 4)}·ω² m/s²`], ['Prędkość średnia', `2·skok·n = ${num(4 * r, 3)}·n m/s (n — obr/s)`],
+          ['Sprawność', `${num(rod.userData.phys.eta * 100)} % (dwa sworznie)`], ['Martwe położenia', '0° i 180° — korba nie ruszy z suwaka'], ['Masa suwaka', kg(sl.userData.mass)], ['Masa korbowodu', kg(rod.userData.mass)]],
+        ports: [P('shaft', 'Wał korby — wał'), ...portsOf(sl)] };
+    },
+  },
+  {
+    id: 'leadscrew', name: 'Śruba pociągowa z nakrętką', group: 'Zamiana ruchu',
+    params: [
+      { key: 'kind', label: 'Rodzaj', type: 'select', options: [['ball', 'kulowa'], ['trap', 'trapezowa Tr']], def: 'ball' },
+      { key: 'd', label: 'Średnica', type: 'select', options: [[0.016, 'Ø 16'], [0.02, 'Ø 20'], [0.025, 'Ø 25'], [0.032, 'Ø 32']], def: 0.02 },
+      { key: 'lead', label: 'Skok', type: 'select', options: [[0.004, '4 mm'], [0.005, '5 mm'], [0.01, '10 mm'], [0.02, '20 mm']], def: 0.01 },
+      { key: 'len', label: 'Długość', type: 'range', min: 0.2, max: 1, step: 0.05, unit: 'mm', def: 0.5 },
+    ],
+    build(p) {
+      const g = new THREE.Group(), sc = MK.leadScrew({ d: p.d, lead: p.lead, len: p.len, kind: p.kind, thread: [0.04, p.len - 0.04] }), nt = MK.screwNut({ d: p.d, lead: p.lead, kind: p.kind, hc: 0.06, travel: p.len - 0.15 });
+      sc.position.x = -p.len / 2; g.add(sc, nt);
+      const d = createDrive(), es = d.add({ id: 's', J: 0, frame: { o: new THREE.Vector3(-p.len / 2, 0, 0), axis: X, ref: Y } }), en = d.add({ id: 'n', J: 0, dof: 'lin', frame: { o: new THREE.Vector3(), axis: X, ref: Y } });
+      d.connect('s', 'thread', 'n', 'thread', 'screw', { lead: p.lead }); d.solve('s');
+      const A = (p.len / 2 - 0.08) / p.lead * TAU, lam = Math.atan(p.lead / (Math.PI * p.d * 0.9)), rho = Math.atan(0.1 / Math.cos(15 * Math.PI / 180));
+      const eta = p.kind === 'ball' ? sc.userData.phys.eta : Math.tan(lam) / Math.tan(lam + rho), self = p.kind !== 'ball' && lam < rho;
+      return { group: g, update: (t) => { d.pose(A * Math.sin(t / A)); sc.userData.spin.rotation.x = es.theta; nt.userData.slide.position.x = en.theta; },
+        info: [['Przesuw na obrót', mm(p.lead, 0)], ['Kąt wzniosu gwintu', `${num(lam * 180 / Math.PI, 1)}°`], ['Sprawność', `${num(eta * 100)} %${p.kind === 'ball' ? ' (kulki toczą się)' : ' (tarcie ślizgowe, μ = 0,1)'}`],
+          ['Samohamowność', self ? 'tak — obciążenie nie obróci śruby' : 'nie — siła na nakrętce obraca śrubę (potrzebny hamulec)'], ['Siła z momentu 1 N·m', `${num(TAU * eta / p.lead)} N`], ['Masa śruby', kg(sc.userData.mass)]],
+        ports: portsOf(sc, nt) };
+    },
+  },
+  /* ---------------- łożyska ---------------- */
+  {
+    id: 'rolling', name: 'Łożysko (rodzaje)', group: 'Łożyska',
+    params: [
+      { key: 'type', label: 'Rodzaj', type: 'select', options: Object.entries(MK.BEARINGS).map(([k, v]) => [k, v.name]), def: 'ball' },
+      { key: 'd', label: 'Średnica wału', type: 'select', options: [[0.02, 'Ø 20'], [0.025, 'Ø 25'], [0.03, 'Ø 30'], [0.04, 'Ø 40']], def: 0.025 },
+      { key: 'P', label: 'Obciążenie', type: 'range', min: 100, max: 10000, step: 100, unit: 'N', def: 1500 },
+      { key: 'n', label: 'Prędkość', type: 'range', min: 50, max: 6000, step: 50, unit: 'obr/min', def: 1450 },
+    ],
+    build(p) {
+      const b = MK.rollingBearing({ type: p.type, d: p.d }), u = b.userData, D = u.data, s = shaftBit(0.12, p.d / 2);
+      const g = new THREE.Group(); g.add(b, s);
+      const L10 = D.p ? (D.C / p.P) ** D.p : 0, L10h = L10 * 1e6 / (60 * p.n), M = D.mu * p.P * p.d / 2, pv = p.type === 'plain' ? p.P / (p.d * u.B) / 1e6 * (Math.PI * p.d * p.n / 60) : 0;
+      const warn = [];
+      if (p.n > D.n) warn.push(`Prędkość powyżej granicznej (${num(D.n)} obr/min).`);
+      if (D.C0 && p.P > D.C0) warn.push('Obciążenie powyżej nośności statycznej C0 — trwałe odkształcenia bieżni.');
+      if (p.type === 'plain' && pv > 1.6) warn.push(`p·v = ${num(pv, 2)} MPa·m/s — powyżej 1,6 (przegrzanie tulei).`);
+      if (p.type === 'thrust') warn.push('Łożysko wzdłużne przenosi tylko siły osiowe — obciążenie traktowane jako osiowe.');
+      return { group: g, warn, update: (t) => { u.spin.rotation.x = t; s.userData.spin.rotation.x = t; u.cage.rotation.x = t * u.cageRatio; },
+        info: [['Rodzaj', D.name], ['Wymiary d × D × B', `${num(p.d * 1000)} × ${num(u.D * 1000, 1)} × ${num(u.B * 1000, 2)} mm`], ['Przenosi', D.load],
+          ...(D.C ? [['Nośność C / C0', `${num(D.C / 1000, 1)} / ${num(D.C0 / 1000, 1)} kN`], ['Trwałość L10', `${num(L10, 1)} mln obr. = ${num(L10h)} h przy ${num(p.n)} obr/min`]] : [['Nacisk p·v', `${num(pv, 2)} MPa·m/s (dop. 1,6)`]]),
+          ['Moment tarcia', `μ·P·d/2 = ${num(M * 1000, 1)} N·mm (μ = ${num(D.mu, 4)})`], ['Straty mocy', `${num(M * p.n * TAU / 60, 2)} W`], ['Prędkość graniczna', `${num(D.n)} obr/min`],
+          ...(u.Z ? [['Elementy toczne', `${u.Z} × Ø ${num(u.Dw * 1000, 2)} mm, koszyk ${num(u.cageRatio, 3)}·n`]] : []), ['Masa', kg(u.mass)]],
+        ports: portsOf(b) };
+    },
+  },
   {
     id: 'gear', name: 'Zębatka walcowa', group: 'Zębatki i przekładnie',
     params: [
