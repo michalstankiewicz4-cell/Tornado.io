@@ -8,12 +8,12 @@
 import * as THREE from '../../../vendor/three/three.module.js';
 import { createStage, WEATHER } from '../../core/stage.js';
 import * as MK from '../../models/mech/mechkit.js';
-import { createDrive, KIND_NAME } from '../../behaviors/mech/drive.js';
+import { createDrive, KIND_NAME, ujointEta } from '../../behaviors/mech/drive.js';
 import { createPhysics } from '../../behaviors/mech/physics.js';
-import { meshZone, planeMap, contactPair } from '../../behaviors/mech/contact.js';
+import { meshZone, planeMap, contactPair, meshClash } from '../../behaviors/mech/contact.js';
 import { createCircuit } from '../../behaviors/mech/circuit.js';
 import * as CK from '../../models/mech/controls.js';
-import { ITEMS, CATS } from './items.js';
+import { ITEMS, CATS, cardanMax } from './items.js';
 import { loadState, valid } from '../shared/saved.js';
 
 const $ = (id) => document.getElementById(id);
@@ -134,15 +134,15 @@ block(0.3, Y0, 0.12); block(0.82, Y0, 0.12);
 const BETA = 25 * Math.PI / 180, J1 = new THREE.Vector3(1.1, Y0, 0.12), DIR = new THREE.Vector3(Math.cos(BETA), 0, Math.sin(BETA)), LJ = 0.6, J2 = J1.clone().addScaledVector(DIR, LJ);
 const Q8 = new THREE.Quaternion().setFromUnitVectors(X, DIR);
 // widełki wału 7 (sworznie wzdłuż y przy kącie 0)
-{ const y = MK.yoke(); y.position.x = J1.x - 0.068; eS7.spin.add(y); }
+const YK = {}; { const y = MK.yoke(); y.position.x = J1.x - 0.068; eS7.spin.add(y); YK.a1 = y; }
 // wał pośredni: od J1 do J2, widełki na obu końcach w jednej płaszczyźnie (sworznie wzdłuż lokalnego z)
 const s8 = MK.shaft({ len: LJ - 0.1, r: 0.015, name: 'Wał przegubowy' }); s8.userData.spin.children.forEach((c) => { c.position.x += 0.05; });
 s8.position.copy(J1); s8.quaternion.copy(Q8); root.add(s8);
-{ const a = MK.yoke(); a.rotation.set(Math.PI / 2, Math.PI, 0); s8.userData.spin.add(a); const b = MK.yoke(); b.rotation.x = Math.PI / 2; b.position.x = LJ; s8.userData.spin.add(b); }
+{ const a = MK.yoke(); a.rotation.set(Math.PI / 2, Math.PI, 0); s8.userData.spin.add(a); const b = MK.yoke(); b.rotation.x = Math.PI / 2; b.position.x = LJ; s8.userData.spin.add(b); YK.b1 = a; YK.a2 = b; }
 const eS8 = element('s8', 'Wał przegubowy', 'shaft', s8, { J: s8.userData.J + 0.0004, frame: { o: J1.clone(), axis: DIR.clone(), ref: Y.clone() },
   props: [['Średnica', '30 mm'], ['Długość między przegubami', `${LJ * 1000} mm`], ['Kąt łamania', '25°'], ['Układ', 'Z — widełki w jednej płaszczyźnie, wały 7 i 9 równoległe'], ['Uwaga', 'kręci się nierównomiernie (przegub Cardana); wał 9 — równo']], ports: [P('a', 'Przegub 1'), P('b', 'Przegub 2')] });
-const eS9 = shaftEl('s9', J2.x, 2.372, Y0, J2.z, 'Wał 9');
-{ const y = MK.yoke(); y.rotation.y = Math.PI; eS9.spin.add(y); }
+const eS9 = shaftEl('s9', J2.x + 0.05, 2.372, Y0, J2.z, 'Wał 9');   // wał zaczyna się w piaście widełek, nie w krzyżaku
+{ const y = MK.yoke(); y.rotation.y = Math.PI; y.position.x = -0.05; eS9.spin.add(y); YK.b2 = y; }
 block(1.85, Y0, J2.z); block(2.12, Y0, J2.z);
 const cross1 = MK.cross(), cross2 = MK.cross(); cross1.position.copy(J1); cross2.position.copy(J2); root.add(cross1, cross2);
 
@@ -232,8 +232,8 @@ C('s3', 'b', 'g5', 'bore', 'shaft'); C('g5', 'mesh', 'g6', 'mesh', 'mesh', { za:
 C('s4', 'b', 'c1', 'bore', 'shaft'); C('c1', 'chain', 'c2', 'chain', 'chain', { za: 18, zb: 27, phase: chainPath.seat.phase2 }); C('c2', 'bore', 's5', 'a', 'shaft');
 C('s5', 'b', 'pu1', 'bore', 'shaft'); C('pu1', 'belt', 'pu2', 'belt', 'belt', { za: 0.16, zb: 0.08 }); C('pu2', 'bore', 's6', 'a', 'shaft');
 C('s6', 'b', 'fl', 'a', 'coupling'); C('fl', 'b', 's7', 'a', 'coupling');
-C('s7', 'b', 's8', 'a', 'ujoint', { pinA: Y.clone(), pinB: new THREE.Vector3(0, 0, 1).applyQuaternion(Q8), eta: cross1.userData.phys.eta });
-C('s8', 'b', 's9', 'a', 'ujoint', { pinA: new THREE.Vector3(0, 0, 1).applyQuaternion(Q8), pinB: Y.clone(), eta: cross2.userData.phys.eta });
+C('s7', 'b', 's8', 'a', 'ujoint', { pinA: Y.clone(), pinB: new THREE.Vector3(0, 0, 1).applyQuaternion(Q8), phys: cross1.userData.phys });   // sprawność z kąta łamania (ujointEta)
+C('s8', 'b', 's9', 'a', 'ujoint', { pinA: new THREE.Vector3(0, 0, 1).applyQuaternion(Q8), pinB: Y.clone(), phys: cross2.userData.phys });
 C('s9', 'b', 'sun', 'bore', 'shaft'); C('sun', 'mesh', 'car', 'sun', 'planetary', { zs: ZS, zr: ZR, eta: ring.userData.phys.eta }); C('car', 'carrier', 's10', 'a', 'shaft');
 C('s10', 'b', 'disc', 'shaft', 'shaft');
 C('s10', 'b', 'slider', 'pin', 'crank', { r: CR.r, l: CR.l, a0: 0 });
@@ -486,6 +486,7 @@ function rackZone(e) {
 }
 function BACKLASH(e) {
   if (e.type === 'rack') return rackZone(e);
+  if (e.type === 'ujoint') { const q = cross1.userData.phys; return 2 * q.clear / q.R; }   // luz łożysk igiełkowych krzyżaka (dwie pary czopów)
   if (e.type !== 'mesh') return 0;
   const ua = e.a.group && e.a.group.userData, ub = e.b.group && e.b.group.userData;
   if (!isGear(ua) || !isGear(ub) || !e.a.spin || !e.b.spin) return 0;
@@ -568,6 +569,9 @@ function physStats() {
     rows.push(['Pas — poślizg', `${full ? 'POŚLIZG ' : ''}${fmt(sl * 100, 2)} %${full ? ' — pas ślizga się w rowku (moment graniczny przekroczony)' : ' — pełzanie sprężyste'} · moment ${fmt(Math.abs(c.T), 1)} N·m, graniczny ${fmt(c.belt.Tmax, 1)} N·m (napięcie 2 × ${BELT_F0} N, opasanie ${Math.round(BELT_WRAP * 180 / Math.PI)}°)`]);
   }
   for (const c of phys.edges) if (c.e.type === 'chain') rows.push(['Łańcuch — efekt wielokąta', `prędkość koła biernego waha się o ±${fmt((1 - Math.cos(Math.PI / 18)) * 50, 2)} % (z = 18)${Math.abs(c.e.a.omega) > 0.5 ? ` · teraz ${fmt(c.e.b.omega / c.e.a.omega * 27 / 18 * 100 - 100, 2)} %` : ''}`]);
+  // przeguby Cardana: kąt, sprawność od kąta, luz łożysk krzyżaka, kolizje w obrocie i kąt graniczny
+  { const q = cross1.userData.phys, eta = ujointEta(BETA, q);
+    rows.push(['Przeguby Cardana', `β = ${fmt(BETA * 180 / Math.PI)}° · sprawność ${fmt(eta * 100, 2)} % na przegub · luz ${fmt(2 * q.clear / q.R * 180 / Math.PI, 3)}° · ${CARDAN.length ? `KOLIZJE: ${CARDAN.map((h) => `${h.name} przy ${h.at}°`).join('; ')}` : 'bez kolizji w obrocie'} · największy kąt łamania ${fmt(CARDAN_MAX.beta, 1)}°`]); }
   // zamiana ruchu: suwak (korbowód), zębnik na śrubie (listwa), nakrętka (gwint) — położenie, prędkość, siła w połączeniu
   { const ce = (t) => phys.edges.find((c) => c.e.type === t), cr = ce('crank'), rk = ce('rack'), sc = ce('screw');
     rows.push(['Suwak (korbowód)', `x ${fmt(eSl.theta * 1000, 1)} mm · ${fmt(eSl.omega * 1000, 0)} mm/s · siła w korbowodzie ${fmt(Math.abs(cr ? cr.T : 0), 1)} N`]);
@@ -753,6 +757,24 @@ function interference() {
   }
   return res;
 }
+// przeguby Cardana: kolizje widełek i krzyżaków w pełnym obrocie wału 7 (bryły modeli, contact.js meshClash) — raz przy starcie
+function cardanSweep(samples = 16) {
+  const e1 = drive.edges.find((d) => d.type === 'ujoint' && d.a === eS7), e2 = drive.edges.find((d) => d.type === 'ujoint' && d.a === eS8), keep = [eS7.theta, eS8.theta, eS9.theta], hits = [];
+  const P8 = new THREE.Vector3(0, 0, 1).applyQuaternion(Q8);
+  for (let k = 0; k < samples; k++) {
+    const t7 = k * TAU / samples, t8 = e1.rel(t7, eS8.theta), t9 = e2.rel(t8, eS9.theta);
+    eS7.spin.rotation.x = t7; eS8.spin.rotation.x = t8; eS9.spin.rotation.x = t9; eS8.theta = t8; eS9.theta = t9;
+    crossPose(cross1, Y, t7, X, P8, t8, DIR); crossPose(cross2, P8, t8, DIR, Y, t9, X); root.updateWorldMatrix(true, true);
+    for (const [A, B, name] of [[YK.a1, YK.b1, 'przegub 1: widełki z widełkami'], [cross1, YK.a1, 'przegub 1: krzyżak z widełkami wału 7'], [cross1, YK.b1, 'przegub 1: krzyżak z widełkami wału przegubowego'],
+      [YK.a2, YK.b2, 'przegub 2: widełki z widełkami'], [cross2, YK.a2, 'przegub 2: krzyżak z widełkami wału przegubowego'], [cross2, YK.b2, 'przegub 2: krzyżak z widełkami wału 9']]) {
+      if (!hits.some((h) => h.name === name) && meshClash(A, B)) hits.push({ name, at: Math.round(t7 * 180 / Math.PI) });
+    }
+  }
+  [eS7.theta, eS8.theta, eS9.theta] = keep; applyAngles();
+  return hits;
+}
+const CARDAN = cardanSweep(), CARDAN_MAX = cardanMax();
+if (CARDAN.length) console.warn(`Przeguby Cardana: kolizje — ${CARDAN.map((h) => `${h.name} przy ${h.at}°`).join('; ')}`);
 const t0Clash = performance.now(), CLASHES = interference();
 console.info(`Kontrola zahaczeń: ${CLASHES.length ? CLASHES.map((c) => `${c.part} × ${c.fixed} ${(c.depth * 1000).toFixed(2)} mm`).join('; ') : 'brak'} (${Math.round(performance.now() - t0Clash)} ms)`);
 

@@ -1,5 +1,17 @@
 # Zmiany
 
+## 0.27.2 — 2026-11-27
+- Przegub Cardana fizycznie (laboratorium mechaniki 0.12.2):
+  - Sprawność zależna od kąta łamania (`drive.ujointEta`: straty łożysk igiełkowych krzyżaka, η = 1 − (2/π)·μ·(r_c/R)·
+    (tg β + sin β) − 0,2 %) — dane w krzyżaku (`PHYS.ujoint`: μ, r_c, R); przy 25° 99,2 % na przegub.
+  - Luz w łożyskach krzyżaka (luz promieniowy 20 µm → 0,088°) — strefa swobody wiązania w fizyce.
+  - Kolizje widełek i krzyżaka w pełnym obrocie z brył modeli (`contact.js meshClash` — punkt w bryle zamkniętej,
+    głębiej niż 0,3 mm) — w maszynie przy starcie, w przedmiocie przy każdym kącie; największy kąt łamania bez
+    kolizji (połowienie przedziału): 45,9°. Okno Opis w trybie Fizyka i informacje przedmiotu.
+- Poprawki znalezione kontrolą: widełki MechKit — ramię wchodziło w otwór oczka (w kubek łożyska), a przy 25° oczko
+  drugich widełek wchodziło w piastę i mostek (ramię 50 → 70 mm); wał 9 zaczynał się w krzyżaku (teraz w piaście
+  widełek).
+
 ## 0.27.1 — 2026-11-27
 - Łożyska zamiast brył w uchwytach (laboratorium mechaniki 0.12.1, MechKit):
   - Oprawa UCP: wkładka łożyskowa z pierścieniami (zewnętrzny, poszerzony wewnętrzny z otworem na wał, uszczelnienia,

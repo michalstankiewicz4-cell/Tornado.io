@@ -20,6 +20,9 @@ export const KIND_NAME = { shaft: 'wał', coupling: 'sprzęgło', mesh: 'zazębi
 // złącza dozwolone w danym połączeniu; połączenia zamieniające ruch (CONVERT) łączą różne dziedziny (obrót ↔ przesuw)
 export const COMPAT = { shaft: ['wał', 'wpust', 'mocowanie', 'łożysko'], coupling: ['wał', 'wpust'], mesh: ['zazębienie'], chain: ['łańcuch'], belt: ['pas'], ujoint: ['wał', 'przegub'], planetary: ['zazębienie', 'wał', 'wpust'], rack: ['zazębienie'], screw: ['gwint'], crank: ['wał', 'wpust', 'sworzeń'] };
 export const CONVERT = { rack: true, screw: true, crank: true };
+// sprawność przegubu Cardana zależna od kąta łamania β: straty tarcia w łożyskach igiełkowych krzyżaka (ruch wahadłowy
+// czopów o ±β): η = 1 − (2/π)·μ·(r_c / R)·(tg β + sin β); μ — tarcie efektywne, r_c — promień czopa, R — ramię krzyżaka
+export function ujointEta(beta, { mu = 0.05, rc = 0.0055, R = 0.026 } = {}) { return 1 - (2 / Math.PI) * mu * (rc / R) * (Math.tan(beta) + Math.sin(beta)) - 0.002; }
 const TAU = Math.PI * 2;
 const wrapPi = (a) => a - TAU * Math.round(a / TAU);
 
@@ -103,7 +106,7 @@ export function createDrive() {
   function connect(a, pa, b, pb, type, opts = {}) {
     const A = els.get(a), B = els.get(b);
     checkPorts(A, B, pa, pb, type);
-    const e = { a: A, b: B, pa, pb, type, opts, eta: opts.eta ?? physEta(type, A, B) ?? EFF[type] ?? 1 };
+    const e = { a: A, b: B, pa, pb, type, opts, eta: opts.eta ?? (type === 'ujoint' && opts.phys ? ujointEta(Math.acos(Math.min(1, Math.abs(A.frame.axis.dot(B.frame.axis)))), opts.phys) : physEta(type, A, B)) ?? EFF[type] ?? 1 };
     e.rel = relation(type, A, B, opts);
     edges.push(e);
     return e;

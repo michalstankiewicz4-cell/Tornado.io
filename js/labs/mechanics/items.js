@@ -3,7 +3,8 @@
 // Ustawienie: { key, label, type: 'range' | 'select' | 'check', min, max, step, unit, options: [[wartość, opis]], def }
 import * as THREE from '../../../vendor/three/three.module.js';
 import * as MK from '../../models/mech/mechkit.js';
-import { createDrive } from '../../behaviors/mech/drive.js';
+import { createDrive, ujointEta } from '../../behaviors/mech/drive.js';
+import { meshClash } from '../../behaviors/mech/contact.js';
 import * as CK from '../../models/mech/controls.js';
 
 const TAU = Math.PI * 2, X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0);
@@ -27,6 +28,35 @@ export const CATS = [
   ['Przepływ i transport', ['Zasilanie i przewody']],
   ['Optyka i sygnały', []],
 ];
+
+// przegub Cardana — kolizje widełek i krzyżaka w pełnym obrocie przy kącie łamania β (bryły modeli, meshClash) i
+// największy kąt, przy którym przegub jeszcze się obraca (połowienie przedziału). Ułożenie jak w przedmiocie i maszynie.
+export function cardanCheck(betaDeg, samples = 24) {
+  const b = betaDeg * Math.PI / 180, dir = new THREE.Vector3(Math.cos(b), 0, Math.sin(b)), q = new THREE.Quaternion().setFromUnitVectors(X, dir), zq = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
+  const gA = new THREE.Group(), yA = MK.yoke(); gA.add(yA);
+  const gB = new THREE.Group(), sB = new THREE.Group(), yB = MK.yoke(); gB.quaternion.copy(q); gB.add(sB); yB.rotation.set(Math.PI / 2, Math.PI, 0); sB.add(yB);
+  const cr = MK.cross(), root = new THREE.Group(); root.add(gA, gB, cr);
+  const d = createDrive(), ea = d.add({ id: 'a', J: 0, frame: { o: new THREE.Vector3(), axis: X, ref: Y } }), eb = d.add({ id: 'b', J: 0, frame: { o: new THREE.Vector3(), axis: dir, ref: Y } });
+  d.connect('a', 'out', 'b', 'in', 'ujoint', { pinA: Y.clone(), pinB: zq.clone() }); d.solve('a');
+  const a = new THREE.Vector3(), c = new THREE.Vector3(), m = new THREE.Matrix4();
+  for (let k = 0; k < samples; k++) {
+    d.pose(k * TAU / samples); gA.rotation.x = ea.theta; sB.rotation.x = eb.theta;
+    a.copy(Y).applyAxisAngle(X, ea.theta); c.copy(zq).applyAxisAngle(dir, eb.theta); c.addScaledVector(a, -c.dot(a)).normalize();
+    cr.quaternion.setFromRotationMatrix(m.makeBasis(new THREE.Vector3().crossVectors(a, c), a, c)); root.updateWorldMatrix(true, true);
+    for (const [P, Q, name] of [[yA, yB, 'widełki z widełkami'], [cr, yA, 'krzyżak z widełkami czynnymi'], [cr, yB, 'krzyżak z widełkami biernymi']]) {
+      const n = meshClash(P, Q); if (n) return { clash: true, pair: name, at: k * 360 / samples, n };
+    }
+  }
+  return { clash: false };
+}
+let BETA_MAX = null;
+export function cardanMax() {   // największy kąt łamania bez kolizji (dla widełek i krzyżaka MechKit), ±0,5°
+  if (BETA_MAX) return BETA_MAX;
+  let lo = 0, hi = 89;
+  if (!cardanCheck(hi, 12).clash) return (BETA_MAX = { beta: hi });
+  while (hi - lo > 0.5) { const m = (lo + hi) / 2; if (cardanCheck(m, 12).clash) hi = m; else lo = m; }
+  return (BETA_MAX = { beta: lo, pair: cardanCheck(hi, 12).pair });
+}
 
 export const ITEMS = [
   /* ---------------- zamiana ruchu ---------------- */
@@ -352,8 +382,13 @@ export const ITEMS = [
         cr.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(a, bb), a, bb));
       };
       const out = p.double ? e.c : e.b, f3 = (v) => v.toLocaleString('pl', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+      // fizyka przegubu: sprawność od kąta (dane krzyżaka), luz w łożyskach igiełkowych, kolizje w pełnym obrocie, kąt graniczny
+      const ph = cr1.userData.phys, eta = ujointEta(b, ph), chk = cardanCheck(p.beta), mx = cardanMax();
+      const phys = [['Sprawność (od kąta)', `${f3(eta * 100).replace(/0$/, '')} %${p.double ? ` na przegub, ${f3(eta * eta * 100).replace(/0$/, '')} % razem` : ''}`],
+        ['Luz kątowy (łożyska krzyżaka)', `${(2 * ph.clear / ph.R * 180 / Math.PI).toLocaleString('pl', { maximumFractionDigits: 3 })}° (luz promieniowy ${ph.clear * 1e6} µm)`],
+        ['Kolizje w obrocie', chk.clash ? `TAK — ${chk.pair} przy ${chk.at}°` : 'brak (widełki i krzyżak, 24 położenia)'], ['Największy kąt łamania', `${mx.beta.toLocaleString('pl', { maximumFractionDigits: 1 })}°${mx.pair ? ` (dalej: ${mx.pair})` : ''}`]];
       const info = () => [['Kąt łamania', `${p.beta}°`], ['Przełożenie chwilowe', `ω₂/ω₁ = ${f3(Math.abs(out.r || 1))}`], ['Wał pośredni / bierny (pojedynczy)', `${f3(Math.cos(b))} … ${f3(1 / Math.cos(b))} × ω₁`], ['Wyjście', p.double ? 'równomierne — układ Z znosi nierównomierność' : 'nierównomierne — przyspiesza i zwalnia 2 razy na obrót']];
-      return { group: g, live: info, info: info(), view: { yaw: 0.35, pitch: 0.55 }, ports: [P('in', 'Wał czynny'), P('out', 'Wał bierny')],
+      return { group: g, live: () => [...info(), ...phys], info: [...info(), ...phys], warn: chk.clash ? [`Widełki i krzyżak kolidują przy ${p.beta}° — największy kąt bez kolizji: ${mx.beta.toLocaleString('pl', { maximumFractionDigits: 1 })}°.`] : [], view: { yaw: 0.35, pitch: 0.55 }, ports: [P('in', 'Wał czynny'), P('out', 'Wał bierny')],
         update: (t) => {
           d.pose(t); sA.userData.spin.rotation.x = e.a.theta; sB.userData.spin.rotation.x = e.b.theta;
           pose(cr1, Y, e.a.theta, X, zq, e.b.theta, dir);

@@ -14,6 +14,60 @@
 
 const TAU = Math.PI * 2;
 
+// ---------------- zderzenie brył (3D): punkty powierzchni jednej części wewnątrz zamkniętej siatki drugiej ----------------
+// Punkty — wierzchołki siatek A; liczy się punkt wewnątrz B głębiej niż `inset` (wewnątrz są też punkty przesunięte
+// o ±inset wzdłuż każdej osi), żeby powierzchnie stykające się z założenia (kubek w otworze oczka) nie liczyły się
+// jako przenikanie; wnętrze — nieparzysta liczba przecięć promienia z trójkątami B (Möller–Trumbore). Sprawdzane
+// w obie strony. Siatki muszą być zamknięte (bryły).
+const _ray = [0.5773, 0.5774, 0.5772];
+function worldTris(obj) {
+  const out = [];
+  obj.updateWorldMatrix(true, true);
+  obj.traverse((o) => {
+    if (!o.isMesh || o.isInstancedMesh) return; const g = o.geometry, pa = g.attributes.position, ix = g.index, n = ix ? ix.count : pa.count, e = o.matrixWorld.elements;
+    for (let i = 0; i < n; i += 3) for (let k = 0; k < 3; k++) {
+      const j = ix ? ix.getX(i + k) : i + k, x = pa.getX(j), y = pa.getY(j), z = pa.getZ(j);
+      out.push(e[0] * x + e[4] * y + e[8] * z + e[12], e[1] * x + e[5] * y + e[9] * z + e[13], e[2] * x + e[6] * y + e[10] * z + e[14]);
+    }
+  });
+  const T = Float64Array.from(out), bb = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < T.length; i += 3) for (let k = 0; k < 3; k++) { bb[k] = Math.min(bb[k], T[i + k]); bb[k + 3] = Math.max(bb[k + 3], T[i + k]); }
+  return { T, bb };
+}
+function worldPoints(obj) {
+  const out = [];
+  obj.traverse((o) => {
+    if (!o.isMesh || o.isInstancedMesh) return; const g = o.geometry, pa = g.attributes.position, e = o.matrixWorld.elements;
+    for (let j = 0; j < pa.count; j++) {
+      const x = pa.getX(j), y = pa.getY(j), z = pa.getZ(j);
+      out.push(e[0] * x + e[4] * y + e[8] * z + e[12], e[1] * x + e[5] * y + e[9] * z + e[13], e[2] * x + e[6] * y + e[10] * z + e[14]);
+    }
+  });
+  return out;
+}
+function inside(px, py, pz, { T, bb }) {
+  if (px < bb[0] || py < bb[1] || pz < bb[2] || px > bb[3] || py > bb[4] || pz > bb[5]) return false;
+  const [dx, dy, dz] = _ray; let hits = 0;
+  for (let i = 0; i < T.length; i += 9) {
+    const e1x = T[i + 3] - T[i], e1y = T[i + 4] - T[i + 1], e1z = T[i + 5] - T[i + 2], e2x = T[i + 6] - T[i], e2y = T[i + 7] - T[i + 1], e2z = T[i + 8] - T[i + 2];
+    const hx = dy * e2z - dz * e2y, hy = dz * e2x - dx * e2z, hz = dx * e2y - dy * e2x, a = e1x * hx + e1y * hy + e1z * hz;
+    if (Math.abs(a) < 1e-14) continue;
+    const f = 1 / a, sx = px - T[i], sy = py - T[i + 1], sz = pz - T[i + 2], u = f * (sx * hx + sy * hy + sz * hz); if (u < 0 || u > 1) continue;
+    const qx = sy * e1z - sz * e1y, qy = sz * e1x - sx * e1z, qz = sx * e1y - sy * e1x, w = f * (dx * qx + dy * qy + dz * qz); if (w < 0 || u + w > 1) continue;
+    if (f * (e2x * qx + e2y * qy + e2z * qz) > 1e-9) hits++;
+  }
+  return (hits & 1) === 1;
+}
+// meshClash(A, B) → liczba punktów jednej części wewnątrz drugiej (0 = bez przenikania)
+export function meshClash(A, B, { inset = 3e-4 } = {}) {   // inset 0,3 mm: mniej niż to — styk (siatki z wielokątów nie są idealnymi walcami)
+  const tA = worldTris(A), tB = worldTris(B);
+  if (tA.bb[3] < tB.bb[0] || tB.bb[3] < tA.bb[0] || tA.bb[4] < tB.bb[1] || tB.bb[4] < tA.bb[1] || tA.bb[5] < tB.bb[2] || tB.bb[5] < tA.bb[2]) return 0;
+  let n = 0;
+  const deep = (x, y, z, M) => inside(x, y, z, M) && inside(x + inset, y, z, M) && inside(x - inset, y, z, M) && inside(x, y + inset, z, M) && inside(x, y - inset, z, M) && inside(x, y, z + inset, M) && inside(x, y, z - inset, M);
+  for (const [P, M] of [[worldPoints(A), tB], [worldPoints(B), tA]]) for (let i = 0; i < P.length; i += 3) if (deep(P[i], P[i + 1], P[i + 2], M)) n++;
+  return n;
+}
+
 // macierz płaszczyzny: punkt (u, v) koła b (lokalne y, z części wirującej przy θ = 0) → (y, z) w układzie koła a
 export function planeMap(spinA, spinB, { slideB = null } = {}) {   // slideB: oś przesuwu części b ('x' | 'y' | 'z') — zero przesuwu zamiast zera kąta
   const base = (s, ax) => { const r = ax ? s.position[ax] : s.rotation.x; if (ax) s.position[ax] = 0; else s.rotation.x = 0; s.updateWorldMatrix(true, false); const m = s.matrixWorld.clone(); if (ax) s.position[ax] = r; else s.rotation.x = r; s.updateWorldMatrix(true, false); return m; };

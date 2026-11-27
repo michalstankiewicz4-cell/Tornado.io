@@ -32,7 +32,7 @@ export const PHYS = {
   flange: { k: 1.5e5, zeta: 0.02, eta: 0.995 },
   chain: { EA: 2e6, zeta: 0.03, eta: 0.97 },              // łańcuch 08A: sztywność cięgna EA (N) → k = EA / D · R₂²
   belt: { EA: 4e4, zeta: 0.08, eta: 0.95, F0: 300, mu: 0.3, groove: 36, kinetic: 0.85, creep: 0.015 },   // pas klinowy: napięcie wstępne F0 (N) w cięgnie, μ, kąt rowka (°), tarcie kinetyczne / statyczne, pełzanie przy granicy
-  ujoint: { k: 2e5, zeta: 0.02, eta: 0.99 },              // przegub Cardana (krzyżak w łożyskach igiełkowych)
+  ujoint: { k: 2e5, zeta: 0.02, eta: 0.99, mu: 0.05, rc: 0.0055, R: 0.026, clear: 0.00002 },   // przegub Cardana: krzyżak w łożyskach igiełkowych — tarcie efektywne, czop r_c, ramię R, luz promieniowy łożyska (m)
   planetary: { k: 3e5, zeta: 0.03, eta: 0.97 },           // przekładnia planetarna (zestaw: słoneczne, satelity, korona)
   bearing: { drag: 0.0004 },                              // łożysko toczne: opór lepki, N·m·s/rad
   rack: { c: 2e10, zeta: 0.05, eta: 0.98, thin: 0.04 },   // listwa zębata z kołem: k = c·b (N/m — współrzędna listwy w metrach), ząb cieńszy o thin·m
@@ -640,13 +640,14 @@ export function flangeCoupling({ r = 0.055, bore = 0.0125, bolts: nb = 6 } = {})
   return { a: mk(-1), b: mk(1), bolts, phys: { ...PHYS.flange }, ports: { a: port('Piasta A', DOMAIN.rot, 'wał'), b: port('Piasta B', DOMAIN.rot, 'wał') }, mass, J: 0.5 * mass * r * r * 0.8 };
 }
 // widełki przegubu Cardana na końcu wału: piasta wzdłuż +x i dwa ramiona z oczkami; sworznie wzdłuż lokalnego y (oś krzyżaka)
-export function yoke({ r = 0.026, reach = 0.05, name = 'Widełki przegubu' } = {}) {
+export function yoke({ r = 0.026, reach = 0.07, name = 'Widełki przegubu' } = {}) {   // reach 70 mm: piasta i mostek za oczkami drugich widełek do ok. 45° (kontrola kolizji)
   const M = materials(), g = new THREE.Group(); g.name = name;
   const hub = mesh(cyl(0.019, 0.03, 24), M.gear); hub.position.x = -reach + 0.015; g.add(hub);
   const bridge = mesh(box(0.012, r * 2 + 0.014, 0.03), M.gear); bridge.position.x = -reach + 0.03; g.add(bridge);
   for (const s of [-1, 1]) {
     // ramię węższe od mostka, oczko wyższe od ramienia — bez wspólnych płaszczyzn
-    const arm = mesh(box(reach - 0.024, 0.0087, 0.028), M.gear); arm.position.set(-(reach - 0.024) / 2 - 0.006, s * (r + 0.0025), 0); g.add(arm);
+    const ax0 = -(reach - 0.018), ax1 = -0.0138;   // ramię od mostka do zewnętrznej ścianki oczka (nie wchodzi w otwór kubka)
+    const arm = mesh(box(ax1 - ax0, 0.0087, 0.028), M.gear); arm.position.set((ax0 + ax1) / 2, s * (r + 0.0025), 0); g.add(arm);
     const eye = mesh(ringY(0.0085, 0.0145, 0.0126, 24), M.gear); eye.position.set(0, s * (r + 0.0041), 0); g.add(eye);   // oczko z otworem na kubek łożyska igiełkowego krzyżaka
   }
   return g;
