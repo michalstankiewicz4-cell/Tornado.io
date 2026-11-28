@@ -1,5 +1,12 @@
 # Zmiany
 
+## 0.38.0 — 2026-11-28
+- Laboratorium mechaniki 0.24.0 — **Warsztat: płyn**. Nowe części: zbiornik wody, pompa odśrodkowa blokowa (zasilana
+  kablem jak silnik, także z falownika), zawór kulowy na podstawce, dysza na wysięgniku, wiadro. Węże przezroczyste między
+  przyłączami, dysza ustawiana nad wiadrem; punkt pracy pompy co klatkę (węże, zawór, dysza, wysokość), pompa nie
+  samozasysająca, bilans wody zbiornik → wiadro (przelew, rozlana woda), strumień z dyszy; czwarty przykład.
+- Poprawka: stycznik w warsztacie nie odpada już przy przebudowie obwodu (przesunięcie części, edycja, nowy kabel).
+
 ## 0.37.0 — 2026-11-28
 - Laboratorium mechaniki 0.23.0 — **Warsztat: prąd** oraz **edycja i usuwanie części**. Nowe urządzenia: zasilanie
   3 × 400 V z wyłącznikiem, przycisk (START, STOP, grzybek awaryjny), stycznik z podtrzymaniem, falownik. Połączenie urządzeń

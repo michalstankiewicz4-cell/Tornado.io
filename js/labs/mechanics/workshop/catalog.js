@@ -1,10 +1,12 @@
-// Warsztat — katalog części: napęd obrotowy, przesuw i prąd. auto: true — parametr ustawiany przez połączenie (zablokowany w połączonej części). Każda część budowana wzdłuż lokalnej osi +x z MechKit:
+// Warsztat — katalog części: napęd obrotowy, przesuw, prąd i płyn. auto: true — parametr ustawiany przez połączenie (zablokowany w połączonej części). Każda część budowana wzdłuż lokalnej osi +x z MechKit:
 //   role: 'motor' (wał wyjściowy w +x, oś na wysokości axisY nad podstawą), 'shaft' (od x = 0 do len), 'hub' (piasta na wale:
 //   koło zębate, łańcuchowe, pasowe, sprzęgło, tarcza hamulca — oś przez początek), 'support' (oprawa łożyska — oś na wysokości h).
 //   build(p) → { group, spin, J, ext: [x0, x1] (zasięg wzdłuż osi), axisY (oś nad spodem), props: [[nazwa, wartość]] }
 import * as THREE from '../../../../vendor/three/three.module.js';
 import * as MK from '../../../models/mech/mechkit.js';
 import * as CK from '../../../models/mech/controls.js';
+import * as FK from '../../../models/mech/fluid/index.js';
+import * as FL from '../../../behaviors/mech/fluid.js';
 import { T } from '../lang.js';
 
 // część przesuwna: model ruchu wzdłuż lokalnego y, góra +z (MechKit: listwa, suwak) → ruch wzdłuż +x, góra +y
@@ -152,5 +154,62 @@ WS_PARTS.push(
       const g = CK.inverter({ kW: +p.kW, fmax: 50, ramp: +p.ramp }), api = g.userData.api; api.reference('ai');   // zadawanie z suwaka „Falownik” (wejście analogowe)
       return { group: g, api, el: 'vfd', kW: +p.kW, elec: g.userData.elec, J: 0, props: [['Moc', `${String(+p.kW).replace('.', ',')} kW`], ['Wejście', '3 × 400 V'], ['Wyjście', '0–50 Hz, U/f'], ['Rampa', `${String(+p.ramp).replace('.', ',')} s (0–50 Hz)`], ['Sprawność', '97 %']] };
     },
+  },
+);
+// ---------------- płyn (etap 6, część 4) — FluidKit; fl: 'tank' zbiornik, 'pump' pompa blokowa, 'valve' zawór, 'nozzle' dysza
+// na wysięgniku, 'bucket' wiadro. ports: { nazwa: { p, n } } — punkt przyłącza węża i normalna na zewnątrz (układ części) ----------------
+const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+const fitting = (M, x, y) => { const g = new THREE.Group(); const hx = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.01, 6).rotateZ(Math.PI / 2), M); hx.position.x = x - 0.005; const nk = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.012, 20).rotateZ(Math.PI / 2), M); nk.position.x = x - 0.016; [hx, nk].forEach((o) => { o.position.y = y; o.castShadow = true; g.add(o); }); return g; };
+WS_PARTS.push(
+  {
+    type: 'tank', role: 'fluid', fl: 'tank', name: 'Zbiornik wody z wylotem',
+    params: [{ key: 'fill', label: 'Napełnienie na start', type: 'range', min: 0.1, max: 0.9, step: 0.05, unit: '%', def: 0.6 }],
+    build(p) {
+      const g = new THREE.Group(), t = FK.waterTank({}), u = t.userData; g.add(t); const F = FK.fluidMaterials();
+      const x = u.L / 2 + 0.012, y = 0.03; g.add(fitting(F.brass, x, y));   // króciec przez ściankę przy dnie
+      const A = u.inner[0] * u.inner[1], Hin = u.H - 0.006;
+      return { group: g, el: null, fl: 'tank', J: 0, model: u, A, Hin, y0: 0.006, fill: +p.fill, ports: { out: { p: V3(x, y, 0), n: V3(1, 0, 0) } },
+        props: [['Pojemność', `${Math.round(A * Hin * 1000)} l`], ['Wylot', 'króciec G 1/2 przy dnie (oś 30 mm)'], ['Materiał', 'akryl 6 mm, rama aluminiowa']] };
+    },
+  },
+  {
+    type: 'pump', role: 'fluid', fl: 'pump', name: 'Pompa odśrodkowa blokowa',
+    params: [{ key: 'D2', label: 'Średnica wirnika', type: 'select', options: [[0.04, 'Ø 40 mm'], [0.05, 'Ø 50 mm'], [0.06, 'Ø 60 mm']], def: 0.06 }],
+    build(p) {
+      const g = FK.centrifugalPump({ D2: +p.D2, kW: 0.18 }), u = g.userData, c = FL.centrifugal({ D2: +p.D2, n0: 2850 });
+      return { group: g, el: 'pump', fl: 'pump', J: 0, curve: c, setAngle: u.setAngle, portAt: u.portAt, ports: { in: { p: u.portAt.in.clone(), n: V3(1, 0, 0) }, out: { p: u.portAt.out.clone(), n: V3(0, 1, 0) } },
+        props: [['Silnik', '0,18 kW, 2 bieguny (2850 obr/min przy 50 Hz)'], ['Wirnik', `Ø ${Math.round(+p.D2 * 1000)} mm, zamknięty, mosiężny`], ['Wysokość przy zamkniętym zaworze', `${c.H0.toFixed(1).replace('.', T(',', '.'))} m`], ['Punkt najlepszej sprawności', `${(c.Qb * 60000).toFixed(1).replace('.', T(',', '.'))} l/min, ${c.Hb.toFixed(1).replace('.', T(',', '.'))} m`], ['Zasysanie', 'nie samozasysająca — napływ ze zbiornika powyżej osi']] };
+    },
+  },
+  {
+    type: 'valve', role: 'fluid', fl: 'valve', name: 'Zawór kulowy DN 15 na podstawce',
+    params: [{ key: 'open', label: 'Otwarcie', type: 'range', min: 0, max: 1, step: 0.05, unit: '%', def: 1 }],
+    build(p) {
+      const g = new THREE.Group(), v = FK.ballValve({ dn: 15 }), u = v.userData, hv = 0.06, F = FK.fluidMaterials(); v.position.y = hv; g.add(v);
+      const st = new THREE.Mesh(new THREE.BoxGeometry(0.03, hv - u.d * 0.9, 0.03), F.alu); st.position.y = (hv - u.d * 0.9) / 2; st.castShadow = st.receiveShadow = true; g.add(st);
+      const set = (o) => u.setAngle((1 - o) * Math.PI / 2); set(+p.open);
+      return { group: g, el: null, fl: 'valve', J: 0, d: u.d, set, ports: { a: { p: V3(-u.L / 2, hv, 0), n: V3(-1, 0, 0) }, b: { p: V3(u.L / 2, hv, 0), n: V3(1, 0, 0) } },
+        props: [['Przelot', 'DN 15 (pełny, kula Ø 15)'], ['Otwarcie', `${Math.round(+p.open * 100)} % (dźwignia ${Math.round((1 - +p.open) * 90)}°)`], ['Sterowanie', 'dźwignia — kliknij, gdy podłączony']] };
+    },
+  },
+  {
+    type: 'nozzle', role: 'fluid', fl: 'nozzle', name: 'Dysza na wysięgniku',
+    params: [{ key: 'd', label: 'Średnica dyszy', type: 'select', options: [[0.004, 'Ø 4 mm'], [0.006, 'Ø 6 mm'], [0.008, 'Ø 8 mm'], [0.01, 'Ø 10 mm']], def: 0.006 }, { key: 'h', label: 'Wysokość dyszy', type: 'range', min: 0.3, max: 0.5, step: 0.01, unit: 'mm', def: 0.34 }],
+    build(p) {
+      const F = FK.fluidMaterials(), g = new THREE.Group(), h = p.h, arm = 0.16, n = FK.nozzle({ d: +p.d });
+      n.rotation.x = Math.PI; n.position.set(arm, h, 0); g.add(n);   // wlot u góry, wylot w dół
+      const base = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.008, 0.08), F.alu); base.position.y = 0.004;
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.02, h - 0.004, 0.02), F.alu); post.position.y = 0.008 + (h - 0.012) / 2;
+      const boom = new THREE.Mesh(new THREE.BoxGeometry(arm - 0.012, 0.012, 0.012), F.alu); boom.position.set((arm - 0.012) / 2, h - 0.017, 0);
+      const clamp = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.012, 24, 1, true), F.alu); clamp.position.set(arm, h - 0.017, 0); clamp.material = F.alu;
+      [base, post, boom, clamp].forEach((o) => { o.castShadow = o.receiveShadow = true; g.add(o); });
+      return { group: g, el: null, fl: 'nozzle', J: 0, d: +p.d, tip: V3(arm, h - 0.0441, 0), ports: { in: { p: V3(arm, h, 0), n: V3(0, 1, 0) } },
+        props: [['Dysza', `Ø ${+p.d * 1000} mm, mosiężna (Cd 0,9)`], ['Wysokość wylotu', `${Math.round((h - 0.044) * 1000)} mm nad blatem`], ['Wysięgnik', '160 mm']] };
+    },
+  },
+  {
+    type: 'bucket', role: 'fluid', fl: 'bucket', name: 'Wiadro ocynkowane',
+    params: [],
+    build() { const g = FK.bucket({ V: 0.01, handleUp: false }), u = g.userData; return { group: g, el: null, fl: 'bucket', J: 0, model: u, ports: {}, props: [['Pojemność', `${(u.Vfull * 1000).toFixed(1).replace('.', T(',', '.'))} l do rantu`], ['Materiał', 'blacha ocynkowana']] }; },
   },
 );

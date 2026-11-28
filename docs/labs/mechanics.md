@@ -304,7 +304,7 @@ straty (sprawność), magazyn energii (jeśli ma), ograniczenia (zakres ruchu, p
 4. ✅ Płyn: rury, węże, źródła, pompy, zawory, rozdzielacz, siłownik, zbiorniki, dysza, przenośnik — stanowisko
    hydrauliczne z podajnikiem i fontanna z dolewaniem, przelewem i wiadrem.
 5. ✅ Optyka: promienie (Snell, Fresnel, Sellmeier), soczewki, lustra, pryzmaty, emitery i odbiorniki — stół optyczny.
-6. 🟡 Warsztat: składanie maszyn z katalogu w laboratorium — ✅ napęd obrotowy, ✅ przesuw, ✅ prąd, ✅ edycja i usuwanie części; ⬜ płyn, światło.
+6. 🟡 Warsztat: składanie maszyn z katalogu w laboratorium — ✅ napęd obrotowy, ✅ przesuw, ✅ prąd, ✅ płyn, ✅ edycja i usuwanie części; ⬜ światło.
 7. Parowóz (w planach).
 
 
@@ -446,7 +446,17 @@ Fizyka luźnej części (tryb Fizyka) — moment reakcji z fizyki napędu:
   wózka, wspornika suwaka, podkładka silnika) są zablokowane, gdy część jest połączona. Lista „Na stole”: wybór i usuwanie.
 - Napęd (`drive.js`): tarcie spoczynkowe — prędkość przechodząca przez zero, gdy moment silnika nie pokonuje obciążenia
   i oporów, zatrzymuje się na zerze (wybieg z hamulcem bez drgań wokół zera).
-- Dalej: płyn, światło w warsztacie.
+- Płyn ✅ (`workshop/fluid.js`): zbiornik wody z króćcem przy dnie, pompa odśrodkowa blokowa (wirnik Ø 40–60 mm, silnik
+  0,18 kW 2-biegunowy — zasilana kablem silnikowym jak silnik: wprost, przez stycznik albo z falownika, wtedy n = 60·f),
+  zawór kulowy DN 15 na podstawce (otwarcie z parametru albo kliknięciem dźwigni), dysza na wysięgniku (Ø 4–10 mm, wysokość),
+  wiadro ocynkowane. Węże przezroczyste 12 × 3 między przyłączami (kierunek: zbiornik → pompa → zawory → dysza, każde
+  przyłącze jeden wąż); dysza połączona z wiadrem staje wylotem nad jego środkiem. Co klatkę punkt pracy pompy:
+  H(Q, n) = H_stat + straty węży (Darcy–Weisbach) + zawór (pole przelotu kuli) + dysza; rozruch pompy τ = 0,3 s, poślizg 3,5 %.
+  Pompa nie zasysa: lustro wody poniżej osi wlotu albo króćca zbiornika — przepływ zero. Woda ubywa ze zbiornika, przybywa
+  w wiadrze (nadmiar się przelewa, bez wiadra — na blat); zbiornik „Dolej do 90 %”, wiadro „Wylej do zbiornika”.
+  Czwarty przykład: zasilanie → STOP → START → stycznik → pompa; zbiornik → pompa → zawór → dysza nad wiadrem.
+- Obwód: stan styczników przetrwa przebudowę (przesunięcie części, nowy kabel), kilka odbiorników naraz (silnik i pompy).
+- Dalej: światło w warsztacie.
 
 ## Doktor — złożenie (czy modele nie wchodzą jeden w drugi)
 

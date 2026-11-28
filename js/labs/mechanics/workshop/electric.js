@@ -16,7 +16,7 @@ import { T } from '../lang.js';
 
 export const ELEC_KINDS = ['ctl', 'pwr', 'mot'];
 const PAIR = { 'btn|src': 'ctl', 'btn|btn': 'ctl', 'btn|k': 'ctl', 'k|src': 'pwr', 'src|vfd': 'pwr', 'k|vfd': 'pwr', 'motor|vfd': 'mot', 'k|motor': 'mot', 'motor|src': 'mot' };
-const elOf = (pt) => (pt.def.role === 'motor' ? 'motor' : pt.b.el);
+const elOf = (pt) => (pt.def.role === 'motor' || pt.b.el === 'pump' ? 'motor' : pt.b.el);   // pompa blokowa ma własny silnik — zasilana jak silnik
 // rodzaj kabla dla pary urządzeń (albo komunikat, czemu się nie da)
 export function cableKind(s, t, links) {
   const a = elOf(s), b = elOf(t); if (!a || !b) return null;
@@ -43,9 +43,10 @@ export const specOf = (l) => SPEC[l.kind === 'mot' ? ([l.a, l.b].some((p) => elO
 export function createElectrics({ group, TOP, name }) {
   const cables = new Map(), E = CK.ELEC;
   let c = null, devs = [], ks = [], vfds = [], srcs = [], motor = null, feed = null, warn = [], last = { on: false, rpm: 0 }, stopMsg = '';
+  const feeds = new Map(), sup = new Map();   // odbiornik (silnik, pompa) → zasilanie { mode, vfd | via }; stan zasilania w klatce { on, f, U }
   // kabel po blacie: dławik na ściance urządzenia zwróconej do drugiego, zejście na blat, środek leży na blacie
   function port(pt, toward) {
-    if (pt.def.role === 'motor') {   // silnik: dławik skrzynki zaciskowej (bok skrzynki, jak w Fizyce), wymiary skalowane wzrostem osi
+    if (pt.def.role === 'motor' && !pt.b.portAt) {   // silnik: dławik skrzynki zaciskowej (bok skrzynki, jak w Fizyce), wymiary skalowane wzrostem osi
       const m = pt.b.group.children[0], k = m.userData.H / 0.09; m.updateWorldMatrix(true, false);
       return { p: m.localToWorld(new THREE.Vector3(-0.15 * k, m.userData.H + 0.11 * k, 0.052 * k)), n: new THREE.Vector3(0, 0, 1).applyQuaternion(pt.pivot.quaternion), out: 0.16 * k };   // zejście na blat za łapami silnika
     }
@@ -68,8 +69,8 @@ export function createElectrics({ group, TOP, name }) {
     const el = links.filter((l) => ELEC_KINDS.includes(l.kind)); el.forEach(lay);
     warn = []; c = createCircuit();
     devs = parts.filter((p) => p.def.role === 'elec'); srcs = devs.filter((p) => p.b.el === 'src'); vfds = devs.filter((p) => p.b.el === 'vfd');
-    ks = devs.filter((p) => p.b.el === 'k').map((p) => ({ pt: p, on: false, t: 0, u: 0 }));
-    motor = parts.find((p) => p.def.role === 'motor') || null; feed = null;
+    ks = devs.filter((p) => p.b.el === 'k').map((p) => { const o = ks.find((k) => k.pt === p && k.api === p.b.api); return o || { pt: p, api: p.b.api, on: false, t: 0, u: 0 }; });   // stan kotwicy przetrwa przebudowę obwodu (przesunięcie, nowy kabel)
+    motor = parts.find((p) => p.def.role === 'motor') || null; feed = null; feeds.clear(); sup.clear();
     const R = (l) => (cables.get(l) ? cables.get(l).userData.R : 0), other = (l, p) => (l.a === p ? l.b : l.a), id = (p) => p.id;
     for (const s of srcs) { const UF = s.b.group.userData.elec.Uph; c.source(id(s), { L1: [UF, 0], L2: [UF, -120], L3: [UF, 120], N: [0, 0], PE: [0, 0] }, () => s.b.api.on); }
     for (const k of ks) { for (const [a, b] of [['1', '2'], ['3', '4'], ['5', '6']]) c.contact(`${id(k.pt)}:${a}`, `${id(k.pt)}:${b}`, () => k.on, id(k.pt)); if (k.pt.b.hold) c.contact(`${id(k.pt)}:13`, `${id(k.pt)}:14`, () => k.on, id(k.pt)); c.load(id(k.pt), [`${id(k.pt)}:A1`, `${id(k.pt)}:A2`], { Un: k.pt.b.elec.coilU }); }
@@ -96,12 +97,13 @@ export function createElectrics({ group, TOP, name }) {
     for (const l of el) {
       if (l.kind === 'ctl') continue;
       const [p, q] = [l.a, l.b].sort((x, y) => 'src k vfd motor'.indexOf(elOf(x)) - 'src k vfd motor'.indexOf(elOf(y))), ep = elOf(p), eq = elOf(q);   // od strony zasilania
-      if (l.kind === 'mot' && ep === 'vfd') { feed = { mode: 'vfd', vfd: p }; continue; }
+      if (l.kind === 'mot' && ep === 'vfd') { feeds.set(q, { mode: 'vfd', vfd: p }); continue; }
       wire3(p, ep === 'k' ? 'kout' : ep, q, eq === 'k' ? 'kin' : eq, l);
-      if (l.kind === 'mot') feed = { mode: 'dol', via: p };
+      if (l.kind === 'mot') feeds.set(q, { mode: 'dol', via: p });
     }
+    feed = motor ? feeds.get(motor) || null : null;
     for (const v of vfds) c.load(id(v), ['L1', 'L2', 'L3'].map((t) => `${id(v)}:${t}`), { Un: v.b.elec.Uin });
-    if (motor && feed && feed.mode === 'dol') c.load(id(motor), ['U', 'V', 'W'].map((t) => `${id(motor)}:${t}`), { Un: 400 });
+    for (const [q, fd] of feeds) if (fd.mode === 'dol') c.load(id(q), ['U', 'V', 'W'].map((t) => `${id(q)}:${t}`), { Un: 400 });
     // ostrzeżenia
     for (const b of devs.filter((p) => p.b.el === 'btn')) if (!reached.has(b)) warn.push(T(`${name(b)} — niepodłączony do zasilania (łańcuch sterowania zaczyna się na zasilaniu).`, `${name(b)} — not connected to the supply (the control chain starts at the supply).`));
     for (const k of ks) {
@@ -110,7 +112,7 @@ export function createElectrics({ group, TOP, name }) {
       if (!el.some((l) => l.kind === 'pwr' && (l.a === k.pt || l.b === k.pt) && elOf(other(l, k.pt)) === 'src')) warn.push(T(`${name(k.pt)} — styki główne bez zasilania.`, `${name(k.pt)} — main contacts without supply.`));
     }
     for (const v of vfds) { if (!el.some((l) => l.kind === 'pwr' && (l.a === v || l.b === v))) warn.push(T(`${name(v)} — bez przewodu zasilającego.`, `${name(v)} — no supply cable.`)); if (motor && feed && feed.vfd === v && v.b.kW + 1e-6 < motor.b.kW) warn.push(T(`${name(v)} (${v.b.kW} kW) za mały na silnik ${motor.b.kW} kW — zabezpieczenie nadprądowe wyłączy go przy obciążeniu.`, `${name(v)} (${v.b.kW} kW) too small for the ${motor.b.kW} kW motor — overcurrent protection will trip under load.`)); }
-    if (feed && feed.mode === 'dol' && elOf(feed.via) === 'src') warn.push(T('Silnik podłączony wprost do zasilania — rusza od razu po włączeniu wyłącznika (bez stycznika i przycisków).', 'Motor wired straight to the supply — it starts as soon as the switch is on (no contactor, no buttons).'));
+    for (const [q, fd] of feeds) if (fd.mode === 'dol' && elOf(fd.via) === 'src') warn.push(T(`${name(q)} podłączony wprost do zasilania — rusza od razu po włączeniu wyłącznika (bez stycznika i przycisków).`, `${name(q)} wired straight to the supply — it starts as soon as the switch is on (no contactor, no buttons).`));
     if (devs.length && motor && !feed) warn.push(T('Silnik bez przewodu silnikowego — zasilany umownie (przycisk „Uruchom”).', 'Motor without a motor cable — notional supply (the “Run” button).'));
     return warn;
   }
@@ -128,15 +130,20 @@ export function createElectrics({ group, TOP, name }) {
     let stop = false;
     for (const v of vfds) {
       const a = v.b.api, was = a.powered; a.power(r.U(v.id) >= 0.85 * v.b.elec.Uin); a.ai(Math.min(10, Math.abs(rpm) / 1500 * 10));
-      const mine = feed && feed.vfd === v;
+      const mine = [...feeds.values()].some((fd) => fd.vfd === v);
       if (mine && was && !a.powered && running) { stop = true; stopMsg = T(`${name(v)} stracił zasilanie — silnik wybiega. Po powrocie zasilania uruchom ponownie.`, `${name(v)} lost its supply — the motor coasts. Run again once the supply is back.`); }
       if (mine && a.powered) { if (rpm && Math.sign(rpm) !== a.dir) a.press('dir'); if (running && !a.run) a.press('run'); if (!running && a.run) a.press('stop'); }
       if (mine && running && !a.powered && !stop) { stop = true; stopMsg = T(`${name(v)} bez zasilania — włącz zasilanie (i stycznik przyciskiem START), potem „Uruchom”.`, `${name(v)} has no supply — switch the supply on (and the contactor with START), then “Run”.`); }
     }
     for (const d of devs) d.b.api.tick(dt);
-    let on = false, rpmT = 0, U = 0;
-    if (feed && feed.mode === 'vfd') { const a = feed.vfd.b.api; on = a.powered && Math.abs(a.f) > 0.05; rpmT = 30 * a.f; U = on ? Math.min(400, 400 * Math.abs(a.f) / 50) : 0; }
-    else if (feed && feed.mode === 'dol') { U = r.U(motor.id); on = U >= 0.85 * 400; rpmT = 1500; }
+    // zasilanie odbiorników: z falownika f i napięcie U/f, bezpośrednio — 50 Hz przy ≥ 85 % Un
+    for (const [q, fd] of feeds) {
+      let o;
+      if (fd.mode === 'vfd') { const a = fd.vfd.b.api, on = a.powered && Math.abs(a.f) > 0.05; o = { on, f: on ? a.f : 0, U: on ? Math.min(400, 400 * Math.abs(a.f) / 50) : 0, mode: 'vfd' }; }
+      else { const U = r.U(q.id), on = U >= 0.85 * 400; o = { on, f: on ? 50 : 0, U, mode: 'dol' }; }
+      sup.set(q, o);
+    }
+    const m0 = motor && sup.get(motor), on = !!(m0 && m0.on), rpmT = m0 ? 30 * m0.f : 0, U = m0 ? m0.U : 0;   // silnik napędu: 4 bieguny, n_s = 30·f
     last = { on, rpm: rpmT, U, r };
     return { wired: !!feed, mode: feed && feed.mode, on, rpm: rpmT, U, stop, msg: stopMsg };
   }
@@ -155,5 +162,5 @@ export function createElectrics({ group, TOP, name }) {
     }
     return rows;
   }
-  return { build, tick, trip, stats, get warn() { return warn; }, get feed() { return feed; }, clear() { for (const g of cables.values()) group.remove(g); cables.clear(); c = null; feed = null; devs = []; ks = []; vfds = []; srcs = []; } };
+  return { build, tick, trip, stats, supply: (pt) => sup.get(pt) || null, fed: (pt) => feeds.has(pt), get warn() { return warn; }, get feed() { return feed; }, clear() { for (const g of cables.values()) group.remove(g); cables.clear(); c = null; feed = null; feeds.clear(); sup.clear(); devs = []; ks = []; vfds = []; srcs = []; } };
 }
