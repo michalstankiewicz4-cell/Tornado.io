@@ -1,9 +1,10 @@
-// Warsztat — katalog części napędu obrotowego (pierwsza wersja: obrót). Każda część budowana wzdłuż lokalnej osi +x z MechKit:
+// Warsztat — katalog części: napęd obrotowy, przesuw i prąd. auto: true — parametr ustawiany przez połączenie (zablokowany w połączonej części). Każda część budowana wzdłuż lokalnej osi +x z MechKit:
 //   role: 'motor' (wał wyjściowy w +x, oś na wysokości axisY nad podstawą), 'shaft' (od x = 0 do len), 'hub' (piasta na wale:
 //   koło zębate, łańcuchowe, pasowe, sprzęgło, tarcza hamulca — oś przez początek), 'support' (oprawa łożyska — oś na wysokości h).
 //   build(p) → { group, spin, J, ext: [x0, x1] (zasięg wzdłuż osi), axisY (oś nad spodem), props: [[nazwa, wartość]] }
 import * as THREE from '../../../../vendor/three/three.module.js';
 import * as MK from '../../../models/mech/mechkit.js';
+import * as CK from '../../../models/mech/controls.js';
 import { T } from '../lang.js';
 
 // część przesuwna: model ruchu wzdłuż lokalnego y, góra +z (MechKit: listwa, suwak) → ruch wzdłuż +x, góra +y
@@ -16,7 +17,7 @@ export const WS_PARTS = [
   {
     type: 'motor', role: 'motor', name: 'Silnik indukcyjny',
     params: [{ key: 'kW', label: 'Moc', type: 'select', options: [[0.37, '0,37 kW'], [0.75, '0,75 kW'], [1.1, '1,1 kW'], [2.2, '2,2 kW']], def: 1.1 },
-      { key: 'riser', label: 'Podkładka pod łapy', type: 'range', min: 0, max: 0.12, step: 0.002, unit: 'mm', def: 0 }],
+      { key: 'riser', label: 'Podkładka pod łapy', type: 'range', auto: true, min: 0, max: 0.12, step: 0.002, unit: 'mm', def: 0 }],
     build(p) {
       const m = MK.motor({ kW: +p.kW }), g = new THREE.Group(), rz = +p.riser || 0; g.add(m); m.position.y = rz; g.userData = m.userData; g.name = m.name;
       if (rz > 0) { const pl = new THREE.Mesh(new THREE.BoxGeometry(0.4 * m.userData.spin.position.y / 0.09 + 0.04, rz, 0.24 * m.userData.spin.position.y / 0.09), MK.materials().iron); pl.position.set(-0.165 * m.userData.spin.position.y / 0.09, rz / 2, 0); pl.castShadow = pl.receiveShadow = true; g.add(pl); }   // płyta stalowa — podnosi oś silnika
@@ -62,7 +63,7 @@ export const WS_PARTS = [
   },
   {
     type: 'bearing', role: 'support', name: 'Łożysko w oprawie UCP',
-    params: [{ key: 'h', label: 'Wysokość osi', type: 'range', min: 0.06, max: 0.3, step: 0.001, unit: 'mm', def: 0.09 }],
+    params: [{ key: 'h', label: 'Wysokość osi', type: 'range', auto: true, min: 0.06, max: 0.3, step: 0.001, unit: 'mm', def: 0.09 }],
     build(p) { const g = MK.pillowBlock({ h: p.h }); return { group: g, spin: null, J: 0, axisY: p.h, ext: ext(g), props: [['Łożysko', 'UC205 (otwór 25 mm)'], ['Wysokość osi', `${Math.round(p.h * 1000)} mm`], ['Oprawa', 'żeliwna, stojąca']] }; },
   },
 ];
@@ -85,7 +86,7 @@ WS_PARTS.push(
   },
   {
     type: 'nut', role: 'lin', name: 'Nakrętka kulowa z wózkiem',
-    params: [{ key: 'lead', label: 'Skok gwintu', type: 'select', options: [[0.005, '5 mm'], [0.01, '10 mm'], [0.02, '20 mm']], def: 0.01 }, { key: 'travel', label: 'Skok wózka', type: 'range', min: 0.06, max: 0.6, step: 0.01, unit: 'mm', def: 0.2 }, { key: 'hc', label: 'Wysokość osi', type: 'range', min: 0.04, max: 0.3, step: 0.001, unit: 'mm', def: 0.08 }],
+    params: [{ key: 'lead', label: 'Skok gwintu', type: 'select', options: [[0.005, '5 mm'], [0.01, '10 mm'], [0.02, '20 mm']], def: 0.01 }, { key: 'travel', label: 'Skok wózka', type: 'range', min: 0.06, max: 0.6, step: 0.01, unit: 'mm', def: 0.2 }, { key: 'hc', label: 'Wysokość osi', type: 'range', auto: true, min: 0.04, max: 0.3, step: 0.001, unit: 'mm', def: 0.08 }],
     build(p) { const g = MK.screwNut({ d: 0.02, lead: +p.lead, kind: 'ball', hc: p.hc, travel: p.travel }), u = g.userData, w = new THREE.Group(); g.position.y = p.hc; w.add(g);
       return { group: w, spin: null, slide: u.slide, slideAxis: 'x', J: u.mass, dof: 'lin', travel: p.travel - 0.01, refLocal: new THREE.Vector3(0, p.hc, 0), lead: +p.lead, axisY: p.hc,
         props: [['Skok gwintu', `${+p.lead * 1000} mm`], ['Skok wózka', `± ${Math.round((p.travel - 0.01) * 500)} mm (krańcówki)`], ['Wysokość osi', `${Math.round(p.hc * 1000)} mm`], ['Masa ruchoma', `${u.mass.toFixed(2)} kg`]] }; },
@@ -104,7 +105,7 @@ WS_PARTS.push(
   },
   {
     type: 'slider', role: 'lin', name: 'Suwak w prowadnicy (do korbowodu)',
-    params: [{ key: 'travel', label: 'Skok prowadnicy', type: 'range', min: 0.06, max: 0.3, step: 0.01, unit: 'mm', def: 0.12 }, { key: 'ped', label: 'Wysokość osi suwaka', type: 'range', min: 0.035, max: 0.3, step: 0.001, unit: 'mm', def: 0.08 }],
+    params: [{ key: 'travel', label: 'Skok prowadnicy', type: 'range', min: 0.06, max: 0.3, step: 0.01, unit: 'mm', def: 0.12 }, { key: 'ped', label: 'Wysokość osi suwaka', type: 'range', auto: true, min: 0.035, max: 0.3, step: 0.001, unit: 'mm', def: 0.08 }],
     build(p) {
       const sl = MK.slider({ len: 0.07, w: 0.04, h: 0.03, travel: p.travel }), u = sl.userData, g = yUp(sl), c0 = sl.position.y, ped = Math.max(c0, p.ped);
       sl.position.y = ped;   // wspornik pod prowadnicą: oś suwaka na wysokości osi korby
@@ -115,3 +116,41 @@ WS_PARTS.push(
   },
 );
 export const partDef = (type) => WS_PARTS.find((d) => d.type === type);
+// ---------------- prąd (etap 6, część 3) — urządzenia ControlKit; el: 'src' zasilanie, 'btn' przycisk, 'k' stycznik, 'vfd' falownik ----------------
+// kaseta przycisku stoi na blacie frontem w +z (jak w Fizyce)
+const BTN = { start: ['green', 'NO', 'START (zielony, NO)'], stop: ['red', 'NC', 'STOP (czerwony, NC)'], estop: ['', 'NC', 'Grzybek awaryjny (NC, z zatrzaskiem)'] };
+WS_PARTS.push(
+  {
+    type: 'source', role: 'elec', el: 'src', name: 'Zasilanie 3 × 400 V z wyłącznikiem',
+    params: [{ key: 'amps', label: 'Zabezpieczenie', type: 'select', options: [[16, '16 A'], [25, '25 A'], [32, '32 A']], def: 16 }],
+    build(p) { const g = CK.powerSource({ kind: 'AC', volts: 400, phases: 3, amps: +p.amps }); return { group: g, api: g.userData.api, el: 'src', J: 0, props: [['Napięcie', '3 × 400 / 230 V, 50 Hz (TN-S)'], ['Zabezpieczenie', `${+p.amps} A`], ['Wyłącznik', 'kołyskowy na panelu (kliknij)'], ['Masa', '2,5 kg']] }; },
+  },
+  {
+    type: 'button', role: 'elec', el: 'btn', name: 'Przycisk w kasecie',
+    params: [{ key: 'kind', label: 'Rodzaj', type: 'select', options: Object.entries(BTN).map(([k, v]) => [k, v[2]]), def: 'start' }],
+    build(p) {
+      const [color, contact, label] = BTN[p.kind] || BTN.start, g = p.kind === 'estop' ? CK.eStop() : CK.pushButton({ color, contact });
+      return { group: g, api: g.userData.api, el: 'btn', kind: p.kind, contact, ctrl: p.kind === 'estop' ? 'estop' : 'button', J: 0, props: [['Rodzaj', label], ['Styk', contact === 'NO' ? 'zwierny 13-14' : 'rozwierny 11-12'], ['Obciążalność styku', '6 A / 230 V AC-15'], ['Obudowa', 'IP65, 1 otwór 22 mm']] };
+    },
+  },
+  {
+    type: 'contactor', role: 'elec', el: 'k', name: 'Stycznik na płycie montażowej',
+    params: [{ key: 'amps', label: 'Prąd AC-3', type: 'select', options: [[12, '12 A'], [25, '25 A']], def: 12 }, { key: 'hold', label: 'Podtrzymanie (13-14 równolegle do START)', type: 'select', options: [[1, T('tak', 'yes')], [0, T('nie', 'no')]], def: 1 }],
+    build(p) {
+      const M = MK.materials(), g = new THREE.Group(), k = CK.contactor({ amps: +p.amps, coil: '230AC', aux: '1NO' }); k.position.set(0, 0.025, 0.012); g.add(k);
+      const plate = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.13, 0.006), M.steel); plate.position.set(0, 0.065, 0.006); const foot = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.006, 0.08), M.steel); foot.position.set(0, 0.003, 0.04);
+      [plate, foot].forEach((o) => { o.castShadow = o.receiveShadow = true; g.add(o); });
+      g.userData = { ...k.userData };
+      const e = k.userData.elec;
+      return { group: g, api: k.userData.api, el: 'k', hold: !!+p.hold, elec: e, J: 0, props: [['Styki główne', `3 × NO, ${+p.amps} A (AC-3)`], ['Cewka', '230 V AC — zadziała od 85 % Un, odpada poniżej 60 %'], ['Styk pomocniczy', +p.hold ? '13-14 NO — podtrzymanie' : '13-14 NO (niepodłączony)'], ['Masa', `${(+p.amps > 18 ? 0.55 : 0.36) + 0.9} kg (z płytą)`]] };
+    },
+  },
+  {
+    type: 'inverter', role: 'elec', el: 'vfd', name: 'Falownik 3 × 400 V',
+    params: [{ key: 'kW', label: 'Moc', type: 'select', options: [[0.37, '0,37 kW'], [0.75, '0,75 kW'], [1.1, '1,1 kW'], [2.2, '2,2 kW']], def: 1.1 }, { key: 'ramp', label: 'Rampa 0–50 Hz', type: 'range', min: 0.5, max: 10, step: 0.5, unit: 's', def: 3 }],
+    build(p) {
+      const g = CK.inverter({ kW: +p.kW, fmax: 50, ramp: +p.ramp }), api = g.userData.api; api.reference('ai');   // zadawanie z suwaka „Falownik” (wejście analogowe)
+      return { group: g, api, el: 'vfd', kW: +p.kW, elec: g.userData.elec, J: 0, props: [['Moc', `${String(+p.kW).replace('.', ',')} kW`], ['Wejście', '3 × 400 V'], ['Wyjście', '0–50 Hz, U/f'], ['Rampa', `${String(+p.ramp).replace('.', ',')} s (0–50 Hz)`], ['Sprawność', '97 %']] };
+    },
+  },
+);

@@ -158,7 +158,10 @@ export function createDrive() {
       let Tl = brake * Math.abs(rOut) / etaOut, a;
       if (Math.abs(wOut) < 1e-3 && Math.abs(Tm - fric) <= Tl) { st.omega = 0; a = 0; Tl = Math.abs(Tm); }   // hamulec trzyma
       else { Tl *= Math.sign(st.omega || Tm); a = (Tm - Tl - fric) / Math.max(J, 1e-6); }
-      st.omega += a * h; st.theta += st.omega * h;
+      // tarcie spoczynkowe: obciążenie i opory nie odwracają ruchu — prędkość przechodząca przez zero, gdy moment silnika ich nie
+      // pokonuje, zatrzymuje się na zerze (bez drgania wokół zera przy wybiegu z hamulcem)
+      const w1 = st.omega + a * h;
+      st.omega = st.omega !== 0 && Math.sign(w1) !== Math.sign(st.omega) && Math.abs(Tm) <= Math.abs(Tl) + Math.abs(fric) ? 0 : w1; st.theta += st.omega * h;
       Object.assign(st, { Tm, Jeff: J, Tload: Tl, P: Tm * st.omega });
     }
     evalAngles(st.theta, true);

@@ -304,7 +304,7 @@ straty (sprawność), magazyn energii (jeśli ma), ograniczenia (zakres ruchu, p
 4. ✅ Płyn: rury, węże, źródła, pompy, zawory, rozdzielacz, siłownik, zbiorniki, dysza, przenośnik — stanowisko
    hydrauliczne z podajnikiem i fontanna z dolewaniem, przelewem i wiadrem.
 5. ✅ Optyka: promienie (Snell, Fresnel, Sellmeier), soczewki, lustra, pryzmaty, emitery i odbiorniki — stół optyczny.
-6. 🟡 Warsztat: składanie maszyn z katalogu w laboratorium — ✅ napęd obrotowy, ✅ przesuw; ⬜ prąd, płyn, światło.
+6. 🟡 Warsztat: składanie maszyn z katalogu w laboratorium — ✅ napęd obrotowy, ✅ przesuw, ✅ prąd, ✅ edycja i usuwanie części; ⬜ płyn, światło.
 7. Parowóz (w planach).
 
 
@@ -430,7 +430,23 @@ Fizyka luźnej części (tryb Fizyka) — moment reakcji z fizyki napędu:
   (wysokość wózka z osi, ten sam skok gwintu), tarcza korbowa z korbowodem i suwakiem (wspornik suwaka na wysokości osi korby,
   płaszczyzna sworzni). Krańcówki: wózek na końcu skoku zatrzymuje silnik; falownik ma kierunek (−1500 … 1500 obr/min).
   Silnik ma podkładkę pod łapy — połączenie silnika ze sprzęgłem dobiera ją z wysokości osi.
-- Dalej: prąd, płyn, światło w warsztacie.
+- Prąd ✅ (`workshop/electric.js`): zasilanie 3 × 400 V z wyłącznikiem, przycisk w kasecie (START NO, STOP NC, grzybek
+  awaryjny), stycznik na płycie montażowej (cewka 230 V AC, podtrzymanie 13-14), falownik (0,37–2,2 kW, rampa). „Połącz z…”
+  między urządzeniami kładzie kabel po blacie; jego żyły wynikają z rodzajów urządzeń: przewód sterowniczy 3 × 1 mm² (zasilanie →
+  przyciski → cewka; podtrzymanie równolegle do najbliższego START), przewód zasilający 5G2,5 (zasilanie → stycznik → falownik),
+  przewód silnikowy (falownik → silnik 4G1,5 ekranowany; stycznik albo zasilanie → silnik 4G2,5 — rozruch bezpośredni).
+  Obwód liczy `createCircuit` co klatkę: cewka zadziała ≥ 85 % Un po 20 ms, odpada < 60 %, falownik pracuje od 85 % napięcia
+  wejścia. Silnik z falownika — prędkość synchroniczna 30·f (zadawanie z suwaka „Falownik”, RUN / STOP przyciskiem „Uruchom”);
+  z rozruchu bezpośredniego — 1500 obr/min (START / STOP na przyciskach); bez napięcia — moment zero, wybieg. Krańcówka:
+  stycznik odpada, falownik STOP. Kliknięcie podłączonego przycisku albo zasilania obsługuje je (przycisk — dopóki trzymany).
+  Silnik bez przewodu silnikowego — zasilany umownie jak dotąd. Trzeci przykład: zasilanie → STOP → START → stycznik →
+  falownik → silnik → wał z hamulcem.
+- Edycja ✅: wybrana część pokazuje swoje parametry z katalogu; zmiana przebudowuje część i dopasowuje na nowo jej połączenia
+  mechaniczne (te, które już nie pasują, są rozłączane z komunikatem); parametry ustawiane przez połączenie (wysokość oprawy,
+  wózka, wspornika suwaka, podkładka silnika) są zablokowane, gdy część jest połączona. Lista „Na stole”: wybór i usuwanie.
+- Napęd (`drive.js`): tarcie spoczynkowe — prędkość przechodząca przez zero, gdy moment silnika nie pokonuje obciążenia
+  i oporów, zatrzymuje się na zerze (wybieg z hamulcem bez drgań wokół zera).
+- Dalej: płyn, światło w warsztacie.
 
 ## Doktor — złożenie (czy modele nie wchodzą jeden w drugi)
 

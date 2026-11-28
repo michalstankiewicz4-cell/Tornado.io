@@ -1,5 +1,13 @@
 # Zmiany
 
+## 0.37.0 — 2026-11-28
+- Laboratorium mechaniki 0.23.0 — **Warsztat: prąd** oraz **edycja i usuwanie części**. Nowe urządzenia: zasilanie
+  3 × 400 V z wyłącznikiem, przycisk (START, STOP, grzybek awaryjny), stycznik z podtrzymaniem, falownik. Połączenie urządzeń
+  to kabel po blacie (sterowniczy, zasilający, silnikowy — żyły z rodzajów urządzeń); obwód liczony co klatkę (cewka 85 / 60 %
+  Un, falownik od 85 % napięcia); silnik z falownika albo rozruch bezpośredni przez stycznik; krańcówka wyłącza stycznik;
+  trzeci przykład. Wybrana część ma edytowalne parametry (połączenia dopasowują się na nowo), lista części na stole z usuwaniem.
+- Napęd (`behaviors/mech/drive.js`): tarcie spoczynkowe — wybieg z hamulcem kończy się na zerze, bez drgań.
+
 ## 0.36.0 — 2026-11-28
 - Laboratorium mechaniki 0.22.0 — **Warsztat: przesuw**. Nowe części: listwa zębata na prowadnicy, śruba kulowa, nakrętka
   kulowa z wózkiem, tarcza korbowa, suwak w prowadnicy; połączenia zębnik — listwa, śruba — nakrętka, korba — korbowód —

@@ -5,11 +5,14 @@
 //   płaszczyźnie. Przesuwana jest część klikana jako pierwsza razem ze wszystkim, co jest na niej osadzone.
 // Ruch liczy ten sam silnik napędu co Maszyna (behaviors/mech/drive.js): graf od silnika, przełożenia z połączeń, bezwładność
 // zredukowana, moment silnika z poślizgu, hamulec na wyjściu. Ostrzeżenia: część niepołączona, zakleszczenie, wał bez podparcia.
+// Prąd (electric.js): kable między urządzeniami, obwód co klatkę, zasilanie silnika z falownika albo przez stycznik.
+// Edycja: parametry wybranej części (przebudowa, połączenia dopasowane na nowo), lista części na stole z usuwaniem.
 // Zapis w przeglądarce (localStorage), przykład do obejrzenia. createWorkshop(ctx) → { group, setActive, step, onPointer, onKey, api }
 import * as THREE from '../../../../vendor/three/three.module.js';
 import * as MK from '../../../models/mech/mechkit.js';
 import { createDrive } from '../../../behaviors/mech/drive.js';
 import { WS_PARTS, partDef } from './catalog.js';
+import { createElectrics, cableKind, ELEC_KINDS } from './electric.js';
 import { T, tr } from '../lang.js';
 
 const TAU = Math.PI * 2, X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0), KEY = 'tornado.mechanics.workshop', GRID = 0.01;
@@ -47,15 +50,19 @@ export function createWorkshop({ scene, camera, dom, M, fmt, el, view }) {
   // zasięg wzdłuż osi (od punktu osi) w świecie: [s0, s1] po kierunku axisDir
   const span = (pt) => (pt.b.ext ? pt.b.ext : role(pt) === 'motor' ? [-0.3, pt.b.shaftEnd] : [-0.02, 0.02]);
   const motorEnd = (pt) => axisPt(pt).addScaledVector(axisDir(pt), pt.b.shaftEnd);
-  const dist = (pt) => role(pt) === 'motor' || role(pt) === 'support' || role(pt) === 'lin';   // stoją na blacie
+  const dist = (pt) => role(pt) === 'motor' || role(pt) === 'support' || role(pt) === 'lin' || role(pt) === 'elec';   // stoją na blacie
+  const isElec = (l) => ELEC_KINDS.includes(l.kind);
+  const mechLinked = (pt) => links.some((l) => (l.a === pt || l.b === pt) && !isElec(l));
   // sworzeń suwaka (przy położeniu 0) — punkt odniesienia mechanizmu korbowego; dla innych części przesuwnych punkt osi
   const sliderPin = (pt) => (pt.b.pinLat ? axisPt(pt).addScaledVector(new THREE.Vector3(0, 0, 1).applyAxisAngle(Y, pt.rot * Math.PI / 2), pt.b.pinLat) : axisPt(pt));
   const name = (pt) => `${tr(pt.def.name)} #${pt.n}`;
+  const ELC = createElectrics({ group, TOP, name });
   // przebudowa części z nowym parametrem (wysokość oprawy, wspornika suwaka, wózka nakrętki) — spód zostaje na blacie
   function rebuild(pt, key, v) {
     if (Math.abs(v - pt.params[key]) < 1e-4) return;
     const P = axisPt(pt); pt.pivot.remove(pt.b.group); pt.params[key] = v; pt.b = pt.def.build(pt.params); pt.pivot.add(pt.b.group); pt.pivot.traverse((o) => { o.userData.wsPart = pt; });
-    setAxisPt(pt, P); pt.pivot.position.y = TOP;
+    setAxisPt(pt, P); if (dist(pt)) pt.pivot.position.y = TOP;   // stojące — spód na blacie; wały i piasty — oś zostaje
+    dirty = true;
   }
   const rebuildBearing = (pt, h) => { rebuild(pt, 'h', Math.max(0.06, h)); return true; };
   // składowa sztywna: części osadzone na sobie (piasty, wały, łożyska) — przesuwane razem
@@ -67,7 +74,7 @@ export function createWorkshop({ scene, camera, dom, M, fmt, el, view }) {
     // łożyska zostają na blacie: wysokość oprawy z osi wału
     for (const c of comp) if (role(c) === 'support') rebuildBearing(c, axisPt(c).y - TOP);
     // połączenia zębate, łańcuchowe i pasowe do części spoza składowej przestają pasować — usunięte
-    const set = new Set(comp), broken = links.filter((l) => !['mount', 'support'].includes(l.kind) && set.has(l.a) !== set.has(l.b));
+    const set = new Set(comp), broken = links.filter((l) => !['mount', 'support', ...ELEC_KINDS].includes(l.kind) && set.has(l.a) !== set.has(l.b));   // kable idą za częściami
     broken.forEach(dropLink);
     return broken.length ? T(`Rozłączono ${broken.length} połączeń zębatych / łańcuchowych z innymi częściami.`, `Disconnected ${broken.length} gear / chain links to other parts.`) : '';
   }
@@ -81,6 +88,11 @@ export function createWorkshop({ scene, camera, dom, M, fmt, el, view }) {
     if (s === t) return T('Wybierz inną część.', 'Choose another part.');
     if (links.some((l) => (l.a === s && l.b === t) || (l.a === t && l.b === s))) return T('Te części są już połączone.', 'These parts are already connected.');
     const rs = role(s), rt = role(t), ds = s.def.type, dt = t.def.type;
+    if (rs === 'elec' || rt === 'elec') {   // kabel: części zostają na miejscu, żyły z rodzajów urządzeń (electric.js)
+      const ck = cableKind(s, t, links); if (!ck) return T('Tych części nie da się tak połączyć.', 'These parts cannot be connected this way.'); if (typeof ck === 'string') return ck;
+      links.push({ a: t, b: s, kind: ck.kind }); dirty = true;
+      return T(`Połączono kablem: ${tr(KIND[ck.kind])}.`, `Connected with a cable: ${tr(KIND[ck.kind])}.`);
+    }
     const align = (pt, ref) => { if (!parallel(pt, ref)) { if (component(pt).length > 1) return false; setRot(pt, ref.rot); } return true; };
     const onAxis = (ref, sAlong) => axisPt(ref).addScaledVector(axisDir(ref), sAlong);
     const along = (ref, P) => P.clone().sub(axisPt(ref)).dot(axisDir(ref));
@@ -166,7 +178,7 @@ export function createWorkshop({ scene, camera, dom, M, fmt, el, view }) {
   // łańcuch i pas: obrys w płaszczyźnie prostopadłej do osi (układ lokalny części t — oś x)
   function buildVisual(l) {
     if (l.kind === 'crank') { if (l.visual) group.remove(l.visual); const w = new THREE.Group(), rod = MK.conRod({ l: l.a.b.l }); w.add(rod); l.visual = w; l.rod = rod; group.add(w); return; }
-    if (l.kind !== 'chain' && l.kind !== 'belt') return;
+    if (l.kind !== 'chain' && l.kind !== 'belt') return;   // kable elektryczne układa electric.js przy przeliczeniu
     if (l.visual) group.remove(l.visual);
     const t = l.a, s = l.b, w = new THREE.Group(); w.rotation.y = t.rot * Math.PI / 2; w.updateMatrixWorld(true);
     const inv = w.matrixWorld.clone().invert(), Pt = axisPt(t).applyMatrix4(inv), Ps = axisPt(s).applyMatrix4(inv);
@@ -184,9 +196,10 @@ export function createWorkshop({ scene, camera, dom, M, fmt, el, view }) {
   function rebuildDrive() {
     dirty = false; drive = createDrive(); solved = null;
     const els = new Map();
-    for (const pt of parts) if (role(pt) !== 'support') els.set(pt, drive.add({ id: pt.id, name: name(pt), type: pt.type, J: pt.b.J || 0, spin: pt.b.spin, slide: pt.b.slide, slideAxis: pt.b.slideAxis, dof: pt.b.dof || 'rot', group: pt.b.group, frame: { o: role(pt) === 'lin' ? sliderPin(pt) : axisPt(pt), axis: axisDir(pt), ref: Y.clone() } }));
+    const ew = ELC.build(parts, links);
+    for (const pt of parts) if (role(pt) !== 'support' && role(pt) !== 'elec') els.set(pt, drive.add({ id: pt.id, name: name(pt), type: pt.type, J: pt.b.J || 0, spin: pt.b.spin, slide: pt.b.slide, slideAxis: pt.b.slideAxis, dof: pt.b.dof || 'rot', group: pt.b.group, frame: { o: role(pt) === 'lin' ? sliderPin(pt) : axisPt(pt), axis: axisDir(pt), ref: Y.clone() } }));
     const motor = parts.find((p) => role(p) === 'motor'), warn = [];
-    if (!motor) { solved = { warn: [T('Wstaw silnik — od niego liczy się ruch.', 'Insert a motor — motion is computed from it.')] }; return; }
+    if (!motor) { solved = { warn: [T('Wstaw silnik — od niego liczy się ruch.', 'Insert a motor — motion is computed from it.'), ...ew] }; return; }
     const adj = new Map(); for (const pt of els.keys()) adj.set(pt, []);
     for (const l of links) if (l.kind !== 'support' && els.has(l.a) && els.has(l.b)) { adj.get(l.a).push([l.b, l]); adj.get(l.b).push([l.a, l]); }
     const seen = new Set([motor]), q = [motor];
@@ -214,18 +227,20 @@ export function createWorkshop({ scene, camera, dom, M, fmt, el, view }) {
     for (const pt of parts) if (role(pt) === 'hub') { const r = pt.b.rp ? pt.b.rp + pt.b.m : pt.b.R ? pt.b.R + 0.006 : pt.b.d ? pt.b.d / 2 + 0.004 : 0.04; if (axisPt(pt).y - TOP < r + 0.002) warn.push(T(`${name(pt)} zahacza o blat (promień ${Math.round(r * 1000)} mm, oś ${Math.round((axisPt(pt).y - TOP) * 1000)} mm nad blatem) — użyj mniejszego koła albo wyżej osadzonego wału.`, `${name(pt)} hits the table top (radius ${Math.round(r * 1000)} mm, axis ${Math.round((axisPt(pt).y - TOP) * 1000)} mm above it) — use a smaller wheel or a higher shaft.`)); }
     for (const pt of parts) if (role(pt) === 'hub' && !pt.b.coupling && !links.some((l) => l.kind === 'mount' && (l.a === pt || l.b === pt))) warn.push(T(`${name(pt)} nie siedzi na wale — w prawdziwej maszynie by spadło.`, `${name(pt)} is not on a shaft — in a real machine it would fall off.`));
     if (!brakeP) warn.push(T('Bez hamulca maszyna kręci się bez obciążenia (tylko bezwładność i opory łożysk).', 'Without a brake the machine runs unloaded (only inertia and bearing friction).'));
-    solved = { ...r, warn, motor, brakeP };
+    solved = { ...r, warn: [...warn, ...ew], motor, brakeP };
   }
   function step(dt) {
     if (!group.visible) return;
     if (dirty) rebuildDrive();
+    const E = ELC.tick(dt, { running, rpm });   // obwód: styczniki, falowniki, zasilanie silnika (także bez silnika)
+    if (E.stop) { running = false; msg = E.msg; buildUI(); }
     if (drive && solved && solved.motor) {
       const m = solved.motor.b;
       const th0 = drive.state.theta;
-      if (running) {
-        drive.step(dt, { rpm, brake: solved.brakeP ? brake : 0, Tmax: 2.5 * m.Trated, rated: m.rated });
-      // krańcówki części przesuwnych: wyjście poza skok w stronę końca — silnik stop, wózek na krańcu
-        for (const pt of parts) if (role(pt) === 'lin' && pt.b.travel) { const e = drive.els.get(pt.id); if (e && Math.abs(e.theta) > pt.b.travel / 2 && running) { drive.pose(th0); drive.state.omega = 0; running = false; msg = T(`${name(pt)} na krańcówce (± ${Math.round(pt.b.travel * 500)} mm) — silnik zatrzymany. Zmień kierunek falownika.`, `${name(pt)} hit its limit switch (± ${Math.round(pt.b.travel * 500)} mm) — motor stopped. Reverse the inverter.`); buildUI(); } }
+      if (E.wired || running) {
+        drive.step(dt, E.wired ? { rpm: E.rpm, brake: solved.brakeP ? brake : 0, Tmax: E.on ? 2.5 * m.Trated : 0, rated: m.rated } : { rpm, brake: solved.brakeP ? brake : 0, Tmax: 2.5 * m.Trated, rated: m.rated });
+        // krańcówki części przesuwnych: wyjście poza skok — silnik stop (umownie: „Uruchom” zwolnione; z obwodu: stycznik odpada, falownik STOP)
+        for (const pt of parts) if (role(pt) === 'lin' && pt.b.travel) { const e = drive.els.get(pt.id); if (e && Math.abs(e.theta) > pt.b.travel / 2) { drive.pose(th0); drive.state.omega = 0; running = false; if (E.wired) ELC.trip(); msg = T(`${name(pt)} na krańcówce (± ${Math.round(pt.b.travel * 500)} mm) — silnik zatrzymany. Zmień kierunek falownika.`, `${name(pt)} hit its limit switch (± ${Math.round(pt.b.travel * 500)} mm) — motor stopped. Reverse the inverter.`); buildUI(); break; } }
       } else { drive.state.omega *= Math.max(0, 1 - dt * 3); theta += drive.state.omega * dt; drive.pose(drive.state.theta + drive.state.omega * dt); }
       for (const e of drive.els.values()) if (e.dof === 'lin' && e.slide) e.slide.position[e.slideAxis] = e.theta; else if (e.spin) e.spin.rotation.x = e.theta;
       for (const l of links) if (l.rod) { const c = drive.els.get(l.a.id), sl = drive.els.get(l.b.id); if (c && sl) { const C = axisPt(l.a), ax = axisDir(l.a), a = c.theta, zz = ax.clone().cross(Y); const P = C.addScaledVector(ax, l.a.b.pinX).addScaledVector(Y, l.a.b.r * Math.cos(a)).addScaledVector(zz, l.a.b.r * Math.sin(a)); l.rod.userData.pose(P, sliderPin(l.b).addScaledVector(axisDir(l.b), sl.theta), ax); } }
@@ -244,7 +259,7 @@ export function createWorkshop({ scene, camera, dom, M, fmt, el, view }) {
     for (const q of data.links || []) { const a = parts.find((p) => p.n === q.a), b = parts.find((p) => p.n === q.b); if (a && b) { const l = { a, b, kind: q.kind }; links.push(l); buildVisual(l); } }
     rpm = data.rpm ?? rpm; brake = data.brake ?? brake; dirty = true; buildUI();
   }
-  function clear(doSave = true) { for (const l of [...links]) dropLink(l); for (const p of [...parts]) group.remove(p.pivot); parts.length = 0; sel = null; nextId = 1; running = false; dirty = true; if (doSave) { save(); buildUI(); } }
+  function clear(doSave = true) { for (const l of [...links]) dropLink(l); ELC.clear(); for (const p of [...parts]) group.remove(p.pivot); parts.length = 0; sel = null; nextId = 1; running = false; dirty = true; if (doSave) { save(); buildUI(); } }
   // przykład przesuwu: silnik → sprzęgło → wał na łożyskach → tarcza korbowa → korbowód → suwak; obok zębnik z listwą na drugim wale (pas 1 : 2)
   function exampleLin() {
     clear(false);
@@ -263,6 +278,23 @@ export function createWorkshop({ scene, camera, dom, M, fmt, el, view }) {
     const b3 = add('bearing', {}, 0.45, 0.05, 1); link(b3, s2); const b4 = add('bearing', {}, 0.45, 0.35, 1); link(b4, s2);
     msg = T('Przykład przesuwu: korba ze suwakiem (ruch tam i z powrotem). Zębnik z listwą na drugim wale — połącz go z pierwszym (np. łańcuchem albo pasem) i patrz na krańcówki.', 'Linear example: crank with a slider (back and forth). Pinion and rack on a second shaft — connect it to the first one (e.g. chain or belt) and watch the limit switches.');
     dirty = true; save(); buildUI();
+  }
+  // przykład prądu: zasilanie → STOP → START → cewka stycznika (podtrzymanie 13-14); zasilanie → stycznik → falownik → silnik →
+  // sprzęgło → wał na łożyskach → hamulec. Kolejność obsługi: wyłącznik zasilania, START (stycznik zasila falownik), „Uruchom”.
+  function exampleElec() {
+    clear(false);
+    const add = (type, params, x, z, rot = 0) => { const p = make(type, params); setRot(p, rot); p.pivot.position.set(C0.x + x, TOP, C0.z + z); parts.push(p); return p; };
+    const lift = (p, y) => { p.pivot.position.y = y; return p; };
+    const m = add('motor', { kW: 0.75 }, -0.55, -0.2), ax = TOP + m.b.axisY;
+    const c = lift(add('jaw', {}, -0.35, -0.2), ax); link(c, m);
+    const s1 = lift(add('shaft', { len: 0.5 }, -0.25, -0.2), ax); link(s1, c);
+    const b1 = add('bearing', {}, -0.2, -0.2); link(b1, s1); const b2 = add('bearing', {}, 0.15, -0.2); link(b2, s1);
+    const br = lift(add('brake', { d: 0.2 }, 0.05, -0.2), ax); link(br, s1);
+    const X0 = add('source', {}, -1.0, 0.25), S1 = add('button', { kind: 'stop' }, -0.78, 0.3), S2 = add('button', { kind: 'start' }, -0.66, 0.3);
+    const K1 = add('contactor', {}, -0.42, 0.25), U1 = add('inverter', { kW: 0.75 }, -0.15, 0.22);
+    link(S1, X0); link(S2, S1); link(K1, S2); link(K1, X0); link(U1, K1); link(m, U1);
+    msg = T('Przykład prądu: włącz wyłącznik na zasilaniu, naciśnij START (stycznik zasila falownik), potem „Uruchom”. STOP rozłącza stycznik — falownik traci zasilanie, silnik wybiega.', 'Electrical example: switch the supply on, press START (the contactor feeds the inverter), then “Run”. STOP opens the contactor — the inverter loses its supply and the motor coasts.');
+    rpm = 1000; brake = 2; dirty = true; save(); buildUI();
   }
   // przykład: silnik → sprzęgło → wał na dwóch łożyskach → para kół 18 : 40 → wał → łańcuch 15 : 30 → wał z hamulcem
   function example() {
@@ -302,10 +334,15 @@ export function createWorkshop({ scene, camera, dom, M, fmt, el, view }) {
     if (kind === 'down' && e.button === 0) {
       const pt = pickPart();
       if (linkFrom && pt) { msg = link(linkFrom, pt); sel = linkFrom; linkFrom = null; save(); buildUI(); return true; }
-      if (pt) { sel = pt; buildUI(); if (!links.some((l) => l.a === pt || l.b === pt)) dragging = { pt, y: axisPt(pt).y }; return true; }   // niepołączoną część można przeciągać
+      if (pt) {
+        sel = pt;
+        if (role(pt) === 'elec' && links.some((l) => (l.a === pt || l.b === pt) && isElec(l)) && pressDev(pt, true)) { buildUI(); return true; }   // podłączone urządzenie: klik obsługuje (przycisk, wyłącznik)
+        buildUI(); if (!mechLinked(pt)) dragging = { pt, y: axisPt(pt).y }; return true;   // część bez połączeń mechanicznych można przeciągać (kable idą za nią)
+      }
       return false;
     }
     if (kind === 'move' && dragging) { if (ray.ray.intersectPlane(plane, hit)) { const P = axisPt(dragging.pt); setAxisPt(dragging.pt, new THREE.Vector3(snap(hit.x), dragging.y, snap(hit.z))); if (P.distanceTo(axisPt(dragging.pt)) > 0) dirty = true; } return true; }
+    if (kind === 'up' && pressing) { pressDev(pressing, false); return true; }
     if (kind === 'up' && dragging) { dragging = null; save(); return true; }
     return false;
   }
@@ -317,37 +354,73 @@ export function createWorkshop({ scene, camera, dom, M, fmt, el, view }) {
     if (e.code === 'Delete' || e.code === 'Backspace') { remove(sel); save(); buildUI(); return true; }
     return false;
   }
-  function rotateSel() { if (!sel) return; if (links.some((l) => l.a === sel || l.b === sel)) { msg = T('Połączonej części nie da się obrócić — najpierw ją rozłącz.', 'A connected part cannot be rotated — disconnect it first.'); } else { setRot(sel, sel.rot + 1); dirty = true; save(); } buildUI(); }
+  // obsługa urządzenia: przycisk — wciśnięty, dopóki trzymany; grzybek — zatrzask / odblokowanie; zasilanie — wyłącznik WŁ / WYŁ
+  let pressing = null;
+  function pressDev(pt, down) {
+    const a = pt.b.api; if (!a) return false;
+    if (pt.b.el === 'btn') { if (down) { a.press(pt.b.ctrl); pressing = pt; } else { a.release(pt.b.ctrl); pressing = null; } return true; }
+    if (pt.b.el === 'src') { if (down) a.press('power'); return true; }
+    return false;
+  }
+  function rotateSel() { if (!sel) return; if (mechLinked(sel)) { msg = T('Połączonej części nie da się obrócić — najpierw ją rozłącz.', 'A connected part cannot be rotated — disconnect it first.'); } else { setRot(sel, sel.rot + 1); dirty = true; save(); } buildUI(); }
   function startLink() { if (!sel) return; linkFrom = sel; msg = T(`Kliknij część, do której dopasować ${name(sel)}.`, `Click the part to fit ${name(sel)} to.`); buildUI(); }
 
   /* ---------------- okno ---------------- */
   const box = document.getElementById('wsPanel');
   let typeSel = WS_PARTS[0].type, newParams = {};
+  // kontrolka parametru: lista albo suwak; onInput — na bieżąco, onCommit — po puszczeniu (przebudowa części)
+  function paramRow(q, v, onInput, onCommit, disabled = false) {
+    const fmtV = (x) => (q.unit === 'mm' ? `${Math.round(x * 1000)} mm` : q.unit ? `${String(x).replace('.', T(',', '.'))} ${q.unit}` : String(x));
+    let c, o = null;
+    if (q.type === 'select') { c = el('select', {}); c.append(...q.options.map(([k, t]) => el('option', { value: String(k), textContent: t }))); c.value = String(v); c.onchange = () => { const x = isNaN(+c.value) ? c.value : +c.value; if (onInput) onInput(x); if (onCommit) onCommit(x); }; }
+    else { c = el('input', { type: 'range', min: q.min, max: q.max, step: q.step, value: v }); o = el('output', { textContent: fmtV(v) }); c.oninput = () => { o.textContent = fmtV(+c.value); if (onInput) onInput(+c.value); }; c.onchange = () => { if (onCommit) onCommit(+c.value); }; }
+    c.disabled = disabled; if (disabled) c.title = 'Ustawiane przez połączenie';
+    return el('div', { className: 'row' }, el('span', { textContent: q.label }), c, ...(o ? [o] : []));
+  }
+  // zmiana parametru ustawionej części: przebudowa i ponowne dopasowanie jej połączeń mechanicznych (kable zostają)
+  function editPart(pt, key, v) {
+    const mine = links.filter((l) => (l.a === pt || l.b === pt) && !isElec(l)); mine.forEach(dropLink);
+    rebuild(pt, key, v); pt.params[key] = v;
+    const fails = [];
+    for (const l of mine) { const r = link(l.b, l.a); if (!links.some((x) => (x.a === l.a && x.b === l.b) || (x.a === l.b && x.b === l.a))) fails.push(`${name(l.a === pt ? l.b : l.a)}: ${r}`); }
+    msg = fails.length ? T(`Zmieniono ${name(pt)}. Rozłączone, bo już nie pasują — ${fails.join('; ')}`, `Changed ${name(pt)}. Disconnected because they no longer fit — ${fails.join('; ')}`) : mine.length ? T(`Zmieniono ${name(pt)} — połączenia dopasowane na nowo.`, `Changed ${name(pt)} — connections refitted.`) : T(`Zmieniono ${name(pt)}.`, `Changed ${name(pt)}.`);
+    sel = pt; dirty = true; save(); buildUI();
+  }
   function buildUI() {
     if (!box) return;
     const def = partDef(typeSel), kids = [];
     kids.push(el('h3', { textContent: 'Katalog' }));
     const ts = el('select', {}); ts.append(...WS_PARTS.map((d) => el('option', { value: d.type, textContent: d.name }))); ts.value = typeSel; ts.onchange = () => { typeSel = ts.value; newParams = {}; buildUI(); };
     kids.push(el('div', { className: 'row' }, el('span', { textContent: 'Część' }), ts));
-    for (const q of def.params) {
-      const v = newParams[q.key] ?? q.def;
-      if (q.type === 'select') { const s = el('select', {}); s.append(...q.options.map(([k, t]) => el('option', { value: String(k), textContent: t }))); s.value = String(v); s.onchange = () => { newParams[q.key] = isNaN(+s.value) ? s.value : +s.value; }; kids.push(el('div', { className: 'row' }, el('span', { textContent: q.label }), s)); }
-      else { const r = el('input', { type: 'range', min: q.min, max: q.max, step: q.step, value: v }), o = el('output', { textContent: q.unit === 'mm' ? `${Math.round(v * 1000)} mm` : String(v) }); r.oninput = () => { newParams[q.key] = +r.value; o.textContent = q.unit === 'mm' ? `${Math.round(+r.value * 1000)} mm` : r.value; }; kids.push(el('div', { className: 'row' }, el('span', { textContent: q.label }), r, o)); }
-    }
+    for (const q of def.params) kids.push(paramRow(q, newParams[q.key] ?? q.def, (v) => { newParams[q.key] = v; }));
     const ins = el('button', { type: 'button', textContent: 'Wstaw na stół' }); ins.onclick = () => { if (place) group.remove(place.pivot); place = make(typeSel, newParams); msg = T('Wskaż miejsce na stole i kliknij (Esc — anuluj).', 'Point to a place on the table and click (Esc — cancel).'); buildUI(); };
     kids.push(el('div', { className: 'btns' }, ins));
     kids.push(el('h3', { textContent: 'Napęd' }));
     const run = el('button', { type: 'button', textContent: running ? 'Zatrzymaj' : 'Uruchom', className: running ? 'on' : '' }); run.onclick = () => { running = !running; buildUI(); };
     const ex = el('button', { type: 'button', textContent: 'Przykład: obrót' }); ex.onclick = example;
     const ex2 = el('button', { type: 'button', textContent: 'Przykład: przesuw' }); ex2.onclick = exampleLin;
+    const ex3 = el('button', { type: 'button', textContent: 'Przykład: prąd' }); ex3.onclick = exampleElec;
+    const feed = ELC.feed;
+    if (feed && feed.mode === 'dol') { run.disabled = true; run.title = 'Silnik zasilany bezpośrednio przez stycznik — uruchamiasz go przyciskiem START.'; }
+    else if (feed) run.title = 'RUN / STOP falownika (zadawanie z suwaka „Falownik”).';
     const cl = el('button', { type: 'button', textContent: 'Wyczyść stół' }); cl.onclick = () => clear(true);
-    kids.push(el('div', { className: 'btns' }, run, ex, ex2, cl));
+    kids.push(el('div', { className: 'btns' }, run, ex, ex2, ex3, cl));
     const rr = el('input', { type: 'range', min: -1500, max: 1500, step: 10, value: rpm }), ro = el('output', { textContent: `${rpm} ${T('obr/min', 'rpm')}` }); rr.oninput = () => { rpm = +rr.value; ro.textContent = `${rpm} ${T('obr/min', 'rpm')}`; save(); };
     const br = el('input', { type: 'range', min: 0, max: 100, step: 1, value: brake }), bo = el('output', { textContent: `${brake} N·m` }); br.oninput = () => { brake = +br.value; bo.textContent = `${brake} N·m`; save(); };
     kids.push(el('div', { className: 'row' }, el('span', { textContent: 'Falownik' }), rr, ro), el('div', { className: 'row' }, el('span', { textContent: 'Hamulec' }), br, bo));
     kids.push(el('h3', { textContent: sel ? name(sel) : 'Kliknij część na stole' }));
     if (sel) {
       kids.push(el('div', { className: 'stats' }, ...sel.b.props.flatMap(([a, b]) => [el('span', { textContent: a }), el('b', { textContent: String(b) })])));
+      // edycja ustawionej części: parametry z katalogu; połączenia dopasowują się na nowo (parametr z połączenia — zablokowany)
+      const pt = sel, conn = links.some((l) => l.a === pt || l.b === pt);
+      if (pt.def.params.length) kids.push(el('p', { className: 'sub', textContent: 'Parametry' }));
+      for (const q of pt.def.params) kids.push(paramRow(q, pt.params[q.key], null, (v) => editPart(pt, q.key, v), q.auto && conn));
+      if (pt.b.el === 'src') { const b = el('button', { type: 'button', textContent: pt.b.api.on ? 'Wyłącznik: WŁ' : 'Wyłącznik: WYŁ', className: pt.b.api.on ? 'on' : '' }); b.onclick = () => { pt.b.api.press('power'); buildUI(); }; kids.push(el('div', { className: 'btns' }, b)); }
+      if (pt.b.el === 'btn') {
+        const b = el('button', { type: 'button', textContent: pt.b.kind === 'estop' ? (pt.b.api.latched ? 'Odblokuj grzybek' : 'Wciśnij grzybek') : 'Naciśnij (przytrzymaj)' });
+        b.onpointerdown = () => { pressDev(pt, true); if (pt.b.kind === 'estop') buildUI(); }; b.onpointerup = b.onpointerleave = () => { if (pressing === pt) pressDev(pt, false); };
+        kids.push(el('div', { className: 'btns' }, b));
+      }
       const lk = el('button', { type: 'button', textContent: linkFrom ? 'Wskaż drugą część…' : 'Połącz z… (L)', className: linkFrom ? 'on' : '' }); lk.onclick = startLink;
       const rt = el('button', { type: 'button', textContent: 'Obróć 90° (R)' }); rt.onclick = rotateSel;
       const rm = el('button', { type: 'button', textContent: 'Usuń (Del)' }); rm.onclick = () => { remove(sel); save(); buildUI(); };
@@ -357,11 +430,15 @@ export function createWorkshop({ scene, camera, dom, M, fmt, el, view }) {
     }
     if (msg) kids.push(el('p', { className: 'note', textContent: msg }));
     kids.push(el('div', { className: 'stats', id: 'wsStats' }));
-    kids.push(el('p', { className: 'note', textContent: 'Obsługa: wybierz część w katalogu → Wstaw → kliknij na stole. Kliknij część → „Połącz z…” → kliknij drugą: pierwsza dopasuje się do drugiej (piasta na wał, wał w sprzęgło, łożysko pod wał, koło do koła, łańcuch, pas). Niepołączoną część można przeciągać. R — obrót, Del — usunięcie, Esc — anulowanie.' }));
+    if (parts.length) {   // wszystkie części na stole: klik — wybór, ✕ — usunięcie
+      kids.push(el('h3', { textContent: `${T('Na stole', 'On the table')} (${parts.length})` }));
+      kids.push(el('ul', { className: 'ports list' }, ...parts.map((p) => { const li = el('li', { textContent: name(p), className: p === sel ? 'cur' : '' }), x = el('button', { type: 'button', textContent: '✕', title: 'Usuń (Del)' }); li.onclick = () => { sel = p; buildUI(); }; x.onclick = (e) => { e.stopPropagation(); remove(p); save(); buildUI(); }; li.append(x); return li; })));
+    }
+    kids.push(el('p', { className: 'note', textContent: 'Obsługa: wybierz część w katalogu → Wstaw → kliknij na stole. Kliknij część → „Połącz z…” → kliknij drugą: pierwsza dopasuje się do drugiej (piasta na wał, wał w sprzęgło, łożysko pod wał, koło do koła, łańcuch, pas). Niepołączoną część można przeciągać. R — obrót, Del — usunięcie, Esc — anulowanie. Prąd: połącz urządzenia kablami (zasilanie → przyciski → stycznik, zasilanie → stycznik → falownik → silnik); kliknięcie podłączonego przycisku albo zasilania obsługuje je. Parametry wybranej części można zmieniać.' }));
     box.replaceChildren(...kids);
     renderStats();
   }
-  const KIND = { mount: 'osadzenie', support: 'podpora (łożysko)', mesh: 'zazębienie', chain: 'łańcuch', belt: 'pas', rack: 'listwa zębata', screw: 'śruba — nakrętka', crank: 'korbowód' };
+  const KIND = { ctl: 'przewód sterowniczy 3 × 1 mm²', pwr: 'przewód zasilający 5G2,5', mot: 'przewód silnikowy', mount: 'osadzenie', support: 'podpora (łożysko)', mesh: 'zazębienie', chain: 'łańcuch', belt: 'pas', rack: 'listwa zębata', screw: 'śruba — nakrętka', crank: 'korbowód' };
   function renderStats() {
     const s = document.getElementById('wsStats'); if (!s) return;
     const rows = [];
@@ -370,6 +447,7 @@ export function createWorkshop({ scene, camera, dom, M, fmt, el, view }) {
       rows.push(['Silnik', `${fmt(st.omega * 60 / TAU, 0)} ${T('obr/min', 'rpm')} · ${fmt(st.Tm, 2)} N·m · ${fmt(st.P, 0)} W`]);
       if (solved.brakeP) { const e = drive.els.get(solved.brakeP.id); rows.push(['Wyjście (hamulec)', `${fmt(e.omega * 60 / TAU, 1)} ${T('obr/min', 'rpm')} · ${T('przełożenie', 'ratio')} 1 : ${fmt(Math.abs(1 / (e.r || 1e-9)), 2)} · ${fmt(st.Pout || 0, 0)} W`]); }
       rows.push(['Bezwładność zredukowana', `${fmt(st.Jeff * 1e4, 2)} kg·cm²`]);
+      rows.push(...ELC.stats(st, solved.motor.b));
       void mo;
     }
     const w = solved ? solved.warn || [] : [];
@@ -381,6 +459,6 @@ export function createWorkshop({ scene, camera, dom, M, fmt, el, view }) {
     if (on) { if (!parts.length) { try { const d = JSON.parse(localStorage.getItem(KEY) || 'null'); if (d && d.parts && d.parts.length) load(d); } catch (e) { /* pusty stół */ } } buildUI(); view([C0.x, TOP + 0.1, C0.z], 2.6, 0.0, 0.55); }
   }
   return { group, setActive, step, onPointer, onKey,
-    api: { drive: () => drive, tick: (dt = 0.05, n = 20) => { const out = []; for (let i = 0; i < n; i++) { step(dt); out.push(Math.round(drive.state.omega * 60 / TAU)); } return out; }, example, exampleLin, clear: () => clear(true), add: (type, params, x = 0, z = 0) => { const p = make(type, params); p.pivot.position.set(C0.x + x, TOP, C0.z + z); if (!dist(p)) p.pivot.position.y = TOP + 0.09; parts.push(p); dirty = true; return p.id; }, link: (a, b) => { const A = parts.find((p) => p.id === a), B = parts.find((p) => p.id === b); return A && B ? link(A, B) : 'brak'; }, run: (on = true) => { running = on; buildUI(); },
+    api: { part: (id) => parts.find((q) => q.id === id), press: (id, down = true) => { const p = parts.find((q) => q.id === id); return p ? pressDev(p, down) : false; }, edit: (id, key, v) => { const p = parts.find((q) => q.id === id); if (p) editPart(p, key, v); return msg; }, remove: (id) => { const p = parts.find((q) => q.id === id); if (p) { remove(p); save(); buildUI(); } }, exampleElec, elec: () => { if (dirty) rebuildDrive(); return { feed: ELC.feed && ELC.feed.mode, rows: ELC.stats(drive ? drive.state : {}, solved && solved.motor ? solved.motor.b : null), warn: ELC.warn }; }, drive: () => drive, tick: (dt = 0.05, n = 20) => { const out = []; for (let i = 0; i < n; i++) { step(dt); out.push(Math.round(drive.state.omega * 60 / TAU)); } return out; }, example, exampleLin, clear: () => clear(true), add: (type, params, x = 0, z = 0) => { const p = make(type, params); p.pivot.position.set(C0.x + x, TOP, C0.z + z); if (!dist(p)) p.pivot.position.y = TOP + 0.09; parts.push(p); dirty = true; return p.id; }, link: (a, b) => { const A = parts.find((p) => p.id === a), B = parts.find((p) => p.id === b); return A && B ? link(A, B) : 'brak'; }, run: (on = true) => { running = on; buildUI(); },
       state: () => { if (dirty) rebuildDrive(); return { parts: parts.map((p) => p.id + ':' + p.type), links: links.map((l) => `${l.b.id}→${l.a.id}:${l.kind}`), warn: solved ? solved.warn : [], motorRpm: drive ? drive.state.omega * 60 / TAU : 0, Tm: drive ? drive.state.Tm : 0, Jeff: drive ? drive.state.Jeff : 0, msg, lin: drive ? parts.filter((p) => role(p) === 'lin').map((p) => { const e = drive.els.get(p.id); return e ? `${p.id} x=${(e.theta * 1000).toFixed(1)}mm` : p.id; }) : [], out: solved && solved.brakeP && drive ? drive.els.get(solved.brakeP.id).omega * 60 / TAU : null }; } } };
 }
