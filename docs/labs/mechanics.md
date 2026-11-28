@@ -260,13 +260,19 @@ straty (sprawność), magazyn energii (jeśli ma), ograniczenia (zakres ruchu, p
 
 ### 4. Przepływ i transport
 
-- Przewody ✅ elektryczne (pojedyncze, wielożyłowe kable z rezystancją); ⬜ węże (płyn).
-- Rury ⬜ (średnica, długość, opór przepływu, spadek ciśnienia).
-- Pompy ⬜ (obrót → przepływ: zębata, tłokowa, odśrodkowa z charakterystyką).
-- Tłoki ⬜ siłowniki (płyn → przesuw, siła = ciśnienie × pole).
-- Dysze ⬜ (przepływ → strumień / siła odrzutu).
-- Rozdzielacze ⬜ (płyn: 3/2, 4/3, sterowane sygnałem lub ręcznie).
-- Transport ⬜ przenośnik taśmowy / rolkowy (obrót → przesuw ładunku).
+- Przewody ✅ elektryczne (pojedyncze, wielożyłowe kable z rezystancją); ✅ węże hydrauliczne (EN 853 1SN / 2SN, zakuwki),
+  ✅ wąż przezroczysty (PCV z oplotem — widać płynącą ciecz i pęcherzyki, króćce z karbami, łączy się jak przewód).
+- Rury ✅ (Darcy–Weisbach: laminarnie 64/Re, burzliwie Haaland; lepkość od temperatury; rura gięta ze złączkami).
+- Źródła płynu ✅ sieć wodociągowa z reduktorem ciśnienia i wodomierzem, zbiornik na wieży (spływ grawitacyjny ρ·g·h).
+- Pompy ✅ zębata (przecieki ∝ Δp, moment, pulsacja), tłokowa trzytłoczkowa (wydajność chwilowa), odśrodkowa
+  (charakterystyka H(Q), prawa podobieństwa, punkt pracy z krzywą instalacji).
+- Zawory ✅ kulowy (przelot z geometrii kuli), zwrotny, dławiący iglicowy (z zwrotnym), bezpieczeństwa (gradient sprężyny).
+- Rozdzielacze ✅ 4/3 NG6 z cewkami, środek tandem, płyta przyłączeniowa.
+- Siłowniki ✅ dwustronnego działania ze ściągami (siły, prędkości, wyboczenie Eulera).
+- Zbiorniki ✅ zbiornik zasilacza (pojemność, ciepło), akumulator pęcherzowy (p·Vⁿ), wiadro, wskaźnik poziomu z pływakiem.
+- Dysze ✅ (prędkość, wydatek, ciąg, wysokość strumienia — struga, krople, kręgi na wodzie).
+- Transport ✅ przenośnik taśmowy z magazynem grawitacyjnym i popychaczem.
+- Pomiar ✅ manometr, przetwornik 4–20 mA, licznik obrotów z obrotomierzem.
 
 ### 5. Optyka i sygnały
 
@@ -294,7 +300,8 @@ straty (sprawność), magazyn energii (jeśli ma), ograniczenia (zakres ruchu, p
 2. ✅ Sprężyny, koło zamachowe, zapadka, wahadło z wychwytem — pierwsza maszyna „sama z siebie”: zegar — regulator
    (tryby Maszyna i Fizyka; w Fizyce wahadło i koło wychwytowe z kontaktu zębów z paletami, napęd ze sprężyny).
 3. ✅ Port sygnału, czujniki, przekaźnik czasowy, regulator.
-4. Płyn: rury, pompa, zawory, siłownik, zbiornik, rozdzielacz.
+4. ✅ Płyn: rury, węże, źródła, pompy, zawory, rozdzielacz, siłownik, zbiorniki, dysza, przenośnik — stanowisko
+   hydrauliczne z podajnikiem i fontanna z dolewaniem, przelewem i wiadrem.
 5. Optyka: promienie, soczewki, lustra, pryzmaty, emitery i odbiorniki.
 6. Warsztat: składanie maszyn z katalogu w laboratorium.
 7. Parowóz (w planach).
@@ -380,6 +387,22 @@ Fizyka luźnej części (tryb Fizyka) — moment reakcji z fizyki napędu:
 - Obsługa na modelu: klik dźwigni — napnij, przytrzymanie S4 — wyzwól.
 - Modele: `js/models/mech/mechanisms/` (dźwignia, zatrzask), `power/` (akumulator), `relays/signal.js`, sprężyna skrętna
   w `clock/springs.js`.
+
+## Etap 4 — płyny (tryby Przedmioty, Maszyna, Fizyka)
+
+- Przedmioty: kategoria „Przepływ i transport” (rury i węże, źródła płynu, pompy, zawory, rozdzielacze, siłowniki,
+  zbiorniki, dysze, transport) oraz przetwornik ciśnienia z manometrem i licznik obrotów w „Czujnikach”.
+- Stanowisko hydrauliczne (`js/labs/mechanics/hydraulic-station.js`): zasilacz (silnik M2 → latarnia → pompa zębata,
+  zawór bezpieczeństwa 60 bar, manometr P1, przetwornik B4), rozdzielacz 4/3 (Y3a / Y3b), zawór dławiąco-zwrotny na B,
+  siłownik Ø32/18 × 150 z popychaczem, magazyn kartonów, przenośnik M3 z licznikiem obrotów, pojemnik; powrót T — wąż
+  przezroczysty z olejem. Fizyka: sieć węzłów z ciśnieniami (`hydraulics.js`, krok niejawny), oś (`hydraulic-axis.js`),
+  kartony (`conveyor.js`). AUTO (S5): przełączanie od ciśnienia B4; ręcznie — przyciski awaryjne cewek.
+- Fontanna (`js/labs/mechanics/fountain-station.js`): pompa odśrodkowa M4, zawór zwrotny, kulowy, dysza; przyłącze
+  wodociągowe z reduktorem i wodomierzem, kran nad zbiornikiem (klik pokrętła), przelew Ø25 → wąż przezroczysty → wiadro,
+  pływak. Fizyka: punkt pracy pompy (`fountain.js`), bilans poziomu (dopływ z kranu, przelew), wydatek sieci (`mains`).
+- Wygląd cieczy: LiquidKit `js/render/fluid/liquid.js` — materiały z załamaniem i pochłanianiem, falująca powierzchnia,
+  struga z ciągłości, rozpad na krople, rozbryzg i kręgi na wodzie.
+- Modele: FluidKit `js/models/mech/fluid/`; obliczenia: `js/behaviors/mech/fluid.js`. API: `MechanicsApi.device(id, nazwa, akcja)`.
 
 ## Doktor — złożenie (czy modele nie wchodzą jeden w drugi)
 

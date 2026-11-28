@@ -1,5 +1,16 @@
 # Zmiany
 
+## 0.33.0 — 2026-11-28
+- Laboratorium mechaniki 0.19.0 — **etap 4: płyny**. Przedmioty: rura, wąż hydrauliczny, wąż przezroczysty (widać
+  płynącą ciecz), źródło płynu (sieć z reduktorem ciśnienia albo zbiornik grawitacyjny, wodomierz, wiadro pod kranem),
+  pompy zębata, tłokowa i odśrodkowa, zawory kulowy, zwrotny, dławiący i bezpieczeństwa, rozdzielacz 4/3, siłownik,
+  zbiornik hydrauliczny, akumulator pęcherzowy, wiadro, wskaźnik poziomu z pływakiem, dysza, przenośnik taśmowy,
+  przetwornik ciśnienia z manometrem, licznik obrotów z obrotomierzem. Maszyna i Fizyka: stanowisko hydrauliczne
+  z podajnikiem kartonów (AUTO od ciśnienia) i fontanna z dolewaniem z kranu, przelewem do wiadra i pływakiem.
+- Nowa warstwa obrazu: LiquidKit `js/render/fluid/liquid.js` — realistyczna woda i olej (załamanie, pochłanianie,
+  falowanie), struga z dyszy i kranu, krople, rozbryzg, kręgi. Modele FluidKit, zachowania `fluid.js`, `hydraulics.js`,
+  `hydraulic-axis.js`, `conveyor.js`, `fountain.js`. Złożenie sceny bez kolizji (doktor), teksty po angielsku.
+
 ## 0.32.0 — 2026-11-28
 - Laboratorium mechaniki 0.18.0 — **dźwignie, zatrzask z wyzwalaczem, sprężyny skrętne śrubowe, przekaźnik sygnałowy,
   akumulator**. Przedmioty: dźwignia (rodzaje 1–3), zatrzask z wyzwalaczem (napnij / wyzwól, siła wyzwalania, energia
