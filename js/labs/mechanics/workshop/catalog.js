@@ -6,6 +6,8 @@ import * as THREE from '../../../../vendor/three/three.module.js';
 import * as MK from '../../../models/mech/mechkit.js';
 import { T } from '../lang.js';
 
+// część przesuwna: model ruchu wzdłuż lokalnego y, góra +z (MechKit: listwa, suwak) → ruch wzdłuż +x, góra +y
+const yUp = (g) => { const w = new THREE.Group(); g.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0))); w.add(g); g.updateMatrixWorld(true); const b = new THREE.Box3().setFromObject(g); g.position.y = -b.min.y; return w; };
 const ext = (g) => { g.updateMatrixWorld(true); const b = new THREE.Box3().setFromObject(g); return [b.min.x, b.max.x]; };
 const mass = (g) => `${(g.userData.mass || 0).toFixed(2)} kg`;
 const J = (j) => `${(j * 1e4).toFixed(2)} kg·cm²`;
@@ -13,11 +15,14 @@ const J = (j) => `${(j * 1e4).toFixed(2)} kg·cm²`;
 export const WS_PARTS = [
   {
     type: 'motor', role: 'motor', name: 'Silnik indukcyjny',
-    params: [{ key: 'kW', label: 'Moc', type: 'select', options: [[0.37, '0,37 kW'], [0.75, '0,75 kW'], [1.1, '1,1 kW'], [2.2, '2,2 kW']], def: 1.1 }],
+    params: [{ key: 'kW', label: 'Moc', type: 'select', options: [[0.37, '0,37 kW'], [0.75, '0,75 kW'], [1.1, '1,1 kW'], [2.2, '2,2 kW']], def: 1.1 },
+      { key: 'riser', label: 'Podkładka pod łapy', type: 'range', min: 0, max: 0.12, step: 0.002, unit: 'mm', def: 0 }],
     build(p) {
-      const g = MK.motor({ kW: +p.kW }), sp = MK.MOTORS.find((m) => m.kW >= +p.kW) || MK.MOTORS[0], rated = 1500 * (1 - 0.034 - 0.02 / Math.sqrt(sp.kW));
-      return { group: g, spin: g.userData.spin, J: g.userData.J || sp.J, axisY: sp.H, shaftEnd: 0.05 * sp.H / 0.09, kW: sp.kW, rated, Trated: sp.kW * 1000 / (rated * Math.PI / 30),
-        props: [['Moc znamionowa', `${String(sp.kW).replace('.', ',')} kW`], ['Obroty znamionowe', `${Math.round(rated)} obr/min`], ['Wysokość osi', `${Math.round(sp.H * 1000)} mm (wzniesienie ${sp.frame})`], ['Bezwładność wirnika', J(sp.J)], ['Masa', `${sp.mass} kg`]] };
+      const m = MK.motor({ kW: +p.kW }), g = new THREE.Group(), rz = +p.riser || 0; g.add(m); m.position.y = rz; g.userData = m.userData; g.name = m.name;
+      if (rz > 0) { const pl = new THREE.Mesh(new THREE.BoxGeometry(0.4 * m.userData.spin.position.y / 0.09 + 0.04, rz, 0.24 * m.userData.spin.position.y / 0.09), MK.materials().iron); pl.position.set(-0.165 * m.userData.spin.position.y / 0.09, rz / 2, 0); pl.castShadow = pl.receiveShadow = true; g.add(pl); }   // płyta stalowa — podnosi oś silnika
+      const sp = MK.MOTORS.find((q) => q.kW >= +p.kW) || MK.MOTORS[0], rated = 1500 * (1 - 0.034 - 0.02 / Math.sqrt(sp.kW));
+      return { group: g, spin: m.userData.spin, J: m.userData.J || sp.J, axisY: sp.H + rz, shaftEnd: 0.05 * sp.H / 0.09, kW: sp.kW, rated, Trated: sp.kW * 1000 / (rated * Math.PI / 30),
+        props: [['Moc znamionowa', `${String(sp.kW).replace('.', ',')} kW`], ['Obroty znamionowe', `${Math.round(rated)} obr/min`], ['Wysokość osi', `${Math.round((sp.H + rz) * 1000)} mm`], ['Bezwładność wirnika', J(sp.J)], ['Masa', `${sp.mass} kg`]] };
     },
   },
   {
@@ -61,4 +66,52 @@ export const WS_PARTS = [
     build(p) { const g = MK.pillowBlock({ h: p.h }); return { group: g, spin: null, J: 0, axisY: p.h, ext: ext(g), props: [['Łożysko', 'UC205 (otwór 25 mm)'], ['Wysokość osi', `${Math.round(p.h * 1000)} mm`], ['Oprawa', 'żeliwna, stojąca']] }; },
   },
 ];
+// ---------------- przesuw (etap 6, część 2) ----------------
+WS_PARTS.push(
+  {
+    type: 'rack', role: 'lin', name: 'Listwa zębata na prowadnicy',
+    params: [{ key: 'm', label: 'Moduł', type: 'select', options: [[0.0015, '1,5 mm'], [0.002, '2 mm'], [0.003, '3 mm']], def: 0.002 }, { key: 'n', label: 'Liczba zębów', type: 'range', min: 20, max: 80, step: 1, def: 40 }],
+    build(p) {
+      const m = +p.m, n = +p.n, L = n * Math.PI * m, sl = MK.slider({ len: 0.07, w: 0.04, h: 0.03, travel: Math.max(0.06, L * 0.55), rack: { m, n, w: 0.012 } }), u = sl.userData, g = yUp(sl);
+      const c = sl.position.y;   // wysokość osi suwaka nad spodem
+      return { group: g, spin: null, slide: u.slide, slideAxis: 'y', J: u.mass, dof: 'lin', travel: Math.max(0.06, L * 0.55) - 0.01, refLocal: new THREE.Vector3(0, c + u.rack.z, 0), rack: u.rack, m, n, len: L,
+        props: [['Moduł', `${m * 1000} mm`], ['Liczba zębów', n], ['Długość listwy', `${Math.round(L * 1000)} mm`], ['Skok wózka', `± ${Math.round((Math.max(0.06, L * 0.55) - 0.01) * 500)} mm (krańcówki)`], ['Masa ruchoma', `${u.mass.toFixed(2)} kg`]] };
+    },
+  },
+  {
+    type: 'screw', role: 'shaft', name: 'Śruba kulowa Ø 20',
+    params: [{ key: 'lead', label: 'Skok gwintu', type: 'select', options: [[0.005, '5 mm'], [0.01, '10 mm'], [0.02, '20 mm']], def: 0.01 }, { key: 'len', label: 'Długość', type: 'range', min: 0.2, max: 1, step: 0.01, unit: 'mm', def: 0.5 }],
+    build(p) { const g = MK.leadScrew({ d: 0.02, lead: +p.lead, len: p.len, kind: 'ball' }), u = g.userData; return { group: g, spin: u.spin, J: u.J, ext: [0, p.len], len: p.len, screw: true, lead: +p.lead, props: [['Średnica', '20 mm'], ['Skok', `${+p.lead * 1000} mm`], ['Długość', `${Math.round(p.len * 1000)} mm`], ['Sprawność', '≈ 90 % (kulowa)'], ['Masa', `${u.mass.toFixed(2)} kg`]] }; },
+  },
+  {
+    type: 'nut', role: 'lin', name: 'Nakrętka kulowa z wózkiem',
+    params: [{ key: 'lead', label: 'Skok gwintu', type: 'select', options: [[0.005, '5 mm'], [0.01, '10 mm'], [0.02, '20 mm']], def: 0.01 }, { key: 'travel', label: 'Skok wózka', type: 'range', min: 0.06, max: 0.6, step: 0.01, unit: 'mm', def: 0.2 }, { key: 'hc', label: 'Wysokość osi', type: 'range', min: 0.04, max: 0.3, step: 0.001, unit: 'mm', def: 0.08 }],
+    build(p) { const g = MK.screwNut({ d: 0.02, lead: +p.lead, kind: 'ball', hc: p.hc, travel: p.travel }), u = g.userData, w = new THREE.Group(); g.position.y = p.hc; w.add(g);
+      return { group: w, spin: null, slide: u.slide, slideAxis: 'x', J: u.mass, dof: 'lin', travel: p.travel - 0.01, refLocal: new THREE.Vector3(0, p.hc, 0), lead: +p.lead, axisY: p.hc,
+        props: [['Skok gwintu', `${+p.lead * 1000} mm`], ['Skok wózka', `± ${Math.round((p.travel - 0.01) * 500)} mm (krańcówki)`], ['Wysokość osi', `${Math.round(p.hc * 1000)} mm`], ['Masa ruchoma', `${u.mass.toFixed(2)} kg`]] }; },
+  },
+  {
+    type: 'crank', role: 'hub', name: 'Tarcza korbowa ze sworzniem',
+    params: [{ key: 'r', label: 'Promień korby', type: 'range', min: 0.015, max: 0.08, step: 0.001, unit: 'mm', def: 0.04 }, { key: 'l', label: 'Długość korbowodu', type: 'range', min: 0.1, max: 0.35, step: 0.005, unit: 'mm', def: 0.18 }],
+    build(p) {
+      const M = MK.materials(), g = new THREE.Group(), spin = new THREE.Group(); g.add(spin); g.name = T('Tarcza korbowa', 'Crank disc');
+      const R = p.r + 0.02, disc = new THREE.Mesh(MK.cyl(R, 0.012, 48), M.iron), hub = new THREE.Mesh(MK.cyl(0.024, 0.03, 32), M.dark), pin = new THREE.Mesh(MK.cyl(0.006, 0.022, 20), M.steel);
+      hub.position.x = -0.015; pin.position.set(0.006 + 0.011, p.r, 0); [disc, hub, pin].forEach((o) => { o.castShadow = o.receiveShadow = true; spin.add(o); });
+      const mass = 7850 * Math.PI * R * R * 0.012, J = 0.5 * mass * R * R;
+      g.userData = { spin, mass, J };
+      return { group: g, spin, J, ext: [-0.03, 0.028], crank: true, r: p.r, l: p.l, pinX: 0.017, R, props: [['Promień korby', `${Math.round(p.r * 1000)} mm (skok suwaka ${Math.round(p.r * 2000)} mm)`], ['Korbowód', `${Math.round(p.l * 1000)} mm`], ['Masa', `${mass.toFixed(2)} kg`]] };
+    },
+  },
+  {
+    type: 'slider', role: 'lin', name: 'Suwak w prowadnicy (do korbowodu)',
+    params: [{ key: 'travel', label: 'Skok prowadnicy', type: 'range', min: 0.06, max: 0.3, step: 0.01, unit: 'mm', def: 0.12 }, { key: 'ped', label: 'Wysokość osi suwaka', type: 'range', min: 0.035, max: 0.3, step: 0.001, unit: 'mm', def: 0.08 }],
+    build(p) {
+      const sl = MK.slider({ len: 0.07, w: 0.04, h: 0.03, travel: p.travel }), u = sl.userData, g = yUp(sl), c0 = sl.position.y, ped = Math.max(c0, p.ped);
+      sl.position.y = ped;   // wspornik pod prowadnicą: oś suwaka na wysokości osi korby
+      if (ped - c0 > 0.002) { const b = new THREE.Mesh(new THREE.BoxGeometry(p.travel + 0.09, ped - c0, 0.06), MK.materials().iron); b.position.y = (ped - c0) / 2; b.castShadow = b.receiveShadow = true; g.add(b); }
+      return { group: g, spin: null, slide: u.slide, slideAxis: 'y', J: u.mass, dof: 'lin', travel: p.travel - 0.01, refLocal: new THREE.Vector3(0, ped, 0), pinLat: -(0.04 / 2 + 0.008), axisY: ped,
+        props: [['Skok prowadnicy', `${Math.round(p.travel * 1000)} mm`], ['Wysokość osi', `${Math.round(ped * 1000)} mm`], ['Masa ruchoma', `${u.mass.toFixed(2)} kg`]] };
+    },
+  },
+);
 export const partDef = (type) => WS_PARTS.find((d) => d.type === type);

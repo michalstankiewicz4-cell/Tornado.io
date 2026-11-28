@@ -304,7 +304,7 @@ straty (sprawność), magazyn energii (jeśli ma), ograniczenia (zakres ruchu, p
 4. ✅ Płyn: rury, węże, źródła, pompy, zawory, rozdzielacz, siłownik, zbiorniki, dysza, przenośnik — stanowisko
    hydrauliczne z podajnikiem i fontanna z dolewaniem, przelewem i wiadrem.
 5. ✅ Optyka: promienie (Snell, Fresnel, Sellmeier), soczewki, lustra, pryzmaty, emitery i odbiorniki — stół optyczny.
-6. 🟡 Warsztat: składanie maszyn z katalogu w laboratorium — ✅ napęd obrotowy; ⬜ przesuw, prąd, płyn, światło.
+6. 🟡 Warsztat: składanie maszyn z katalogu w laboratorium — ✅ napęd obrotowy, ✅ przesuw; ⬜ prąd, płyn, światło.
 7. Parowóz (w planach).
 
 
@@ -426,7 +426,11 @@ Fizyka luźnej części (tryb Fizyka) — moment reakcji z fizyki napędu:
 - Ruch liczy napęd Maszyny (`behaviors/mech/drive.js`): graf od silnika, przełożenia, bezwładność zredukowana, moment silnika
   z poślizgu, hamulec na wyjściu. Ostrzeżenia: część niepołączona, zakleszczenie, wał bez podpór, koło bez wału, koło zahacza o blat.
 - Zapis w przeglądarce, przykład (silnik → sprzęgło → koła 18 : 40 → łańcuch 15 : 30 → hamulec). API: `MechanicsApi.ws`.
-- Dalej: przesuw (listwa, śruba, korba), prąd, płyn, światło w warsztacie.
+- Przesuw ✅: listwa zębata na prowadnicy (zębnik dopasowuje się nad linię podziałową), śruba kulowa z nakrętką na wózku
+  (wysokość wózka z osi, ten sam skok gwintu), tarcza korbowa z korbowodem i suwakiem (wspornik suwaka na wysokości osi korby,
+  płaszczyzna sworzni). Krańcówki: wózek na końcu skoku zatrzymuje silnik; falownik ma kierunek (−1500 … 1500 obr/min).
+  Silnik ma podkładkę pod łapy — połączenie silnika ze sprzęgłem dobiera ją z wysokości osi.
+- Dalej: prąd, płyn, światło w warsztacie.
 
 ## Doktor — złożenie (czy modele nie wchodzą jeden w drugi)
 

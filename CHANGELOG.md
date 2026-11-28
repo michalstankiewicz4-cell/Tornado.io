@@ -1,5 +1,12 @@
 # Zmiany
 
+## 0.36.0 — 2026-11-28
+- Laboratorium mechaniki 0.22.0 — **Warsztat: przesuw**. Nowe części: listwa zębata na prowadnicy, śruba kulowa, nakrętka
+  kulowa z wózkiem, tarcza korbowa, suwak w prowadnicy; połączenia zębnik — listwa, śruba — nakrętka, korba — korbowód —
+  suwak z dopasowaniem położenia; krańcówki zatrzymują silnik; falownik z kierunkiem; podkładka pod silnik dobierana przy
+  łączeniu ze sprzęgłem; drugi przykład (korba z suwakiem, zębnik z listwą). Poprawka: silnik w warsztacie nie gubi już
+  prędkości (błąd w pętli ruchu).
+
 ## 0.35.0 — 2026-11-28
 - Laboratorium mechaniki 0.21.0 — **etap 6: Warsztat** (czwarty tryb). Pusty stół, katalog części napędu obrotowego
   (silnik, wał, koło zębate, sprzęgło, koło łańcuchowe i pasowe, hamulec, łożysko UCP), wstawianie, przeciąganie, obrót,
