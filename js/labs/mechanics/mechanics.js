@@ -21,6 +21,7 @@ import { createWorkshop } from './workshop/workshop.js';
 import { createHydraulicStation } from './hydraulic-station.js';
 import { createFountainStation } from './fountain-station.js';
 import { createOpticsStation } from './optics-station.js';
+import { createVideoStation } from './video-station.js';
 import { ITEMS, CATS, cardanMax } from './items.js';
 import { loadState, valid } from '../shared/saved.js';
 import { T, tr, LOC, EN, translateDom } from './lang.js';
@@ -366,7 +367,7 @@ function pick(e) {
 
 /* ---------------- kamera ---------------- */
 const orbit = { target: new THREE.Vector3(-1.4, 0.9, 0.2), dist: 9, yaw: 0.25, pitch: 0.38 };
-const CAMS = { 'Zegar': { t: [4.6, 1.3, 0.25], dist: 1.5, yaw: 0.2, pitch: 0.12 }, 'Wychwyt zegara': { t: [4.6, 1.537, 0.225], dist: 0.22, yaw: 0.25, pitch: 0.15 }, 'Cała maszyna': { t: [-1.4, 0.9, 0.2], dist: 9.5, yaw: 0.25, pitch: 0.4 }, 'Zębatki': { t: [-5.3, 0.9, 0.06], dist: 1.5, yaw: 0.7, pitch: 0.35 }, 'Przekładnia': { t: [-4.1, 0.95, 0.12], dist: 1.3, yaw: 0.35, pitch: 0.3 },
+const CAMS = { 'Zegar': { t: [4.6, 1.3, 0.25], dist: 1.5, yaw: 0.2, pitch: 0.12 }, 'Wychwyt zegara': { t: [4.6, 1.537, 0.225], dist: 0.22, yaw: 0.25, pitch: 0.15 }, 'Kamera i monitor': { t: [5.35, 1.2, 0.55], dist: 2.1, yaw: 0.25, pitch: 0.1 }, 'Cała maszyna': { t: [-1.4, 0.9, 0.2], dist: 9.5, yaw: 0.25, pitch: 0.4 }, 'Zębatki': { t: [-5.3, 0.9, 0.06], dist: 1.5, yaw: 0.7, pitch: 0.35 }, 'Przekładnia': { t: [-4.1, 0.95, 0.12], dist: 1.3, yaw: 0.35, pitch: 0.3 },
   'Łańcuch': { t: [-2.6, 1.07, 0.12], dist: 1.2, yaw: -1.15, pitch: 0.15 }, 'Pas': { t: [-0.95, 1.07, 0.12], dist: 1.2, yaw: -1.15, pitch: 0.15 }, 'Sprzęgła i przeguby': { t: [0.9, 0.9, 0.25], dist: 1.9, yaw: 0.2, pitch: 0.45 }, 'Planetarna': { t: [2.36, 0.87, 0.37], dist: 0.55, yaw: -1.0, pitch: 0.25 }, 'Hamulec': { t: [3.1, 0.9, 0.37], dist: 1.1, yaw: 0.8, pitch: 0.3 } };
 const setCam = (v) => { Object.assign(orbit, { yaw: v.yaw, pitch: v.pitch, dist: v.dist }); orbit.target.set(...v.t); };
 function cams() {
@@ -1205,6 +1206,7 @@ TRIG = createTrigger({ root, S, fmt, BED_TOP });
 STATIONS.push(TRIG, createHydraulicStation({ root, S, fmt, BED_TOP }), createFountainStation({ root, S, fmt, BED_TOP }));
 /* ---------------- etap 5: stół optyczny — laser, soczewka, lustro, fotodioda; LED, pryzmat, ekran (js/labs/mechanics/optics-station.js) ---------------- */
 STATIONS.push(createOpticsStation({ root, S, fmt, BED_TOP }));
+STATIONS.push(createVideoStation({ root, renderer, scene, S, fmt, dial: () => CLOCK.group.userData.mv.localToWorld(new THREE.Vector3(0, 0, 0.062)) }));   // kamera filmuje tarczę zegara
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), RUN_MAX = 120;
 // MechanicsApi.mode('items' | 'machine'), item(id, ustawienia), items(), rpm(v), brake(Nm), alpha(0–1), state(), elements(), select(id), view(…), run(sekundy)
@@ -1216,6 +1218,7 @@ window.LabScene = {
   components: () => [...root.children.filter((c) => c !== boltG), ...boltG.children, cross1, cross2, reg.group, ...elecG.children.filter((o) => !(o.userData && o.userData.cores))],
 };
 window.MechanicsApi = {
+  video() { const v = STATIONS.find((q) => q.camera); if (!v) return null; const p = new THREE.Vector3(); v.camera.getWorldPosition(p); return { cam: p.toArray().map((x) => +x.toFixed(3)), inScene: !!v.camera.parent, frames: v.state.frames, dist: +v.state.dist.toFixed(3), monitorOn: v.monitor.userData.api.on }; },
   clock() { const c = CLOCK.state, e = CLOCK.esc.state; return { time: CLOCK.hms(), amp: +(c.amp * 180 / Math.PI).toFixed(3), period: +(+c.period).toFixed(4), wind: +c.wind.toFixed(3), contact: e.contact, face: e.face, escRev: +(-c.te / TAU).toFixed(3) }; },
   runClock(sec = 10) { const n = Math.round(clamp(sec, 0, 600) * 60); for (let i = 0; i < n; i++) CLOCK.step(1 / 60); return this.clock(); },
   windClock(n = 1) { for (let i = 0; i < n * 4; i++) CLOCK.devices[0].api.press('wind'); return CLOCK.state.wind; },

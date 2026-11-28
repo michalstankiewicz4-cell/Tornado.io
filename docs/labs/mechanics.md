@@ -465,6 +465,19 @@ Fizyka luźnej części (tryb Fizyka) — moment reakcji z fizyki napędu:
   lustro — skręt o 90° w stronę środka stołu, pryzmat — obrót na najmniejsze odchylenie. Piąty przykład: laser → soczewka →
   lustro → fotodioda; białe LED → pryzmat → ekran z widmem.
 
+## Kamera i monitor (tryby Przedmioty, Maszyna, Fizyka)
+
+- Modele VideoKit (`js/models/mech/video/`): kamera przemysłowa na statywie (`camera.js` — przetwornik 1/2,9" 5,37 × 3,02 mm,
+  ogniskowa 4–25 mm → kąt widzenia, głowica panoramiczno-uchylna `aim(P)`, `lens()` / `dir()` — źrenica i oś w świecie),
+  monitor LCD 24" (`monitor.js` — obszar aktywny 531 × 299 mm, stojak podłogowy albo nóżka, ekran błyszczący z obrazem jako
+  świeceniem, „Brak sygnału” bez wejścia, przycisk zasilania).
+- Obraz: `js/render/video/feed.js` — kamera wirtualna w źrenicy obiektywu (kąt z przetwornika i ogniskowej) renderuje scenę do
+  tekstury 640 × 360 (half float, kolor liniowy) 25 razy na sekundę; na czas renderu ekran monitora jest chowany.
+- Maszyna i Fizyka (`video-station.js`): kamera f = 12 mm przed zegarem (z boku, nie zasłania widoku „Zegar”), wycelowana
+  w środek tarczy; monitor na stojaku obok pokazuje obraz na żywo (wahadło, wskazówki). Fizyka: klik w monitor — zasilanie.
+  Widok „Kamera i monitor” w oknie Kamera. Przedmioty: kamera (ogniskowa, wysokość statywu) i monitor (podstawa),
+  kategoria „Elektronika i sprzęt” → Wideo.
+
 ## Doktor — złożenie (czy modele nie wchodzą jeden w drugi)
 
 - `python3 tools/doctor.py --scene labs/mechanics.html`: strona wystawia `window.LabScene` (`prepare`, `root`,

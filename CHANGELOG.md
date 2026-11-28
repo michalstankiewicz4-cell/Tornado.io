@@ -1,5 +1,12 @@
 # Zmiany
 
+## 0.40.0 — 2026-11-28
+- Laboratorium mechaniki 0.26.0 — **kamera i monitor**. Nowe modele VideoKit: kamera przemysłowa na statywie (przetwornik
+  1/2,9", ogniskowa 4–25 mm, głowica uchylna) i monitor LCD 24" (stojak podłogowy albo nóżka, przycisk zasilania). Nowa
+  warstwa `render/video/feed.js`: obraz kamery renderowany do tekstury 25 razy na sekundę. Maszyna i Fizyka: kamera filmuje
+  tarczę zegara, monitor obok pokazuje obraz na żywo; w Fizyce monitor włącza się kliknięciem. Przedmioty: kamera
+  i monitor w kategorii „Elektronika i sprzęt”. Doktor modeli: nowe warianty.
+
 ## 0.39.0 — 2026-11-28
 - Laboratorium mechaniki 0.25.0 — **Warsztat: światło**. Nowe części: laser, źródło LED, soczewka, lustro, pryzmat, fotodioda
   z miernikiem, ekran; dowolny kąt na stole. Promienie śledzone co klatkę przez wszystkie elementy, fotodioda mierzy moc
