@@ -1,5 +1,9 @@
 # Zmiany
 
+## 0.41.0 — 2026-11-28
+- Laboratorium mechaniki 0.27.0 — **lustro stojące obrotowe 1,5 m** (Przedmioty, Maszyna, Fizyka): tafla 500 × 1500 mm z odbiciem
+  na żywo (Reflector z three.js r186, dodany do `vendor/three/addons/objects/`), obrót w poziomie przeciąganiem w bok.
+
 ## 0.40.0 — 2026-11-28
 - Laboratorium mechaniki 0.26.0 — **kamera i monitor**. Nowe modele VideoKit: kamera przemysłowa na statywie (przetwornik
   1/2,9", ogniskowa 4–25 mm, głowica uchylna) i monitor LCD 24" (stojak podłogowy albo nóżka, przycisk zasilania). Nowa

@@ -2166,5 +2166,18 @@ export const EN_DICT = {
 "z kamery, 640 × 360, 25 kl./s": "from the camera, 640 × 360, 25 fps",
 "Obraz z kamery": "Camera image",
 "Kamera i monitor": "Camera and monitor",
-"Zasilanie 230 V": "Supply 230 V"
+"Zasilanie 230 V": "Supply 230 V",
+"Lustro stojące obrotowe": "Rotating standing mirror",
+"Lustro stojące obrotowe 1,5 m": "Rotating standing mirror 1.5 m",
+"Obrót w poziomie": "Horizontal rotation",
+"Tafla": "Pane",
+"500 × 1500 mm, szkło 4 mm srebrzone (odbicie ok. 95 %)": "500 × 1500 mm, 4 mm silvered glass (about 95 % reflectance)",
+"500 × 1500 mm, szkło float 4 mm srebrzone": "500 × 1500 mm, 4 mm silvered float glass",
+"ok. 95 % (srebro), obraz na żywo": "about 95 % (silver), live image",
+"Obrót": "Rotation",
+"w poziomie — przeciągnij lustro w bok": "horizontal — drag the mirror sideways",
+"w poziomie, na łożysku w podstawie": "horizontal, on a bearing in the base",
+"żeliwna Ø 450 mm, łożysko z blokadą": "cast iron Ø 450 mm, bearing with a lock",
+"Oś pionowa (obrót ręczny)": "Vertical pivot (rotate by hand)",
+"Tafla lustra": "Mirror face"
 };

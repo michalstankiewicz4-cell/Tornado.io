@@ -74,7 +74,7 @@ const MECH_VARIANTS = {
   cardan: [{}, { beta: 0 }, { beta: 45, double: true }],
   rackpinion: [{}, { m: 0.003, z: 12, n: 20 }, { m: 0.001, z: 40, n: 80 }], crank: [{}, { r: 0.02, l: 0.1 }, { r: 0.08, l: 0.4 }], leadscrew: [{}, { kind: 'trap', d: 0.032, lead: 0.004, len: 1 }],
   rolling: [{}, { type: 'roller' }, { type: 'taper', d: 0.04 }, { type: 'thrust' }, { type: 'needle', d: 0.02 }, { type: 'plain' }],
-  camera: [{}, { f: 0.004, H: 1 }, { f: 0.025, H: 1.7 }], monitor: [{}, { stand: 'desk' }],
+  camera: [{}, { f: 0.004, H: 1 }, { f: 0.025, H: 1.7 }], monitor: [{}, { stand: 'desk' }], standingMirror: [{}, { deg: -90 }],
   mirror: [{}, { shape: 'flat', D: 0.0127 }, { shape: 'convex', D: 0.0508, R: 0.1, angle: 45 }, { coating: 'au', substrate: 'zerodur', R: 1 }],
   cspring: [{}, { d: 0.0005, D: 0.006, n: 20, L0: 0.2 }], mainspring: [{}, { h: 0.0008, L: 0.3 }], flywheel: [{}, { D: 1.2, mat: 'steel' }], ratchet: [{}, { z: 60, R: 0.08 }], escapement: [{}, { L: 0.994, mb: 3 }],
   inductive: [{}, { size: 'M30', flush: false, target: 'aluminium' }], encoder: [{}], barrier: [{}], timer: [{}], pid: [{}], governor: [{}, { n: 300, L: 0.2 }],

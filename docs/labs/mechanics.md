@@ -477,6 +477,10 @@ Fizyka luźnej części (tryb Fizyka) — moment reakcji z fizyki napędu:
   w środek tarczy; monitor na stojaku obok pokazuje obraz na żywo (wahadło, wskazówki). Fizyka: klik w monitor — zasilanie.
   Widok „Kamera i monitor” w oknie Kamera. Przedmioty: kamera (ogniskowa, wysokość statywu) i monitor (podstawa),
   kategoria „Elektronika i sprzęt” → Wideo.
+- Lustro stojące obrotowe (OptiKit `standing-mirror.js`): tafla 500 × 1500 mm w ramie aluminiowej, kolumna na osi obrotu
+  w łożysku żeliwnej podstawy (tafla 50 mm przed osią). Odbicie na żywo: Reflector (`vendor/three/addons/objects/Reflector.js`,
+  three.js r186) — działa dla każdej kamery, także kamery wideo. Maszyna i Fizyka: obok zegara; Fizyka — przeciągnięcie
+  lustra w bok obraca je w poziomie (sterowanie dostaje teraz też ruch poziomy myszy). Przedmioty: grupa Optyka.
 
 ## Doktor — złożenie (czy modele nie wchodzą jeden w drugi)
 

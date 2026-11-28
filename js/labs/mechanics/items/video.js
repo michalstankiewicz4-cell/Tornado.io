@@ -1,9 +1,20 @@
 // Elektronika i sprzęt (kategoria 6): kamera przemysłowa na statywie, monitor LCD 24". Obraz z kamery na monitorze —
 // w trybach Maszyna i Fizyka (kamera filmuje zegar, video-station.js); tu sam sprzęt z danymi.
 import * as VK from '../../../models/mech/video/index.js';
+import * as OK from '../../../models/mech/optics/index.js';
 import { num, kg, portsOf } from './util.js';
 
 export const VIDEO = [
+  {
+    id: 'standingMirror', name: 'Lustro stojące obrotowe', group: 'Optyka',
+    params: [{ key: 'deg', label: 'Obrót w poziomie', type: 'range', min: -180, max: 180, step: 1, unit: '°', def: 25 }],
+    build(p) {
+      const g = OK.standingMirror({ H: 1.5 }), u = g.userData; u.setAngle(p.deg * Math.PI / 180);
+      return { group: g, rest: true, controls: true, api: u.api, update() {}, view: { yaw: 0.5, pitch: 0.15 }, live: () => [['Obrót', `${num(u.angle * 180 / Math.PI, 1)}°`]],
+        info: [['Tafla', '500 × 1500 mm, szkło float 4 mm srebrzone'], ['Odbicie', 'ok. 95 % (srebro), obraz na żywo'], ['Obrót', 'w poziomie — przeciągnij lustro w bok'], ['Podstawa', 'żeliwna Ø 450 mm, łożysko z blokadą'], ['Masa', kg(u.mass)]],
+        ports: portsOf(g) };
+    },
+  },
   {
     id: 'camera', name: 'Kamera przemysłowa na statywie', group: 'Wideo',
     params: [

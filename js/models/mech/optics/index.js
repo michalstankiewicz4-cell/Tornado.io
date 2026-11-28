@@ -6,3 +6,4 @@ export { lens, lensRadii } from './lens.js';
 export { prism } from './prism.js';
 export { laser, ledSource } from './sources.js';
 export { photodiode, screen, breadboard } from './receivers.js';
+export { standingMirror } from './standing-mirror.js';

@@ -392,12 +392,12 @@ cv.addEventListener('pointerdown', (e) => {
   cv.setPointerCapture(e.pointerId);
   if (S.mode === 'workshop' && WS.onPointer('down', e)) return;
   const c = e.button === 0 ? controlAt(e) : null;
-  if (c) { ctl = { name: c.name, api: c.api, y: e.clientY }; c.api.press(c.name); stats(); return; }
+  if (c) { ctl = { name: c.name, api: c.api, y: e.clientY, x: e.clientX }; c.api.press(c.name); stats(); return; }
   drag = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY };
 });
 cv.addEventListener('pointermove', (e) => {
   if (S.mode === 'workshop' && WS.onPointer('move', e)) return;
-  if (ctl) { ctl.api.drag(ctl.name, e.clientY - ctl.y); ctl.y = e.clientY; return; }
+  if (ctl) { ctl.api.drag(ctl.name, e.clientY - ctl.y, e.clientX - ctl.x); ctl.y = e.clientY; ctl.x = e.clientX; return; }   // trzeci argument: ruch w poziomie (np. obrót lustra)
   if (!drag) { cv.classList.toggle('grab', !!controlAt(e)); return; } const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY; if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 4) drag.moved = true; if (drag.moved) { orbit.yaw -= dx * 0.005; orbit.pitch = Math.max(0.02, Math.min(1.52, orbit.pitch + dy * 0.004)); } });
 // przerwany gest (pointercancel — np. dotyk, utrata przechwycenia, okno w tle): sterowanie zawsze puszczone
 function endPointer() { if (ctl) { ctl.api.release(ctl.name); ctl = null; stats(); } drag = null; }
