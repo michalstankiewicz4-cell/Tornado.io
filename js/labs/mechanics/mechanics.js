@@ -1113,7 +1113,7 @@ function buildItem() {
 }
 function frameItem(v) {
   const c = new THREE.Box3().setFromObject(itemHolder).getCenter(new THREE.Vector3());
-  orbit.target.copy(c); orbit.dist = itemR * 3.2;
+  orbit.target.copy(c); orbit.dist = itemR * 3.2 * (item && item.view && item.view.zoom || 1);   // view.zoom — bliżej dla drobnych przedmiotów
   const d0 = item && item.view ? item.view : { yaw: 0.75, pitch: 0.32 };
   if (v) { orbit.yaw = v.yaw; orbit.pitch = v.pitch; } else { orbit.yaw = d0.yaw; orbit.pitch = d0.pitch; }
 }

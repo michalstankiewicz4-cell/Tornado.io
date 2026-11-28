@@ -482,6 +482,19 @@ Fizyka luźnej części (tryb Fizyka) — moment reakcji z fizyki napędu:
   three.js r186) — działa dla każdej kamery, także kamery wideo. Maszyna i Fizyka: obok zegara; Fizyka — przeciągnięcie
   lustra w bok obraca je w poziomie (sterowanie dostaje teraz też ruch poziomy myszy). Przedmioty: grupa Optyka.
 
+## Śruba z nakrętką (Przedmioty, kategoria Połączenia)
+
+- Modele (`js/models/mech/fasteners.js`): gwint metryczny ISO (zarys 60°, wierzchołek P/8, dno P/4, linia śrubowa prawoskrętna,
+  wybieg pod częścią gładką, faza na końcu), śruba z łbem sześciokątnym ISO 4014 / 4017 (gwint b = 2d + 6 mm, klasa
+  wybita na łbie, podtoczenie oporowe), nakrętka ISO 4032 (fazy 30° z łukami na ściankach, gwint wewnętrzny), podkładka
+  ISO 7089; dane M6–M24 (`METRIC`) i klasy 4.6–12.9, A2-70 (`BOLT_CLASSES`); powłoka z klasy (ocynk, czernienie, A2).
+- Zachowanie (`js/behaviors/mech/bolted-joint.js`, VDI 2230 w uproszczeniu): obrót nakrętki przesuwa ją o skok; po oporze
+  napięcie F = δ·k_s·k_p/(k_s + k_p) (podatność śruby z odcinków, blachy — stożek zastępczy), moment z tarcia w gwincie
+  i pod nakrętką, σ_red = √(σ² + 3τ²); przy R_e siła przestaje rosnąć (wydłużenie trwałe), potem zerwanie.
+- Przedmiot: dwie blachy na zakładkę, śruba z dwiema podkładkami i nakrętką; przeciąganie nakrętki — klucz.
+  Ostrzeżenia: śruba za krótka, gwint nie sięga w zacisk. Przykład M10 8.8, blachy 2 × 12 mm: zalecane 27,4 kN
+  (44,8 N·m), granica plastyczności przy ok. 36° za oporem, zerwanie przy ok. 140°.
+
 ## Doktor — złożenie (czy modele nie wchodzą jeden w drugi)
 
 - `python3 tools/doctor.py --scene labs/mechanics.html`: strona wystawia `window.LabScene` (`prepare`, `root`,

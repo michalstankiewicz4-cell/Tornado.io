@@ -1,5 +1,11 @@
 # Zmiany
 
+## 0.42.0 — 2026-11-28
+- Laboratorium mechaniki 0.28.0 — **śruba z nakrętką** (Przedmioty, nowa kategoria Połączenia): gwint metryczny ISO,
+  śruba z łbem sześciokątnym, nakrętka, podkładki (M6–M24, klasy 4.6–12.9 i A2-70); dokręcanie nakrętki przeciąganiem —
+  napięcie wstępne, moment, naprężenie, uplastycznienie i zerwanie (`behaviors/mech/bolted-joint.js`). Podgląd przedmiotu
+  może być bliżej (`view.zoom`).
+
 ## 0.41.0 — 2026-11-28
 - Laboratorium mechaniki 0.27.0 — **lustro stojące obrotowe 1,5 m** (Przedmioty, Maszyna, Fizyka): tafla 500 × 1500 mm z odbiciem
   na żywo (Reflector z three.js r186, dodany do `vendor/three/addons/objects/`), obrót w poziomie przeciąganiem w bok.
