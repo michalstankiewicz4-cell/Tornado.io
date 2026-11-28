@@ -14,6 +14,7 @@ import { createDrive } from '../../../behaviors/mech/drive.js';
 import { WS_PARTS, partDef } from './catalog.js';
 import { createElectrics, cableKind, ELEC_KINDS } from './electric.js';
 import { createFluids, FLUID_KINDS } from './fluid.js';
+import { createOptics } from './optics.js';
 import { T, tr } from '../lang.js';
 
 const TAU = Math.PI * 2, X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0), KEY = 'tornado.mechanics.workshop', GRID = 0.01;
@@ -51,14 +52,15 @@ export function createWorkshop({ scene, camera, dom, M, fmt, el, view }) {
   // zasięg wzdłuż osi (od punktu osi) w świecie: [s0, s1] po kierunku axisDir
   const span = (pt) => (pt.b.ext ? pt.b.ext : role(pt) === 'motor' ? [-0.3, pt.b.shaftEnd] : [-0.02, 0.02]);
   const motorEnd = (pt) => axisPt(pt).addScaledVector(axisDir(pt), pt.b.shaftEnd);
-  const dist = (pt) => role(pt) === 'motor' || role(pt) === 'support' || role(pt) === 'lin' || role(pt) === 'elec' || role(pt) === 'fluid';   // stoją na blacie
+  const dist = (pt) => role(pt) === 'motor' || role(pt) === 'support' || role(pt) === 'lin' || role(pt) === 'elec' || role(pt) === 'fluid' || role(pt) === 'optic';   // stoją na blacie
   const isElec = (l) => ELEC_KINDS.includes(l.kind);
   const isSoft = (l) => isElec(l) || l.kind === 'hose';   // kable i węże idą za częściami
   const mechLinked = (pt) => links.some((l) => (l.a === pt || l.b === pt) && !isSoft(l));
   // sworzeń suwaka (przy położeniu 0) — punkt odniesienia mechanizmu korbowego; dla innych części przesuwnych punkt osi
   const sliderPin = (pt) => (pt.b.pinLat ? axisPt(pt).addScaledVector(new THREE.Vector3(0, 0, 1).applyAxisAngle(Y, pt.rot * Math.PI / 2), pt.b.pinLat) : axisPt(pt));
   const name = (pt) => `${tr(pt.def.name)} #${pt.n}`;
-  const ELC = createElectrics({ group, TOP, name }), FLU = createFluids({ group, TOP, name });
+  const ELC = createElectrics({ group, TOP, name }), FLU = createFluids({ group, TOP, name }), OPT = createOptics({ group, TOP, C0, name });
+  const setYawPt = (pt, rad) => { pt.params.yaw = Math.round(rad * 1800 / Math.PI) / 10; pt.b.setYaw(pt.params.yaw * Math.PI / 180); };   // kąt na stole (°, co 0,1°)
   // przebudowa części z nowym parametrem (wysokość oprawy, wspornika suwaka, wózka nakrętki) — spód zostaje na blacie
   function rebuild(pt, key, v) {
     if (Math.abs(v - pt.params[key]) < 1e-4) return;
@@ -94,6 +96,9 @@ export function createWorkshop({ scene, camera, dom, M, fmt, el, view }) {
       const ck = cableKind(s, t, links); if (!ck) return T('Tych części nie da się tak połączyć.', 'These parts cannot be connected this way.'); if (typeof ck === 'string') return ck;
       links.push({ a: t, b: s, kind: ck.kind }); dirty = true;
       return T(`Połączono kablem: ${tr(KIND[ck.kind])}.`, `Connected with a cable: ${tr(KIND[ck.kind])}.`);
+    }
+    if (rs === 'optic' || rt === 'optic') {   // ustawienie na wiązce (optics.js) — bez połączenia, część zostaje swobodna
+      OPT.build(parts); const r = OPT.align(s, t, { setYaw: setYawPt }); dirty = true; return r;
     }
     if (rs === 'fluid' && rt === 'fluid') {   // wąż między przyłączami albo dysza nad wiadrem (fluid.js)
       const r = FLU.link(s, t, links); if (typeof r === 'string') return r;
@@ -205,8 +210,8 @@ export function createWorkshop({ scene, camera, dom, M, fmt, el, view }) {
     dirty = false; drive = createDrive(); solved = null;
     const els = new Map();
     const ew = ELC.build(parts, links);
-    const fw = FLU.build(parts, links); ew.push(...fw);
-    for (const pt of parts) if (role(pt) !== 'support' && role(pt) !== 'elec' && role(pt) !== 'fluid') els.set(pt, drive.add({ id: pt.id, name: name(pt), type: pt.type, J: pt.b.J || 0, spin: pt.b.spin, slide: pt.b.slide, slideAxis: pt.b.slideAxis, dof: pt.b.dof || 'rot', group: pt.b.group, frame: { o: role(pt) === 'lin' ? sliderPin(pt) : axisPt(pt), axis: axisDir(pt), ref: Y.clone() } }));
+    const fw = FLU.build(parts, links); ew.push(...fw, ...OPT.build(parts));
+    for (const pt of parts) if (role(pt) !== 'support' && role(pt) !== 'elec' && role(pt) !== 'fluid' && role(pt) !== 'optic') els.set(pt, drive.add({ id: pt.id, name: name(pt), type: pt.type, J: pt.b.J || 0, spin: pt.b.spin, slide: pt.b.slide, slideAxis: pt.b.slideAxis, dof: pt.b.dof || 'rot', group: pt.b.group, frame: { o: role(pt) === 'lin' ? sliderPin(pt) : axisPt(pt), axis: axisDir(pt), ref: Y.clone() } }));
     const motor = parts.find((p) => role(p) === 'motor'), warn = [];
     if (!motor) { solved = { warn: [...(els.size ? [T('Wstaw silnik — od niego liczy się ruch.', 'Insert a motor — motion is computed from it.')] : []), ...ew] }; return; }   // bez części napędu (sam prąd, sam płyn) — bez tej uwagi
     const adj = new Map(); for (const pt of els.keys()) adj.set(pt, []);
@@ -244,6 +249,7 @@ export function createWorkshop({ scene, camera, dom, M, fmt, el, view }) {
     const E = ELC.tick(dt, { running, rpm });   // obwód: styczniki, falowniki, zasilanie silnika (także bez silnika)
     if (E.stop) { running = false; msg = E.msg; buildUI(); }
     FLU.tick(dt, ELC.supply);   // pompy z zasilania, punkt pracy, poziomy, strumień
+    OPT.tick(dt);   // promienie ze źródeł przez elementy, fotodiody
     if (drive && solved && solved.motor) {
       const m = solved.motor.b;
       const th0 = drive.state.theta;
@@ -269,7 +275,7 @@ export function createWorkshop({ scene, camera, dom, M, fmt, el, view }) {
     for (const q of data.links || []) { const a = parts.find((p) => p.n === q.a), b = parts.find((p) => p.n === q.b); if (a && b) { const l = { a, b, kind: q.kind }; if (q.up) { const P = (r) => [parts.find((p) => p.n === r[0]), r[1]]; l.up = P(q.up); l.dn = P(q.dn); } links.push(l); buildVisual(l); } }
     rpm = data.rpm ?? rpm; brake = data.brake ?? brake; dirty = true; buildUI();
   }
-  function clear(doSave = true) { for (const l of [...links]) dropLink(l); ELC.clear(); FLU.clear(); for (const p of [...parts]) group.remove(p.pivot); parts.length = 0; sel = null; nextId = 1; running = false; dirty = true; if (doSave) { save(); buildUI(); } }
+  function clear(doSave = true) { for (const l of [...links]) dropLink(l); ELC.clear(); FLU.clear(); OPT.clear(); for (const p of [...parts]) group.remove(p.pivot); parts.length = 0; sel = null; nextId = 1; running = false; dirty = true; if (doSave) { save(); buildUI(); } }
   // przykład przesuwu: silnik → sprzęgło → wał na łożyskach → tarcza korbowa → korbowód → suwak; obok zębnik z listwą na drugim wale (pas 1 : 2)
   function exampleLin() {
     clear(false);
@@ -305,6 +311,18 @@ export function createWorkshop({ scene, camera, dom, M, fmt, el, view }) {
     link(S1, X0); link(S2, S1); link(K1, S2); link(K1, X0); link(U1, K1); link(m, U1);
     msg = T('Przykład prądu: włącz wyłącznik na zasilaniu, naciśnij START (stycznik zasila falownik), potem „Uruchom”. STOP rozłącza stycznik — falownik traci zasilanie, silnik wybiega.', 'Electrical example: switch the supply on, press START (the contactor feeds the inverter), then “Run”. STOP opens the contactor — the inverter loses its supply and the motor coasts.');
     rpm = 1000; brake = 2; dirty = true; save(); buildUI();
+  }
+  // przykład światła: laser → soczewka → lustro → fotodioda; białe LED → pryzmat (najmniejsze odchylenie) → ekran z widmem.
+  // Części stawiane w przybliżeniu, potem „Połącz z…” ustawia każdą na wiązce poprzedniej.
+  function exampleLight() {
+    clear(false);
+    const add = (type, params, x, z, rot = 0) => { const p = make(type, params); setRot(p, rot); p.pivot.position.set(C0.x + x, TOP, C0.z + z); parts.push(p); return p; };
+    const la = add('laser', { nm: 650 }, -0.9, 0.15), le = add('lens', { f: 0.1 }, -0.7, 0.15), mi = add('mirror', {}, -0.45, 0.15), pd = add('photodiode', {}, -0.45, -0.15);
+    const lines = [link(le, la), link(mi, le), link(pd, mi)];
+    const led = add('led', { color: 'white' }, 0.05, 0.25), pr = add('prism', { glass: 'f2' }, 0.2, 0.25), sc = add('screen', {}, 0.4, 0.35);
+    lines.push(link(pr, led), link(sc, pr));
+    msg = T(`Przykład światła: laser → soczewka → lustro → fotodioda; białe LED → pryzmat → ekran z widmem. ${lines[1]} ${lines[3]}`, `Light example: laser → lens → mirror → photodiode; white LED → prism → screen with the spectrum. ${lines[1]} ${lines[3]}`);
+    dirty = true; save(); buildUI();
   }
   // przykład płynu: zasilanie → STOP → START → stycznik → pompa blokowa; zbiornik → pompa → zawór → dysza nad wiadrem
   function exampleFluid() {
@@ -423,11 +441,12 @@ export function createWorkshop({ scene, camera, dom, M, fmt, el, view }) {
     const ex2 = el('button', { type: 'button', textContent: 'Przykład: przesuw' }); ex2.onclick = exampleLin;
     const ex3 = el('button', { type: 'button', textContent: 'Przykład: prąd' }); ex3.onclick = exampleElec;
     const ex4 = el('button', { type: 'button', textContent: 'Przykład: płyn' }); ex4.onclick = exampleFluid;
+    const ex5 = el('button', { type: 'button', textContent: 'Przykład: światło' }); ex5.onclick = exampleLight;
     const feed = ELC.feed;
     if (feed && feed.mode === 'dol') { run.disabled = true; run.title = 'Silnik zasilany bezpośrednio przez stycznik — uruchamiasz go przyciskiem START.'; }
     else if (feed) run.title = 'RUN / STOP falownika (zadawanie z suwaka „Falownik”).';
     const cl = el('button', { type: 'button', textContent: 'Wyczyść stół' }); cl.onclick = () => clear(true);
-    kids.push(el('div', { className: 'btns' }, run, ex, ex2, ex3, ex4, cl));
+    kids.push(el('div', { className: 'btns' }, run, ex, ex2, ex3, ex4, ex5, cl));
     const rr = el('input', { type: 'range', min: -1500, max: 1500, step: 10, value: rpm }), ro = el('output', { textContent: `${rpm} ${T('obr/min', 'rpm')}` }); rr.oninput = () => { rpm = +rr.value; ro.textContent = `${rpm} ${T('obr/min', 'rpm')}`; save(); };
     const br = el('input', { type: 'range', min: 0, max: 100, step: 1, value: brake }), bo = el('output', { textContent: `${brake} N·m` }); br.oninput = () => { brake = +br.value; bo.textContent = `${brake} N·m`; save(); };
     kids.push(el('div', { className: 'row' }, el('span', { textContent: 'Falownik' }), rr, ro), el('div', { className: 'row' }, el('span', { textContent: 'Hamulec' }), br, bo));
@@ -439,6 +458,7 @@ export function createWorkshop({ scene, camera, dom, M, fmt, el, view }) {
       if (pt.def.params.length) kids.push(el('p', { className: 'sub', textContent: 'Parametry' }));
       for (const q of pt.def.params) kids.push(paramRow(q, pt.params[q.key], null, (v) => editPart(pt, q.key, v), q.auto && conn));
       if (pt.b.el === 'src') { const b = el('button', { type: 'button', textContent: pt.b.api.on ? 'Wyłącznik: WŁ' : 'Wyłącznik: WYŁ', className: pt.b.api.on ? 'on' : '' }); b.onclick = () => { pt.b.api.press('power'); buildUI(); }; kids.push(el('div', { className: 'btns' }, b)); }
+      if (pt.b.op === 'laser' || pt.b.op === 'led') { const b = el('button', { type: 'button', textContent: OPT.isOn(pt) ? 'Wyłącz źródło' : 'Włącz źródło', className: OPT.isOn(pt) ? 'on' : '' }); b.onclick = () => { OPT.toggle(pt); buildUI(); }; kids.push(el('div', { className: 'btns' }, b)); }
       if (pt.b.fl === 'valve') { const b = el('button', { type: 'button', textContent: pt.params.open > 0.5 ? 'Zamknij zawór' : 'Otwórz zawór' }); b.onclick = () => { pressDev(pt, true); buildUI(); }; kids.push(el('div', { className: 'btns' }, b)); }
       if (pt.b.fl === 'tank') { const b = el('button', { type: 'button', textContent: 'Dolej wody do 90 %' }); b.onclick = () => { FLU.refill(pt); }; kids.push(el('div', { className: 'btns' }, b)); }
       if (pt.b.fl === 'bucket') { const b = el('button', { type: 'button', textContent: 'Wylej do zbiornika' }); b.onclick = () => { const m = FLU.pourBack(pt, parts.filter((p) => p.b.fl === 'tank')); msg = m === false ? T('Na stole nie ma zbiornika.', 'There is no tank on the table.') : T(`Wylano ${fmt(m * 1000, 2)} l do zbiornika.`, `Poured ${fmt(m * 1000, 2)} l into the tank.`); buildUI(); }; kids.push(el('div', { className: 'btns' }, b)); }
@@ -460,7 +480,7 @@ export function createWorkshop({ scene, camera, dom, M, fmt, el, view }) {
       kids.push(el('h3', { textContent: `${T('Na stole', 'On the table')} (${parts.length})` }));
       kids.push(el('ul', { className: 'ports list' }, ...parts.map((p) => { const li = el('li', { textContent: name(p), className: p === sel ? 'cur' : '' }), x = el('button', { type: 'button', textContent: '✕', title: 'Usuń (Del)' }); li.onclick = () => { sel = p; buildUI(); }; x.onclick = (e) => { e.stopPropagation(); remove(p); save(); buildUI(); }; li.append(x); return li; })));
     }
-    kids.push(el('p', { className: 'note', textContent: 'Obsługa: wybierz część w katalogu → Wstaw → kliknij na stole. Kliknij część → „Połącz z…” → kliknij drugą: pierwsza dopasuje się do drugiej (piasta na wał, wał w sprzęgło, łożysko pod wał, koło do koła, łańcuch, pas). Niepołączoną część można przeciągać. R — obrót, Del — usunięcie, Esc — anulowanie. Prąd: połącz urządzenia kablami (zasilanie → przyciski → stycznik, zasilanie → stycznik → falownik → silnik); kliknięcie podłączonego przycisku albo zasilania obsługuje je. Płyn: zbiornik → pompa → zawór → dysza wężami, dysza z wiadrem (staje nad nim); pompę zasila się jak silnik, kliknięcie zaworu go otwiera i zamyka. Parametry wybranej części można zmieniać.' }));
+    kids.push(el('p', { className: 'note', textContent: 'Obsługa: wybierz część w katalogu → Wstaw → kliknij na stole. Kliknij część → „Połącz z…” → kliknij drugą: pierwsza dopasuje się do drugiej (piasta na wał, wał w sprzęgło, łożysko pod wał, koło do koła, łańcuch, pas). Niepołączoną część można przeciągać. R — obrót, Del — usunięcie, Esc — anulowanie. Prąd: połącz urządzenia kablami (zasilanie → przyciski → stycznik, zasilanie → stycznik → falownik → silnik); kliknięcie podłączonego przycisku albo zasilania obsługuje je. Płyn: zbiornik → pompa → zawór → dysza wężami, dysza z wiadrem (staje nad nim); pompę zasila się jak silnik, kliknięcie zaworu go otwiera i zamyka. Światło: „Połącz z…” ustawia element optyczny na wiązce wychodzącej z drugiego (źródła, soczewki, lustra, pryzmatu); kąt na stole — parametr „Obrót na stole”. Parametry wybranej części można zmieniać.' }));
     box.replaceChildren(...kids);
     renderStats();
   }
@@ -476,7 +496,7 @@ export function createWorkshop({ scene, camera, dom, M, fmt, el, view }) {
       rows.push(...ELC.stats(st, solved.motor.b));
       void mo;
     }
-    rows.push(...FLU.stats());
+    rows.push(...FLU.stats(), ...OPT.stats());
     const w = solved ? solved.warn || [] : [];
     s.replaceChildren(...rows.flatMap(([a, b]) => [el('span', { textContent: a }), el('b', { textContent: b })]), ...w.map((x) => el('p', { className: 'warn', textContent: '⚠ ' + x })));
   }
@@ -486,6 +506,6 @@ export function createWorkshop({ scene, camera, dom, M, fmt, el, view }) {
     if (on) { if (!parts.length) { try { const d = JSON.parse(localStorage.getItem(KEY) || 'null'); if (d && d.parts && d.parts.length) load(d); } catch (e) { /* pusty stół */ } } buildUI(); view([C0.x, TOP + 0.1, C0.z], 2.6, 0.0, 0.55); }
   }
   return { group, setActive, step, onPointer, onKey,
-    api: { part: (id) => parts.find((q) => q.id === id), press: (id, down = true) => { const p = parts.find((q) => q.id === id); return p ? pressDev(p, down) : false; }, edit: (id, key, v) => { const p = parts.find((q) => q.id === id); if (p) editPart(p, key, v); return msg; }, remove: (id) => { const p = parts.find((q) => q.id === id); if (p) { remove(p); save(); buildUI(); } }, exampleElec, exampleFluid, fluid: () => { if (dirty) rebuildDrive(); return { flow: FLU.flow, rows: FLU.stats(), warn: FLU.warn }; }, elec: () => { if (dirty) rebuildDrive(); return { feed: ELC.feed && ELC.feed.mode, rows: ELC.stats(drive ? drive.state : {}, solved && solved.motor ? solved.motor.b : null), warn: ELC.warn }; }, drive: () => drive, tick: (dt = 0.05, n = 20) => { const out = []; for (let i = 0; i < n; i++) { step(dt); out.push(Math.round(drive.state.omega * 60 / TAU)); } return out; }, example, exampleLin, clear: () => clear(true), add: (type, params, x = 0, z = 0) => { const p = make(type, params); p.pivot.position.set(C0.x + x, TOP, C0.z + z); if (!dist(p)) p.pivot.position.y = TOP + 0.09; parts.push(p); dirty = true; return p.id; }, link: (a, b) => { const A = parts.find((p) => p.id === a), B = parts.find((p) => p.id === b); return A && B ? link(A, B) : 'brak'; }, run: (on = true) => { running = on; buildUI(); },
+    api: { part: (id) => parts.find((q) => q.id === id), press: (id, down = true) => { const p = parts.find((q) => q.id === id); return p ? pressDev(p, down) : false; }, edit: (id, key, v) => { const p = parts.find((q) => q.id === id); if (p) editPart(p, key, v); return msg; }, remove: (id) => { const p = parts.find((q) => q.id === id); if (p) { remove(p); save(); buildUI(); } }, exampleElec, exampleFluid, exampleLight, optics: () => { if (dirty) rebuildDrive(); OPT.tick(0); return { rows: OPT.stats(), warn: OPT.warn }; }, fluid: () => { if (dirty) rebuildDrive(); return { flow: FLU.flow, rows: FLU.stats(), warn: FLU.warn }; }, elec: () => { if (dirty) rebuildDrive(); return { feed: ELC.feed && ELC.feed.mode, rows: ELC.stats(drive ? drive.state : {}, solved && solved.motor ? solved.motor.b : null), warn: ELC.warn }; }, drive: () => drive, tick: (dt = 0.05, n = 20) => { const out = []; for (let i = 0; i < n; i++) { step(dt); out.push(Math.round(drive.state.omega * 60 / TAU)); } return out; }, example, exampleLin, clear: () => clear(true), add: (type, params, x = 0, z = 0) => { const p = make(type, params); p.pivot.position.set(C0.x + x, TOP, C0.z + z); if (!dist(p)) p.pivot.position.y = TOP + 0.09; parts.push(p); dirty = true; return p.id; }, link: (a, b) => { const A = parts.find((p) => p.id === a), B = parts.find((p) => p.id === b); return A && B ? link(A, B) : 'brak'; }, run: (on = true) => { running = on; buildUI(); },
       state: () => { if (dirty) rebuildDrive(); return { parts: parts.map((p) => p.id + ':' + p.type), links: links.map((l) => `${l.b.id}→${l.a.id}:${l.kind}`), warn: solved ? solved.warn : [], motorRpm: drive ? drive.state.omega * 60 / TAU : 0, Tm: drive ? drive.state.Tm : 0, Jeff: drive ? drive.state.Jeff : 0, msg, lin: drive ? parts.filter((p) => role(p) === 'lin').map((p) => { const e = drive.els.get(p.id); return e ? `${p.id} x=${(e.theta * 1000).toFixed(1)}mm` : p.id; }) : [], out: solved && solved.brakeP && drive ? drive.els.get(solved.brakeP.id).omega * 60 / TAU : null }; } } };
 }

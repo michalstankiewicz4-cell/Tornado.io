@@ -1,5 +1,11 @@
 # Zmiany
 
+## 0.39.0 — 2026-11-28
+- Laboratorium mechaniki 0.25.0 — **Warsztat: światło**. Nowe części: laser, źródło LED, soczewka, lustro, pryzmat, fotodioda
+  z miernikiem, ekran; dowolny kąt na stole. Promienie śledzone co klatkę przez wszystkie elementy, fotodioda mierzy moc
+  i fotoprąd; „Połącz z…” ustawia element na wiązce drugiej części (lustro skręca o 90°, pryzmat na najmniejsze odchylenie);
+  piąty przykład. Warsztat ma teraz wszystkie dziedziny: obrót, przesuw, prąd, płyn i światło.
+
 ## 0.38.0 — 2026-11-28
 - Laboratorium mechaniki 0.24.0 — **Warsztat: płyn**. Nowe części: zbiornik wody, pompa odśrodkowa blokowa (zasilana
   kablem jak silnik, także z falownika), zawór kulowy na podstawce, dysza na wysięgniku, wiadro. Węże przezroczyste między

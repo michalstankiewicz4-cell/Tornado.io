@@ -304,7 +304,7 @@ straty (sprawność), magazyn energii (jeśli ma), ograniczenia (zakres ruchu, p
 4. ✅ Płyn: rury, węże, źródła, pompy, zawory, rozdzielacz, siłownik, zbiorniki, dysza, przenośnik — stanowisko
    hydrauliczne z podajnikiem i fontanna z dolewaniem, przelewem i wiadrem.
 5. ✅ Optyka: promienie (Snell, Fresnel, Sellmeier), soczewki, lustra, pryzmaty, emitery i odbiorniki — stół optyczny.
-6. 🟡 Warsztat: składanie maszyn z katalogu w laboratorium — ✅ napęd obrotowy, ✅ przesuw, ✅ prąd, ✅ płyn, ✅ edycja i usuwanie części; ⬜ światło.
+6. 🟡 Warsztat: składanie maszyn z katalogu w laboratorium — ✅ napęd obrotowy, ✅ przesuw, ✅ prąd, ✅ płyn, ✅ światło, ✅ edycja i usuwanie części.
 7. Parowóz (w planach).
 
 
@@ -456,7 +456,14 @@ Fizyka luźnej części (tryb Fizyka) — moment reakcji z fizyki napędu:
   w wiadrze (nadmiar się przelewa, bez wiadra — na blat); zbiornik „Dolej do 90 %”, wiadro „Wylej do zbiornika”.
   Czwarty przykład: zasilanie → STOP → START → stycznik → pompa; zbiornik → pompa → zawór → dysza nad wiadrem.
 - Obwód: stan styczników przetrwa przebudowę (przesunięcie części, nowy kabel), kilka odbiorników naraz (silnik i pompy).
-- Dalej: światło w warsztacie.
+- Światło ✅ (`workshop/optics.js`): laser modułowy (405 / 532 / 650 nm, 1 / 5 mW), źródło LED ze szczeliną (białe albo
+  barwne), soczewka na słupku (4 rodzaje, f 50–200 mm, 5 szkieł), lustro w uchwycie kinematycznym (płaskie, wklęsłe, wypukłe;
+  Al, Ag, Au), pryzmat (równoboczny, prostokątny), fotodioda z miernikiem, ekran. Każda część ma parametr „Obrót na stole”
+  (dowolny kąt). Co klatkę promienie ze wszystkich włączonych źródeł śledzone przez wszystkie elementy (raytrace.js — Snell,
+  Fresnel, Sellmeier), fotodioda: moc na okienku i fotoprąd z czułości krzemu. „Połącz z…” nie tworzy połączenia, tylko
+  ustawia element na wiązce wychodzącej z drugiej części (promień środkowy): soczewka, fotodioda, ekran — prostopadle,
+  lustro — skręt o 90° w stronę środka stołu, pryzmat — obrót na najmniejsze odchylenie. Piąty przykład: laser → soczewka →
+  lustro → fotodioda; białe LED → pryzmat → ekran z widmem.
 
 ## Doktor — złożenie (czy modele nie wchodzą jeden w drugi)
 

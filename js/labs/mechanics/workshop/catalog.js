@@ -1,4 +1,4 @@
-// Warsztat — katalog części: napęd obrotowy, przesuw, prąd i płyn. auto: true — parametr ustawiany przez połączenie (zablokowany w połączonej części). Każda część budowana wzdłuż lokalnej osi +x z MechKit:
+// Warsztat — katalog części: napęd obrotowy, przesuw, prąd, płyn i światło. auto: true — parametr ustawiany przez połączenie (zablokowany w połączonej części). Każda część budowana wzdłuż lokalnej osi +x z MechKit:
 //   role: 'motor' (wał wyjściowy w +x, oś na wysokości axisY nad podstawą), 'shaft' (od x = 0 do len), 'hub' (piasta na wale:
 //   koło zębate, łańcuchowe, pasowe, sprzęgło, tarcza hamulca — oś przez początek), 'support' (oprawa łożyska — oś na wysokości h).
 //   build(p) → { group, spin, J, ext: [x0, x1] (zasięg wzdłuż osi), axisY (oś nad spodem), props: [[nazwa, wartość]] }
@@ -7,6 +7,8 @@ import * as MK from '../../../models/mech/mechkit.js';
 import * as CK from '../../../models/mech/controls.js';
 import * as FK from '../../../models/mech/fluid/index.js';
 import * as FL from '../../../behaviors/mech/fluid.js';
+import * as OK from '../../../models/mech/optics/index.js';
+import * as RT from '../../../behaviors/mech/raytrace.js';
 import { T } from '../lang.js';
 
 // część przesuwna: model ruchu wzdłuż lokalnego y, góra +z (MechKit: listwa, suwak) → ruch wzdłuż +x, góra +y
@@ -212,4 +214,25 @@ WS_PARTS.push(
     params: [],
     build() { const g = FK.bucket({ V: 0.01, handleUp: false }), u = g.userData; return { group: g, el: null, fl: 'bucket', J: 0, model: u, ports: {}, props: [['Pojemność', `${(u.Vfull * 1000).toFixed(1).replace('.', T(',', '.'))} l do rantu`], ['Materiał', 'blacha ocynkowana']] }; },
   },
+);
+// ---------------- światło (etap 6, część 5) — OptiKit; op: 'laser', 'led' (źródła), 'lens', 'mirror', 'prism', 'pd' (fotodioda),
+// 'screen'. Model ma oś wiązki +z i środek optyczny w (0, AXIS_Y, 0); obudowa obraca go o 90° (oś → +x części) i o kąt
+// „Obrót” (yaw, stopnie) — dowolny kąt na stole, ustawiany też przy łączeniu („Połącz z…” — na wiązce wychodzącej z części) ----------------
+const optic = (model, yawDeg) => { const g = new THREE.Group(), inner = new THREE.Group(); inner.add(model); g.add(inner); const setYaw = (r) => { inner.rotation.y = Math.PI / 2 + r; }; setYaw(yawDeg * Math.PI / 180); return { g, setYaw }; };
+const YAW = { key: 'yaw', label: 'Obrót na stole', type: 'range', min: -180, max: 180, step: 0.5, unit: '°', def: 0 };
+const GLASSES = [['bk7', 'N-BK7'], ['f2', 'F2'], ['sf11', 'N-SF11'], ['fs', 'krzemionka topiona'], ['pmma', 'PMMA']];
+const opt = (type, op, name, params, make, props) => ({ type, role: 'optic', op, name, params: [...params, YAW], build(p) { const m = make(p), { g, setYaw } = optic(m, +p.yaw); return { group: g, model: m, op, setYaw, J: 0, props: props(p, m) }; } });
+WS_PARTS.push(
+  opt('laser', 'laser', 'Laser modułowy', [{ key: 'nm', label: 'Długość fali', type: 'select', options: [[405, '405 nm (fioletowy)'], [532, '532 nm (zielony)'], [650, '650 nm (czerwony)']], def: 650 }, { key: 'mW', label: 'Moc', type: 'select', options: [[1, '1 mW (klasa 2)'], [5, '5 mW (klasa 3R)']], def: 1 }],
+    (p) => OK.laser({ nm: +p.nm, mW: +p.mW }), (p) => [['Długość fali', `${+p.nm} nm`], ['Moc', `${+p.mW} mW`], ['Średnica wiązki', '2,4 mm'], ['Rozbieżność', '0,6 mrad'], ['Wysokość wiązki', `${Math.round(OK.AXIS_Y * 1000)} mm`]]),
+  opt('led', 'led', 'Źródło LED ze szczeliną', [{ key: 'color', label: 'Barwa', type: 'select', options: [['white', 'białe (450 nm + luminofor)'], ['red', 'czerwone 630 nm'], ['green', 'zielone 525 nm'], ['blue', 'niebieskie 465 nm']], def: 'white' }],
+    (p) => OK.ledSource({ color: p.color === 'white' ? 'white' : 'mono', nm: { red: 630, green: 525, blue: 465 }[p.color] || 590 }), (p) => [['Widmo', p.color === 'white' ? '450 nm + luminofor 530–620 nm' : `${{ red: 630, green: 525, blue: 465 }[p.color]} nm`], ['Szczelina', '1 × 6 mm']]),
+  opt('lens', 'lens', 'Soczewka na słupku', [{ key: 'kind', label: 'Rodzaj', type: 'select', options: [['biconvex', 'dwuwypukła'], ['planoconvex', 'płasko-wypukła'], ['biconcave', 'dwuwklęsła'], ['planoconcave', 'płasko-wklęsła']], def: 'biconvex' }, { key: 'f', label: 'Ogniskowa', type: 'select', options: [[0.05, '50 mm'], [0.1, '100 mm'], [0.15, '150 mm'], [0.2, '200 mm']], def: 0.1 }, { key: 'glass', label: 'Szkło', type: 'select', options: GLASSES, def: 'bk7' }],
+    (p) => OK.lens({ kind: p.kind, f: +p.f * (p.kind.includes('concave') ? -1 : 1), glass: p.glass }), (p, m) => [['Ogniskowa', `${p.kind.includes('concave') ? '−' : ''}${Math.round(+p.f * 1000)} mm`], ['Średnica', '25,4 mm (1")'], ['Promienie krzywizny', `${Number.isFinite(m.userData.optics.R1) ? (m.userData.optics.R1 * 1000).toFixed(1) : '∞'} / ${Number.isFinite(m.userData.optics.R2) ? (m.userData.optics.R2 * 1000).toFixed(1) : '∞'} mm`]]),
+  opt('mirror', 'mirror', 'Lustro w uchwycie kinematycznym', [{ key: 'shape', label: 'Kształt', type: 'select', options: [['flat', 'płaskie'], ['concave', 'wklęsłe R 200 mm'], ['convex', 'wypukłe R 200 mm']], def: 'flat' }, { key: 'coating', label: 'Powłoka', type: 'select', options: [['al', 'aluminium'], ['ag', 'srebro'], ['au', 'złoto']], def: 'ag' }],
+    (p) => OK.mirror({ shape: p.shape, D: 0.0254, R: 0.2, coating: p.coating }), (p, m) => [['Średnica', '25,4 mm (1")'], ['Odbicie przy 650 nm', `${(m.userData.optics.refl(650) * 100).toFixed(1).replace('.', T(',', '.'))} %`]]),
+  opt('prism', 'prism', 'Pryzmat na stoliku', [{ key: 'type', label: 'Rodzaj', type: 'select', options: [['equilateral', 'równoboczny 60°'], ['right', 'prostokątny 90°']], def: 'equilateral' }, { key: 'glass', label: 'Szkło', type: 'select', options: GLASSES, def: 'f2' }],
+    (p) => OK.prism({ type: p.type, glass: p.glass }), (p) => [['Szkło', (GLASSES.find((q) => q[0] === p.glass) || [])[1]], ['Liczba Abbego', RT.abbe(p.glass).toFixed(1).replace('.', T(',', '.'))], ['Ściana', '25 mm']]),
+  opt('photodiode', 'pd', 'Fotodioda z miernikiem', [], () => OK.photodiode({}), () => [['Okienko', '10 × 10 mm, krzem'], ['Czułość przy 650 nm', `${RT.siResponsivity(650).toFixed(2).replace('.', T(',', '.'))} A/W`]]),
+  opt('screen', 'screen', 'Ekran biały', [], () => OK.screen({}), () => [['Ekran', '80 × 60 mm']]),
 );
