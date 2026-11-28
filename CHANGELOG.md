@@ -1,5 +1,11 @@
 # Zmiany
 
+## 0.35.0 — 2026-11-28
+- Laboratorium mechaniki 0.21.0 — **etap 6: Warsztat** (czwarty tryb). Pusty stół, katalog części napędu obrotowego
+  (silnik, wał, koło zębate, sprzęgło, koło łańcuchowe i pasowe, hamulec, łożysko UCP), wstawianie, przeciąganie, obrót,
+  łączenie portami z dopasowaniem położenia (piasta na wał, wał w sprzęgło, łożysko pod wał, zazębienie, łańcuch, pas),
+  ruch z napędu Maszyny, ostrzeżenia, zapis w przeglądarce i przykład.
+
 ## 0.34.0 — 2026-11-28
 - Laboratorium mechaniki 0.20.0 — **etap 5: optyka** i **przepływomierz**. Przedmioty: soczewka (4 rodzaje, 5 szkieł),
   pryzmat (równoboczny, prostokątny), laser, źródło LED ze szczeliną, fotodioda z miernikiem, rotametr. Maszyna i Fizyka:

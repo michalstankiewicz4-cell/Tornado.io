@@ -17,6 +17,7 @@ import { createClock } from './clock.js';
 import { createAutomation } from './automation.js';
 import { createTrigger } from './trigger.js';
 import { tickLiquids } from '../../render/fluid/liquid.js';
+import { createWorkshop } from './workshop/workshop.js';
 import { createHydraulicStation } from './hydraulic-station.js';
 import { createFountainStation } from './fountain-station.js';
 import { createOpticsStation } from './optics-station.js';
@@ -40,6 +41,8 @@ const stage = createStage($('view'), { shadow: 4096 });
 const { scene, camera, renderer } = stage;
 const M = MK.materials();
 const root = new THREE.Group(); scene.add(root);
+// warsztat (etap 6): osobny stół przed łożem — js/labs/mechanics/workshop/workshop.js
+let WS = null;
 
 /* ---------------- hala: posadzka, łoże, światła ---------------- */
 const floor = new THREE.Mesh(new THREE.CircleGeometry(40, 64).rotateX(-Math.PI / 2), M.concrete); floor.receiveShadow = true;
@@ -296,6 +299,7 @@ let last = performance.now(), statT = 0, sel = null;
 const selBox = new THREE.BoxHelper(new THREE.Object3D(), 0xf2c14e); selBox.visible = false; scene.add(selBox);
 // jeden krok symulacji (pętla klatek i MechanicsApi.simulate)
 function simStep(dt) {
+  if (S.mode === 'workshop') { WS.step(dt); tickLiquids(dt); return; }   // warsztat: własny napęd z wstawionych części
   if (S.mode === 'machine') { drive.step(dt, { rpm: S.rpm, brake: S.brake }); applyAngles(); }
   else if (S.mode === 'physics') { ELEC.tick(dt); reg.api.tick(dt); const on = reg.api.powered && (reg.api.run || Math.abs(reg.api.f) > 0.05); phys.step(dt, { w0: reg.api.f * 4 * Math.PI / 4, brake: FX.brakeLoose() ? 0 : S.brake, on }); ELEC.power(phys.state.Tm, phys.state.omega, on); applyAngles(); }
   tickLiquids(dt);   // falowanie powierzchni cieczy (LiquidKit)
@@ -321,6 +325,7 @@ const dirOf = (w) => (Math.abs(w) < 1e-3 ? '—' : w > 0 ? '↺' : '↻');   // 
 const speedTxt = (e, d = 1) => (e.dof === 'lin' ? `${fmt(e.omega * 1000, d)} mm/s · x ${fmt(e.theta * 1000, 1)} mm` : `${dirOf(e.omega)} ${fmt(Math.abs(rpmOf(e.omega)), d)} obr/min`);
 const loadTxt = (T, e) => (e.dof === 'lin' ? `${fmt(T, 1)} N` : `${fmt(T, 1)} N·m`);
 function stats() {
+  if (S.mode === 'workshop') return;   // warsztat ma własne okno
   if (S.mode === 'items') { itemStats(); return; }
   if (S.mode === 'physics') { physStats(); return; }
   const st = drive.state;
@@ -384,17 +389,19 @@ function controlAt(e) {
 }
 cv.addEventListener('pointerdown', (e) => {
   cv.setPointerCapture(e.pointerId);
+  if (S.mode === 'workshop' && WS.onPointer('down', e)) return;
   const c = e.button === 0 ? controlAt(e) : null;
   if (c) { ctl = { name: c.name, api: c.api, y: e.clientY }; c.api.press(c.name); stats(); return; }
   drag = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY };
 });
 cv.addEventListener('pointermove', (e) => {
+  if (S.mode === 'workshop' && WS.onPointer('move', e)) return;
   if (ctl) { ctl.api.drag(ctl.name, e.clientY - ctl.y); ctl.y = e.clientY; return; }
   if (!drag) { cv.classList.toggle('grab', !!controlAt(e)); return; } const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY; if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 4) drag.moved = true; if (drag.moved) { orbit.yaw -= dx * 0.005; orbit.pitch = Math.max(0.02, Math.min(1.52, orbit.pitch + dy * 0.004)); } });
 // przerwany gest (pointercancel — np. dotyk, utrata przechwycenia, okno w tle): sterowanie zawsze puszczone
 function endPointer() { if (ctl) { ctl.api.release(ctl.name); ctl = null; stats(); } drag = null; }
 cv.addEventListener('pointercancel', endPointer); cv.addEventListener('lostpointercapture', () => { if (ctl) endPointer(); }); addEventListener('blur', endPointer);
-cv.addEventListener('pointerup', (e) => { if (ctl) { ctl.api.release(ctl.name); ctl = null; stats(); return; } const click = drag && !drag.moved; drag = null; if (click && e.button === 0 && S.mode !== 'items') pick(e); });
+cv.addEventListener('pointerup', (e) => { if (S.mode === 'workshop' && WS.onPointer('up', e)) { drag = null; return; } if (ctl) { ctl.api.release(ctl.name); ctl = null; stats(); return; } const click = drag && !drag.moved; drag = null; if (click && e.button === 0 && S.mode !== 'items') pick(e); });
 cv.addEventListener('wheel', (e) => { e.preventDefault(); orbit.dist = Math.min(30, Math.max(0.3, orbit.dist * Math.exp(e.deltaY * 0.0011))); }, { passive: false });
 const held = new Set();
 addEventListener('keyup', (e) => held.delete(e.code)); addEventListener('blur', () => held.clear());
@@ -1156,16 +1163,17 @@ function itemStats() {
 }
 function setMode(m) {
   const was = S.mode;
-  S.mode = ['machine', 'physics'].includes(m) ? m : 'items'; save();
+  S.mode = ['machine', 'physics', 'workshop'].includes(m) ? m : 'items'; save();
   for (const b of document.querySelectorAll('#modes button')) b.classList.toggle('on', b.dataset.mode === S.mode);
-  const mach = S.mode !== 'items', phy = S.mode === 'physics';
-  root.visible = mach; for (const c of [cross1, cross2]) c.visible = mach; itemRoot.visible = !mach; selBox.visible = mach && !!sel;
+  const ws = S.mode === 'workshop', mach = S.mode !== 'items' && !ws, phy = S.mode === 'physics';
+  WS.setActive(ws);
+  root.visible = mach || ws; for (const c of [cross1, cross2]) c.visible = mach || ws; itemRoot.visible = !mach && !ws; selBox.visible = mach && !!sel;
   reg.group.visible = phy; elecG.visible = phy; $('rpmCtl').hidden = phy; hitG.visible = mach && S.hit;
   if (phy && was !== 'physics') phys.sync();   // fizyka startuje z bieżącego położenia części
   $('mBar').hidden = !mach;
-  $('info').textContent = phy ? $('info').dataset.physics : mach ? $('info').dataset.machine : $('info').dataset.items;
+  $('info').textContent = ws ? $('info').dataset.workshop : phy ? $('info').dataset.physics : mach ? $('info').dataset.machine : $('info').dataset.items;
   if (mach) { sel = null; $('selName').textContent = tr('Kliknij element maszyny'); $('selProps').replaceChildren(); $('selPorts').replaceChildren(); if (was === 'items' || !was) setCam(CAMS['Cała maszyna']); }
-  else { buildItem(); frameItem(); }
+  else if (!ws) { buildItem(); frameItem(); }
   cams(); stats();
 }
 for (const b of document.querySelectorAll('#modes button')) b.onclick = () => setMode(b.dataset.mode);
@@ -1182,6 +1190,7 @@ for (const k of ['sunEl', 'sunAz']) { $(k).value = S[k]; $(k + 'V').textContent 
 function sky() { stage.setSky({ weather: S.weather, sunEl: S.sunEl, sunAz: S.sunAz }); }
 addEventListener('keydown', (e) => {
   if (e.target.closest('input,select,textarea')) return;
+  if (S.mode === 'workshop' && WS.onKey(e)) { e.preventDefault(); return; }
   if (['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) held.add(e.code);
   if (e.code === 'KeyH') document.querySelectorAll('[data-window]').forEach((p) => p.classList.toggle('hidden-panel'));
 });
@@ -1190,6 +1199,7 @@ addEventListener('keydown', (e) => {
 CLOCK = createClock({ root, S, fmt });
 /* ---------------- etap 3: czujniki, przekaźnik czasowy, regulator PID (js/labs/mechanics/automation.js) ---------------- */
 AUTO = createAutomation({ root, elecG, S, fmt, BED_TOP, Y0, motorG, eMotor, g1: eG1.group, eG1, disc, eDisc });
+WS = createWorkshop({ scene, camera, dom: renderer.domElement, M, fmt, el, view: (t, d, y, p) => window.MechanicsApi && window.MechanicsApi.view(t, d, y, p) });
 TRIG = createTrigger({ root, S, fmt, BED_TOP });
 /* ---------------- etap 4: płyny — hydraulika z podajnikiem i fontanna (js/labs/mechanics/hydraulic-station.js, fountain-station.js) ---------------- */
 STATIONS.push(TRIG, createHydraulicStation({ root, S, fmt, BED_TOP }), createFountainStation({ root, S, fmt, BED_TOP }));
@@ -1210,6 +1220,7 @@ window.MechanicsApi = {
   runClock(sec = 10) { const n = Math.round(clamp(sec, 0, 600) * 60); for (let i = 0; i < n; i++) CLOCK.step(1 / 60); return this.clock(); },
   windClock(n = 1) { for (let i = 0; i < n * 4; i++) CLOCK.devices[0].api.press('wind'); return CLOCK.state.wind; },
   mode(m) { setMode(m); return S.mode; },
+  get ws() { return WS && WS.api; },   // warsztat: ws.example(), ws.add(typ, ustawienia, x, z), ws.link(a, b), ws.run(), ws.state()
   // regulator(nazwa) — obsługa regulatora przy silniku w trybie Fizyka: 'run' | 'stop' | 'dir' | liczba (przeciągnięcie pokrętła, px)
   // circuit(nazwa) — obsługa instalacji w trybie Fizyka: circuit('dir', 'I' | '0' | 'II') — przełącznik S3, 'power' (X0), 'main' (Q1), 'start' / 'stop' (chwilowe), 'estop' (zatrzask / odblokowanie), 'test' (K1 ręcznie); circuit('pot', 0–1)
   circuit(c, v) {

@@ -17,3 +17,6 @@
 .warn { margin-block: 6px 0; font-size: 12px; color: var(--err); grid-column: 1 / -1; }
 #view canvas.grab { cursor: pointer; }
 .bar .chk { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dim); cursor: pointer; }
+
+/* warsztat (tryb 4): okno otwiera się samo po wejściu w tryb (workshop.js → LabWindows.show) */
+#wsPanel .ports li { display: flex; align-items: center; justify-content: space-between; gap: 6px; }

@@ -32,6 +32,6 @@ export function translateDom(root = document) {
   for (const e of root.querySelectorAll('[data-en]')) e.textContent = e.dataset.en;
   for (const e of root.querySelectorAll('[data-title-en]')) e.title = e.dataset.titleEn;
   for (const e of root.querySelectorAll('[data-aria-en]')) e.setAttribute('aria-label', e.dataset.ariaEn);
-  for (const e of root.querySelectorAll('[data-items-en]')) for (const k of ['items', 'machine', 'physics']) if (e.dataset[k + 'En']) e.dataset[k] = e.dataset[k + 'En'];
+  for (const e of root.querySelectorAll('[data-items-en]')) for (const k of ['items', 'machine', 'physics', 'workshop']) if (e.dataset[k + 'En']) e.dataset[k] = e.dataset[k + 'En'];
   const t = document.querySelector('title[data-en]'); if (t) document.title = t.dataset.en;
 }

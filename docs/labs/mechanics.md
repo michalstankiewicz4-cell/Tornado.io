@@ -304,7 +304,7 @@ straty (sprawność), magazyn energii (jeśli ma), ograniczenia (zakres ruchu, p
 4. ✅ Płyn: rury, węże, źródła, pompy, zawory, rozdzielacz, siłownik, zbiorniki, dysza, przenośnik — stanowisko
    hydrauliczne z podajnikiem i fontanna z dolewaniem, przelewem i wiadrem.
 5. ✅ Optyka: promienie (Snell, Fresnel, Sellmeier), soczewki, lustra, pryzmaty, emitery i odbiorniki — stół optyczny.
-6. Warsztat: składanie maszyn z katalogu w laboratorium.
+6. 🟡 Warsztat: składanie maszyn z katalogu w laboratorium — ✅ napęd obrotowy; ⬜ przesuw, prąd, płyn, światło.
 7. Parowóz (w planach).
 
 
@@ -414,6 +414,19 @@ Fizyka luźnej części (tryb Fizyka) — moment reakcji z fizyki napędu:
   z widmem. S8 — laser, S9 — LED. Fontanna ma rotametr na pionie tłocznym.
 - Fizyka promieni: `js/behaviors/mech/raytrace.js` (szkła — wzór Sellmeiera, załamanie Snella w wektorach, Fresnel, całkowite
   wewnętrzne odbicie, czułość krzemu), wiązki — `js/render/optics/beams.js`; modele OptiKit `js/models/mech/optics/`.
+
+## Etap 6 — warsztat (czwarty tryb: Warsztat)
+
+- Pusty stół przed łożem (`js/labs/mechanics/workshop/`): katalog części napędu obrotowego (`catalog.js`: silnik, wał, koło
+  zębate, sprzęgło kłowe, koło łańcuchowe, koło pasowe, hamulec, łożysko UCP), wstawianie kliknięciem na stole, przeciąganie,
+  obrót o 90°, łączenie portami („Połącz z…”, potem druga część).
+- Łączenie dopasowuje położenie z fizyki połączenia: piasta na wał (w zasięgu wału), wał w wolną piastę sprzęgła, łożysko pod wał
+  (wysokość oprawy z osi), koło do koła (odległość osi m·(z₁ + z₂)/2, tylko ten sam moduł), łańcuch (parzysta liczba ogniw 08A),
+  pas (SPA, długość z obrysu). Przesuwana jest część klikana jako pierwsza razem z tym, co na niej osadzone.
+- Ruch liczy napęd Maszyny (`behaviors/mech/drive.js`): graf od silnika, przełożenia, bezwładność zredukowana, moment silnika
+  z poślizgu, hamulec na wyjściu. Ostrzeżenia: część niepołączona, zakleszczenie, wał bez podpór, koło bez wału, koło zahacza o blat.
+- Zapis w przeglądarce, przykład (silnik → sprzęgło → koła 18 : 40 → łańcuch 15 : 30 → hamulec). API: `MechanicsApi.ws`.
+- Dalej: przesuw (listwa, śruba, korba), prąd, płyn, światło w warsztacie.
 
 ## Doktor — złożenie (czy modele nie wchodzą jeden w drugi)
 
