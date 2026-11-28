@@ -379,6 +379,24 @@ export const FLUID = [
         ports: portsOf(M) };
     },
   },
+  {
+    id: 'rotameter', name: 'Przepływomierz (rotametr)', group: 'Czujniki',
+    params: [
+      { key: 'Qmax', label: 'Zakres', type: 'select', options: [[2, '0–2 l/min'], [6, '0–6 l/min'], [12, '0–12 l/min'], [25, '0–25 l/min']], def: 12 },
+      { key: 'Q', label: 'Przepływ średni', type: 'range', min: 0, max: 25, step: 0.1, unit: 'l/min', def: 7 },
+      { key: 'rhoF', label: 'Pływak', type: 'select', options: [[7900, 'stal nierdzewna 7900 kg/m³'], [2700, 'aluminium 2700 kg/m³'], [1380, 'PVDF 1380 kg/m³']], def: 7900 },
+    ],
+    build(p) {
+      const R = FL.rotameterFor(p.Qmax / 60000, { rhoF: p.rhoF }), scale = []; for (let i = 0; i <= 5; i++) { const q = p.Qmax * i / 5; scale.push([Math.round(q * 10) / 10, R.h(q / 60000)]); }
+      const M = FK.rotameter({ L: R.L, Df: R.Df, scale, Qmax: p.Qmax }), u = M.userData, g = new THREE.Group(); g.add(M);
+      let q = 0;
+      const warn = p.Q > p.Qmax ? [T('Przepływ powyżej zakresu — pływak oparty o górny ogranicznik, odczyt niemożliwy.', 'Flow above the range — the float rests on the top stop, no reading.')] : [];
+      const live = () => [['Przepływ (podgląd — wahania)', lpm(q)], ['Wysokość pływaka', mm(R.h(q), 1)]];
+      return { group: g, rest: true, view: { yaw: 0.2, pitch: 0.1 }, warn, live, update: (t) => { q = Math.max(0, p.Q / 60000 * (1 + 0.15 * Math.sin(t * 0.7))); u.setFloat(R.h(q)); },
+        info: [['Zasada', T('pływak unosi się, aż szczelina wokół niego przepuści przepływ — Δp stałe, równe ciężarowi pływaka w cieczy na jego przekroju', 'the float rises until the gap around it passes the flow — constant Δp equal to the float weight in liquid over its area')], ['Spadek ciśnienia na pływaku', `${num(R.dp, 0)} Pa`], ['Zbieżność rurki (połowa kąta)', `${num(R.alpha * 180 / Math.PI, 2)}°`], ['Montaż', T('pionowo, przepływ od dołu', 'vertical, flow from below')], ['Dokładność', T('± 2,5 % zakresu (wzorcowany dla wody 20 °C)', '± 2.5 % of range (calibrated for water at 20 °C)')], ...live()],
+        ports: portsOf(M) };
+    },
+  },
   /* ---------------- pomiar ciśnienia ---------------- */
   {
     id: 'pressureSensor', name: 'Przetwornik ciśnienia i manometr', group: 'Czujniki',

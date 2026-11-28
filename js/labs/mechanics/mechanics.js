@@ -19,6 +19,7 @@ import { createTrigger } from './trigger.js';
 import { tickLiquids } from '../../render/fluid/liquid.js';
 import { createHydraulicStation } from './hydraulic-station.js';
 import { createFountainStation } from './fountain-station.js';
+import { createOpticsStation } from './optics-station.js';
 import { ITEMS, CATS, cardanMax } from './items.js';
 import { loadState, valid } from '../shared/saved.js';
 import { T, tr, LOC, EN, translateDom } from './lang.js';
@@ -1192,6 +1193,8 @@ AUTO = createAutomation({ root, elecG, S, fmt, BED_TOP, Y0, motorG, eMotor, g1: 
 TRIG = createTrigger({ root, S, fmt, BED_TOP });
 /* ---------------- etap 4: płyny — hydraulika z podajnikiem i fontanna (js/labs/mechanics/hydraulic-station.js, fountain-station.js) ---------------- */
 STATIONS.push(TRIG, createHydraulicStation({ root, S, fmt, BED_TOP }), createFountainStation({ root, S, fmt, BED_TOP }));
+/* ---------------- etap 5: stół optyczny — laser, soczewka, lustro, fotodioda; LED, pryzmat, ekran (js/labs/mechanics/optics-station.js) ---------------- */
+STATIONS.push(createOpticsStation({ root, S, fmt, BED_TOP }));
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), RUN_MAX = 120;
 // MechanicsApi.mode('items' | 'machine'), item(id, ustawienia), items(), rpm(v), brake(Nm), alpha(0–1), state(), elements(), select(id), view(…), run(sekundy)

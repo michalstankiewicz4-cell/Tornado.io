@@ -87,3 +87,29 @@ export function revCounter({ max = 600, name } = {}) {
     ports: { shaft: port(EN ? 'Input shaft Ø8 (coupling)' : 'Wałek wejściowy Ø8 (sprzęgło)', DOMAIN.rot, 'sprzęgło'), out: port(EN ? 'Readout: revolutions, rpm' : 'Odczyt: obroty, obr/min', DOMAIN.sig, 'tarcza') } };
   return g;
 }
+
+// przepływomierz — rotametr: rurka szklana stożkowa (wąsko u dołu) ze skalą l/min, pływak nierdzewny prowadzony na
+// pręcie, głowice mosiężne z przyłączami G 1/2 (dół — wlot, góra — wylot), cztery pręty osłony. Woda w rurce widoczna.
+// Początek: koniec przyłącza dolnego, oś +y. setFloat(h [m od dołu skali]); scale: [[Q l/min, h m], …] — opis podziałki.
+export function rotameter({ L = 0.1, Df = 0.012, scale = [], Qmax = 10, name } = {}) {
+  const F = fluidMaterials(), g = new THREE.Group(), R = 0.011, hb = 0.022, y0 = 0.012 + hb;   // y0 — dół szklanej rurki
+  g.name = name || `${EN ? 'Rotameter' : 'Rotametr'} 0–${Math.round(Qmax * 10) / 10} l/min`;
+  for (const [y, s] of [[0, 1], [y0 + L, -1]]) {
+    const thr = mesh(new THREE.CylinderGeometry(0.0095, 0.0095, 0.012, 24), F.brassF); thr.position.y = s > 0 ? 0.006 : y0 + L + hb + 0.006; thr.userData.doctorOk = 'clash'; g.add(thr);
+    const head = mesh(new THREE.BoxGeometry(0.034, hb, 0.034), F.brassF); head.position.y = s > 0 ? 0.012 + hb / 2 : y0 + L + hb / 2; g.add(head);
+  }
+  const tube = mesh(latheY([[0, 0], [R, 0], [R, L], [0, L]], 40), F.glass, false); tube.position.y = y0; tube.userData.doctorOk = 'seethrough'; g.add(tube);
+  const water = mesh(new THREE.CylinderGeometry(R - 0.0015, R - 0.0015 - 0.0012, L, 32), F.water, false); water.position.y = y0 + L / 2; water.userData.doctorOk = 'clash'; g.add(water);
+  for (const [x, z] of [[0.014, 0.014], [-0.014, 0.014], [0.014, -0.014], [-0.014, -0.014]]) { const r = mesh(new THREE.CylinderGeometry(0.0016, 0.0016, L, 10), F.stainless); r.position.set(x, y0 + L / 2, z); g.add(r); }
+  const guide = mesh(new THREE.CylinderGeometry(0.0012, 0.0012, L, 8), F.stainless); guide.position.y = y0 + L / 2; guide.userData.doctorOk = 'clash'; g.add(guide);
+  // pływak: stożek z kołnierzem (odczyt na górnej krawędzi kołnierza)
+  const fl = new THREE.Group(); g.add(fl);
+  const fb = mesh(latheY([[0.0013, 0], [Df * 0.18, 0], [Df / 2, Df * 0.75], [Df / 2, Df * 0.95], [Df * 0.35, Df * 1.15], [0.0013, Df * 1.15]], 28), F.stainless); fb.userData.doctorOk = 'clash'; fl.add(fb);
+  // skala na płytce za rurką (przodem do +z): kreski z podziałki
+  const sc = canvasTex(96, 512, (c, w, h) => { c.fillStyle = '#f4f2ea'; c.fillRect(0, 0, w, h); c.fillStyle = '#111'; c.font = 'bold 22px sans-serif'; for (const [q, hh] of scale) { const y = h - 4 - hh / L * (h - 8); c.fillRect(0, y - 1.5, 30, 3); c.fillText(String(q), 36, y + 8); } c.font = '18px sans-serif'; c.fillText('l/min', 18, 22); });
+  const plate = mesh(new THREE.BoxGeometry(0.03, L, 0.002), [F.stainless, F.stainless, F.stainless, F.stainless, new THREE.MeshStandardMaterial({ map: sc.t, roughness: 0.5 }), F.stainless]); plate.position.set(0, y0 + L / 2, -0.0135); g.add(plate);
+  const setFloat = (h) => { fl.position.y = y0 + Math.max(0, Math.min(L - Df * 0.95, h)) - Df * 0.95; fl.position.y = Math.max(y0, fl.position.y); };
+  setFloat(0);
+  g.userData = { L, Df, H: y0 + L + hb + 0.012, y0, setFloat, mass: 0.6, ports: { in: port(EN ? 'Inlet G 1/2 (bottom)' : 'Wlot G 1/2 (dół)', DOMAIN.fluid, 'gwint'), out: port(EN ? 'Outlet G 1/2 (top)' : 'Wylot G 1/2 (góra)', DOMAIN.fluid, 'gwint') } };
+  return g;
+}

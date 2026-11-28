@@ -280,11 +280,12 @@ straty (sprawność), magazyn energii (jeśli ma), ograniczenia (zakres ruchu, p
   Au i dielektryczna (odbicie zależne od długości fali), podłoże N-BK7 / UVFS / Zerodur, uchwyt kinematyczny na słupku;
   promienie śledzone geometrycznie (prawo odbicia, bez przybliżenia przyosiowego): ognisko z promieni, aberracja sferyczna,
   astygmatyzm pod kątem. Model: OptiKit `js/models/mech/optics.js`; promienie: `js/behaviors/mech/optics.js`.
-- Soczewki ⬜ (ogniskowa, skupianie promienia), pryzmaty ⬜ (załamanie, rozszczepienie).
+- Soczewki ✅ (dwuwypukła, płasko-wypukła, płasko-wklęsła, dwuwklęsła; promienie z równania soczewkarza, aberracja sferyczna
+  i chromatyczna ze śledzenia), pryzmaty ✅ (równoboczny, prostokątny; Sellmeier, najmniejsze odchylenie, rozszczepienie).
 - Czujniki ✅ indukcyjny (B1 — zęby koła 1), ✅ bariera optyczna (B3 — otwory tarczy hamulca), ✅ enkoder (B2 — silnik),
-  🟡 krańcówka (model); ⬜ czujnik ciśnienia.
-- Emitery ⬜ (dioda / laser: sygnał → światło).
-- Odbiorniki ⬜ (fotodioda: światło → sygnał).
+  🟡 krańcówka (model); ✅ czujnik ciśnienia (etap 4), ✅ przepływomierz — rotametr.
+- Emitery ✅ laser (405–850 nm, klasa, rozbieżność), źródło LED białe / barwne ze szczeliną.
+- Odbiorniki ✅ fotodioda krzemowa z miernikiem (czułość widmowa, fotoprąd, wzmacniacz), ekran.
 
 ### 6. Elektronika i sprzęt
 
@@ -302,7 +303,7 @@ straty (sprawność), magazyn energii (jeśli ma), ograniczenia (zakres ruchu, p
 3. ✅ Port sygnału, czujniki, przekaźnik czasowy, regulator.
 4. ✅ Płyn: rury, węże, źródła, pompy, zawory, rozdzielacz, siłownik, zbiorniki, dysza, przenośnik — stanowisko
    hydrauliczne z podajnikiem i fontanna z dolewaniem, przelewem i wiadrem.
-5. Optyka: promienie, soczewki, lustra, pryzmaty, emitery i odbiorniki.
+5. ✅ Optyka: promienie (Snell, Fresnel, Sellmeier), soczewki, lustra, pryzmaty, emitery i odbiorniki — stół optyczny.
 6. Warsztat: składanie maszyn z katalogu w laboratorium.
 7. Parowóz (w planach).
 
@@ -403,6 +404,16 @@ Fizyka luźnej części (tryb Fizyka) — moment reakcji z fizyki napędu:
 - Wygląd cieczy: LiquidKit `js/render/fluid/liquid.js` — materiały z załamaniem i pochłanianiem, falująca powierzchnia,
   struga z ciągłości, rozpad na krople, rozbryzg i kręgi na wodzie.
 - Modele: FluidKit `js/models/mech/fluid/`; obliczenia: `js/behaviors/mech/fluid.js`. API: `MechanicsApi.device(id, nazwa, akcja)`.
+
+## Etap 5 — optyka (tryby Przedmioty, Maszyna, Fizyka)
+
+- Przedmioty (grupa „Optyka”): soczewka, pryzmat, laser, źródło LED ze szczeliną, fotodioda z miernikiem (obok lustra);
+  w „Czujnikach” — przepływomierz (rotametr).
+- Stół optyczny (`js/labs/mechanics/optics-station.js`): laser 650 nm → soczewka f = 100 mm na szynie (przeciąganie) → lustro
+  45° → fotodioda (moc, fotoprąd); białe LED ze szczeliną → pryzmat F2 ustawiony śledzeniem na najmniejsze odchylenie → ekran
+  z widmem. S8 — laser, S9 — LED. Fontanna ma rotametr na pionie tłocznym.
+- Fizyka promieni: `js/behaviors/mech/raytrace.js` (szkła — wzór Sellmeiera, załamanie Snella w wektorach, Fresnel, całkowite
+  wewnętrzne odbicie, czułość krzemu), wiązki — `js/render/optics/beams.js`; modele OptiKit `js/models/mech/optics/`.
 
 ## Doktor — złożenie (czy modele nie wchodzą jeden w drugi)
 

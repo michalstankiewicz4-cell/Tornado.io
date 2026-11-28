@@ -1,5 +1,13 @@
 # Zmiany
 
+## 0.34.0 — 2026-11-28
+- Laboratorium mechaniki 0.20.0 — **etap 5: optyka** i **przepływomierz**. Przedmioty: soczewka (4 rodzaje, 5 szkieł),
+  pryzmat (równoboczny, prostokątny), laser, źródło LED ze szczeliną, fotodioda z miernikiem, rotametr. Maszyna i Fizyka:
+  stół optyczny — laser, soczewka na szynie, lustro, fotodioda; białe światło rozszczepione pryzmatem na ekranie;
+  rotametr na pionie fontanny.
+- Promienie śledzone fizycznie (`js/behaviors/mech/raytrace.js`: Sellmeier, Snell, Fresnel, całkowite odbicie), nowa
+  warstwa obrazu wiązek `js/render/optics/beams.js`, modele OptiKit `js/models/mech/optics/`.
+
 ## 0.33.0 — 2026-11-28
 - Laboratorium mechaniki 0.19.0 — **etap 4: płyny**. Przedmioty: rura, wąż hydrauliczny, wąż przezroczysty (widać
   płynącą ciecz), źródło płynu (sieć z reduktorem ciśnienia albo zbiornik grawitacyjny, wodomierz, wiadro pod kranem),

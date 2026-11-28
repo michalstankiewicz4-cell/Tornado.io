@@ -8,7 +8,7 @@
 import * as THREE from '../../../vendor/three/three.module.js';
 import * as CK from '../../models/mech/controls.js';
 import * as FK from '../../models/mech/fluid/index.js';
-import { BAR, mains, overflowQ } from '../../behaviors/mech/fluid.js';
+import { BAR, mains, overflowQ, rotameterFor } from '../../behaviors/mech/fluid.js';
 import { T } from './lang.js';
 import { createJet } from '../../render/fluid/liquid.js';
 import { createFountain } from '../../behaviors/mech/fountain.js';
@@ -21,11 +21,15 @@ export function createFountainStation({ root, S, fmt, BED_TOP }) {
   const pIn = pu.portAt.in.clone().add(pump.position), pOut = pu.portAt.out.clone().add(pump.position);
   // ssanie: od pompy do ścianki zbiornika (przepust); tłoczenie: pion z zaworem zwrotnym, poziom z kulowym, łuk w górę, dysza
   root.add(FK.pipe({ points: [pIn, new THREE.Vector3(XF - 0.16, pIn.y, pIn.z)], d: 0.02, wall: 0.002 }));
-  const d = 0.016, yH = top + 0.26, cvL = FK.checkValve({ dn: 15 }), cvLen = cvL.userData.L, yC = pOut.y + 0.03 + cvLen / 2;
+  const d = 0.016, yH = top + 0.5, cvL = FK.checkValve({ dn: 15 }), cvLen = cvL.userData.L, yC = pOut.y + 0.03 + cvLen / 2;
   cvL.rotation.z = Math.PI / 2; add(cvL, pOut.x, yC, pOut.z);   // przepływ w górę (strzałka +x → +y)
   root.add(FK.pipe({ points: [pOut, new THREE.Vector3(pOut.x, yC - cvLen / 2, pOut.z)], d, wall: 0.0015 }));
+  // przepływomierz (rotametr 0–12 l/min) na pionie nad zaworem zwrotnym
+  const RM = rotameterFor(12 / 60000), rmScale = []; for (let i = 0; i <= 6; i++) rmScale.push([i * 2, RM.h(i * 2 / 60000)]);
+  const rm = FK.rotameter({ L: RM.L, Df: RM.Df, scale: rmScale, Qmax: 12 }), yR = yC + cvLen / 2 + 0.035; add(rm, pOut.x, yR, pOut.z);
+  root.add(FK.pipe({ points: [new THREE.Vector3(pOut.x, yC + cvLen / 2, pOut.z), new THREE.Vector3(pOut.x, yR, pOut.z)], d, wall: 0.0015 }));
   const bv = FK.ballValve({ dn: 15 }), bvL = bv.userData.L, xBV = XF - 0.14; add(bv, xBV, yH, pOut.z);
-  root.add(FK.pipe({ points: [new THREE.Vector3(pOut.x, yC + cvLen / 2, pOut.z), new THREE.Vector3(pOut.x, yH, pOut.z), new THREE.Vector3(xBV - bvL / 2, yH, pOut.z)], d, wall: 0.0015, R: 0.03 }));
+  root.add(FK.pipe({ points: [new THREE.Vector3(pOut.x, yR + rm.userData.H, pOut.z), new THREE.Vector3(pOut.x, yH, pOut.z), new THREE.Vector3(xBV - bvL / 2, yH, pOut.z)], d, wall: 0.0015, R: 0.03 }));
   const nzBase = new THREE.Vector3(XF, yH + 0.05, pOut.z);
   root.add(FK.pipe({ points: [new THREE.Vector3(xBV + bvL / 2, yH, pOut.z), new THREE.Vector3(XF, yH, pOut.z), nzBase], d, wall: 0.0015, R: 0.03 }));
   const nz = add(FK.nozzle({ d: 0.008 }), nzBase.x, nzBase.y, nzBase.z), yJet = nzBase.y + nz.userData.H;
@@ -45,7 +49,7 @@ export function createFountainStation({ root, S, fmt, BED_TOP }) {
   const src = mains({ p0: 5 * BAR, d: 0.025, L: 15, pReg: 3 * BAR });
   let level = 0.6 * inH, tap = 0, inBucket = 0, metered = 0;
   const tapApi = { press: (n) => { if (n === 'tap') tap = tap >= 1 ? 0 : tap + 0.5; }, release() {}, drag() {}, tick() {} };
-  const ft = createFountain({ D2: 0.04, nozzleD: 0.008, lift: yJet - yFloor - level }), Fs = ft.state;
+  const ft = createFountain({ D2: 0.04, nozzleD: 0.008, pipe: { d: 0.013, L: 1.0 }, lift: yJet - yFloor - level }), Fs = ft.state;
   let ang = 0, angT = 0, th = 0; const st = { Qin: 0, Qov: 0, level: 0 };
   const bvApi = { press: (n) => { if (n === 'valve') angT = angT >= Math.PI / 2 - 1e-3 ? 0 : angT + Math.PI / 4; }, release() {}, drag() {}, tick() {} };
   function step(dt) {
@@ -60,7 +64,7 @@ export function createFountainStation({ root, S, fmt, BED_TOP }) {
     const yWater = yFloor + level; tu.setLevel(level / inH); fg.userData.setLevel(level); su.setTap(u); su.setMeter(metered);
     ft.step(dt, { motorOn: phy ? k7.pressed : true, valveAngle: phy ? ang : 0, lift: yJet - yWater });
     if (!phy) ang = 0;
-    bv.userData.setAngle(ang); cvL.userData.setOpen(Math.min(1, Fs.Q * 60000 / 8));
+    bv.userData.setAngle(ang); cvL.userData.setOpen(Math.min(1, Fs.Q * 60000 / 8)); rm.userData.setFloat(RM.h(Fs.Q));
     th += Fs.n * 2 * Math.PI / 60 * dt; pu.setAngle(th);
     jet.update(dt, { origin: new THREE.Vector3(nzBase.x, yJet, nzBase.z), dir: new THREE.Vector3(0, 1, 0), v: Fs.v, floorY: yWater, on: Fs.v > 0.05 });
     tapJet.update(dt, { origin: tapOut, dir: su.outletDir, v: Qin > 0 ? Math.max(0.3, Qin / (Math.PI * su.dSpout ** 2 / 4)) : 0, floorY: yWater, on: Qin > 0 });
@@ -83,6 +87,7 @@ export function createFountainStation({ root, S, fmt, BED_TOP }) {
     el0('nozzle', 'FT-nozzle', 'Dysza Ø 8 mm (pionowa)', nz, [['Współczynniki', 'Cd 0,9 · Cv 0,97']], [['in', 'Wlot', 'płyn'], ['jet', 'Strumień → zbiornik', 'płyn']]),
     el0('supply', 'FT-supply', 'Przyłącze wodociągowe z reduktorem (kran nad zbiornikiem)', sup, [['Ciśnienie w sieci', '5 bar'], ['Reduktor', 'nastawa 3 bar'], ['Wodomierz', 'skrzydełkowy, Q3 2,5 m³/h']], [['mains', 'Sieć wodociągowa', 'płyn'], ['out', 'Kran → zbiornik', 'płyn']]),
     el0('overflow', 'FT-overflow', 'Przelew Ø25 i wąż przezroczysty do wiadra', ovHose, [['Krawędź przelewu', '140 mm nad dnem'], ['Wydatek', 'przelew kołowy: Q = ⅔·Cd·π·d·√(2g)·h^1,5']], [['a', 'Przepust w ściance', 'płyn'], ['b', 'Wylot → wiadro', 'płyn']]),
+    el0('flow', 'FT-flowmeter', 'Przepływomierz — rotametr 0–12 l/min (pion)', rm, [['Zasada', 'pływak w stożkowej rurce'], ['Spadek ciśnienia', `${fmt(RM.dp, 0)} Pa`]], [['in', 'Wlot (zawór zwrotny)', 'płyn'], ['out', 'Wylot → zawór kulowy', 'płyn']]),
     el0('float', 'FT-float', 'Wskaźnik poziomu z pływakiem', fg, [['Pływak', 'kula PP Ø 28, zanurzona ok. 40 %']], [['level', 'Poziom wody', 'płyn']]),
     el0('bucket', 'FT-bucket', 'Wiadro 10 l (odbiór przelewu)', bk, [['Pojemność', '10 l']], [['top', 'Otwór — wąż przelewowy', 'płyn']]),
     el0('s7', 'FT-button', 'Przycisk S7 (pompa, z podświetleniem)', s7, [['Styk', 'NO, z zatrzaskiem']], [['a', 'Zasilanie M4', 'prąd']]),

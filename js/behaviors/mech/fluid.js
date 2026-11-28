@@ -138,6 +138,16 @@ export function mains({ p0 = 4 * BAR, d = 0.02, L = 15, zeta = 8, tapD = 0.006, 
 // przelew rurowy: przy małym wzniesieniu h ponad krawędź — przelew kołowy (⅔·Cd·π·d·√(2g)·h^1,5), przy dużym — wypływ
 // pełnym przekrojem pod wysokością h + spadek przewodu hd (mniejsza z dwóch wartości)
 export const overflowQ = (h, d, hd = 0.12) => h <= 0 ? 0 : Math.min((2 / 3) * 0.6 * Math.PI * d * Math.sqrt(2 * G) * h ** 1.5, 0.6 * Math.PI * d * d / 4 * Math.sqrt(2 * G * (h + hd)));
+// rotametr (przepływomierz o zmiennym przekroju): pływak w stożkowej rurce unosi się, aż szczelina pierścieniowa przepuści
+// przepływ przy spadku ciśnienia równym ciężarowi pływaka w cieczy na jego przekroju: Δp = Vf·g·(ρf − ρ) / Af;
+// pole szczeliny A(h) = π/4·((Df + 2h·tg α)² − Df²) rośnie liniowo z wysokością → skala niemal liniowa
+export function rotameter({ Df = 0.012, Lf = 0.014, rhoF = 7900, alpha = 0.012, L = 0.1, Cd = 0.7, rho = 998 } = {}) {
+  const Af = Math.PI * Df * Df / 4, Vf = Af * Lf * 0.55, dp = Vf * G * (rhoF - rho) / Af, k = Cd * Math.sqrt(2 * dp / rho);
+  const A = (h) => Math.PI / 4 * ((Df + 2 * h * Math.tan(alpha)) ** 2 - Df * Df);
+  return { Df, Af, Vf, dp, L, A, alpha, Qmax: k * A(L), h: (Q) => { let lo = 0, hi = L; if (Q >= k * A(L)) return L; for (let i = 0; i < 40; i++) { const m = (lo + hi) / 2; if (k * A(m) < Q) lo = m; else hi = m; } return (lo + hi) / 2; }, Q: (h) => k * A(h) };
+}
+// rotametr dobrany do zakresu: zbieżność rurki α tak, by przy Qmax pływak stanął na górze skali
+export function rotameterFor(Qmax, o = {}) { let lo = 0.0005, hi = 0.2; for (let i = 0; i < 50; i++) { const m = (lo + hi) / 2; if (rotameter({ ...o, alpha: m }).Qmax < Qmax) lo = m; else hi = m; } return rotameter({ ...o, alpha: (lo + hi) / 2 }); }
 // akumulator pęcherzowy: azot wstępnie p0 (ok. 0,9 p_min), objętość V0; przy ciśnieniu p objętość gazu V0·(p0/p)^(1/n);
 // n = 1 izotermicznie (powoli), 1,4 adiabatycznie (szybko)
 export function accumulator({ V0 = 0.7e-3, p0 = 40 * BAR } = {}) {
